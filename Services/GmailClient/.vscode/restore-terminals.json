@@ -1,0 +1,30 @@
+{
+	"artificialDelayMilliseconds": 300,
+	"keepExistingTerminalsOpen": false,
+	"runOnStartup": true,
+	"terminals":
+	[
+		{
+			"splitTerminals":
+			[
+				{
+					"name": "conda env",
+					"commands": ["conda activate services"]
+				}
+			]
+		},
+		{
+			"splitTerminals":
+			[
+				{
+					"name": "unit tests",
+					"commands":
+					[
+						"conda activate services",
+						"clear && pytest -s"
+					]
+				}
+			]
+		}
+	]
+}

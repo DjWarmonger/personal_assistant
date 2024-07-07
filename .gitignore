@@ -1,0 +1,7 @@
+**/.code-workspace
+**/*.db
+**/.pytest_cache
+**/__pycache__
+**/.env
+**/credentials.json
+**/token.json
