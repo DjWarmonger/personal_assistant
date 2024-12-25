@@ -11,9 +11,10 @@ from langfuse.decorators import observe
 #from pydantic import BaseModel, Field
 
 from notion_client import NotionClient
-from tz_common import log
+from tz_common import log, JsonConverter
 
 client = NotionClient()
+json_converter = JsonConverter()
 
 class SearchQuery(BaseModel):
 
@@ -50,7 +51,7 @@ class NotionSearchTool(BaseTool):
 		log.flow(f"Searching Notion... {query}")
 		
 		result = await client.search_notion(query)
-		return result
+		return json_converter.remove_spaces(result)
 	
 	def search_notion(
 		self,
@@ -102,7 +103,7 @@ class NotionPageDetailsTool(BaseTool):
 		log.flow(f"Getting details of Notion page... {notion_id}")
 
 		result = await client.get_notion_page_details(page_id=notion_id)
-		return result
+		return json_converter.remove_spaces(result)
 	
 	def get_notion_page_details(
 		self,
@@ -157,7 +158,7 @@ class NotionGetChildrenTool(BaseTool):
 		
 		# TODO: Automatically recognize page / block
 		result = await client.get_block_content(block_id=index, start_cursor=start_cursor)
-		return result
+		return json_converter.remove_spaces(result)
 	
 	def get_block_content(
 		self,
@@ -221,7 +222,7 @@ class NotionQueryDatabaseTool(BaseTool):
 		log.flow("filter:", str(filter))
 		
 		result = await client.query_database(notion_id, filter, start_cursor)
-		return result
+		return json_converter.remove_spaces(result)
 	
 	def query_database(
 		self,

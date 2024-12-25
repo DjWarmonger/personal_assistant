@@ -61,7 +61,7 @@ def call_tool(state) -> None:
 
 	for key, result in results.items():
 		log.debug(f"Result:", result)
-		# TODO: Make sure tool names match responses
+		# FIXME: Quote markk at the beginning: "jieUsS3NXOAlfqzN2axiFYd4(NotionGetChildren) returned:
 		message = f"{key} returned:\n{result}"
 		state["messages"].append(AIMessage(content=message))
 
