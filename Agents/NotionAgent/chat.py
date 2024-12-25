@@ -1,0 +1,57 @@
+import time
+
+from langchain_community.chat_message_histories import ChatMessageHistory
+
+from tz_common.logs import log
+from graph import app, langfuse_handler
+
+def chat(loop = True, user_prompt = "") -> str:
+
+	console_prompt = "You: "
+
+	history = ChatMessageHistory()
+	
+	print("Hello! I'm your chatbot. Type 'quit' to exit.")
+	while True:
+
+		# TODO: Create another utility with input() in green color
+
+		if user_prompt:
+			user_input = user_prompt
+		else:
+			user_input = input(console_prompt)
+			log.user_silent(user_input)
+	
+		if user_input.lower() == 'quit':
+			break
+
+		if not user_input:
+			continue
+
+		history.add_user_message(user_input)
+
+		response = app.invoke({"messages": history.messages}, config={"callbacks": [langfuse_handler]})
+
+		# FIXME: Render \n as actual new lines
+		# FIXME: Render \t
+		log.ai("Assistant: \n", response["messages"][-1].content)
+		
+		history = ChatMessageHistory()
+		for message in response["messages"]:
+			history.add_message(message)
+
+		if not loop:
+			return response["messages"][-1].content
+		
+
+
+
+if __name__ == "__main__":
+	chat()
+	# Only for saving db
+	#time.sleep(5)
+
+# Hello, search my Notion for AI projects and give me a summary of the projects.
+# Znajdź w Notion moje projekty AI i przedstaw krótkie podsumowanie tych projektów.
+# Jak wygląda moja to-do lista na dziś?
+# Znajdź zadania w bazie "Sprawy życiowe" ze statusem "Blocked" i przedstaw ich podsumowanie.
