@@ -228,7 +228,7 @@ class BlockCache(TimedStorage):
 
 	def __del__(self):
 		# TODO: Elegant way to force save?
-		self.save()
+		#self.save()
 		self.conn.close()
 
 	def get_blocks_updated_since(self, timestamp: str) -> List[Tuple[str, str, str]]:

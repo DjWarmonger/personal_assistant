@@ -49,8 +49,12 @@ def _():
 
     "List topics mentioned in my C++ 20 notes. Are there any C++20 features missing in that article?"]
 
-    prompts = prompts_pl + prompts_eng
-    return prompts, prompts_eng, prompts_pl, todo_prompts
+    promts_favourites=['Dodaj tę stronę TODO do ulubionych: https://www.notion.so/TODO-dzi-4fa780c8df7746ff83500cd7d504c3d7',
+
+    'Dodaj tę stronę TODO do ulubionych: https://www.notion.so/TODO-dzi-4fa780c8df7746ff83500cd7d504c3d7. Następnie wyświetl zadania z dzisiejszej listy TODO.']
+
+    prompts = promts_favourites + prompts_pl + prompts_eng
+    return prompts, prompts_eng, prompts_pl, promts_favourites, todo_prompts
 
 
 @app.cell
@@ -150,10 +154,10 @@ def _(asyncio, mo, prompt_selector, run_button, run_chats_parallel):
         # Create new event loop for each run
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
+
         task = loop.create_task(run_chats_parallel(prompt_selector.value))
         loop.run_until_complete(asyncio.wait_for(task, timeout=None))
-        
+
         update_tabs = True
 
     except asyncio.CancelledError:
@@ -164,8 +168,7 @@ def _(asyncio, mo, prompt_selector, run_button, run_chats_parallel):
             pass
     finally:
         loop.close()
-
-    return task, update_tabs
+    return loop, task, update_tabs
 
 
 @app.cell
