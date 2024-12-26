@@ -50,9 +50,28 @@ def call_tool(state) -> None:
 
 				tasks.append(get_tool_result(tool, tool_name, input_args))
 
+	# TODO: Test exceptions
 	async def call_tools():
-		results = await asyncio.gather(*tasks)
-		return dict(results)
+		try:
+			results = await asyncio.gather(*tasks, return_exceptions=True)
+			processed_results = {}
+			
+			for result in results:
+				if isinstance(result, Exception):
+					# Convert exception to string message
+					error_message = str(result)
+					log.error(f"Error: {error_message}")
+					processed_results[result.__class__.__name__] = error_message
+				else:
+					# Assuming result is a tuple of (key, value)
+					key, value = result
+					processed_results[key] = value
+					
+			return processed_results
+			
+		except Exception as e:
+			# Handle any unexpected errors in the gather itself
+			return {"error": str(e)}
 
 	#start_time = time.time()
 	results = asyncio.run(call_tools())
