@@ -49,6 +49,7 @@ class NotionClient:
 		# Do not close the manager; it's shared globally.
 		pass
 
+
 	async def get_notion_page_details(self, page_id=None, database_id=None):
 		if page_id is None and database_id is None:
 			page_id = self.landing_page_id
@@ -87,16 +88,17 @@ class NotionClient:
 			log.error(e)
 			return str(e)
 
+
 	async def get_block_content(self, block_id, start_cursor=None):
 		uuid = self.index.to_uuid(block_id)
 		if uuid is None:
 			return None
 
-		# Possibly check block cache here...
+		# Possibly check block cache here?
 
 		url = f"https://api.notion.com/v1/blocks/{uuid}/children?page_size=20"
 		if start_cursor is not None:
-			sc_uuid = self.index.to_formatted_uuid(start_cursor)
+			sc_uuid = self.formatted_uuid(start_cursor)
 			url += f"&start_cursor={sc_uuid}"
 
 		await AsyncClientManager.wait_for_next_request()
@@ -110,6 +112,7 @@ class NotionClient:
 			data = self.convert_message(response.json(), clean_type=False)
 			# Possibly save blocks to cache
 			return data
+
 
 	async def search_notion(self, query, filter_type=None,
 							start_cursor=None, sort="descending"):
@@ -129,7 +132,7 @@ class NotionClient:
 				"property": "object"
 			}
 		if start_cursor is not None:
-			payload["start_cursor"] = self.index.to_formatted_uuid(start_cursor)
+			payload["start_cursor"] = self.formatted_uuid(start_cursor)
 
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
@@ -142,6 +145,7 @@ class NotionClient:
 			data = self.convert_message(response.json())
 			return data
 
+
 	async def query_database(self, database_id, filter=None, start_cursor=None):
 		if filter is None:
 			filter = {}
@@ -153,7 +157,7 @@ class NotionClient:
 		if filter:
 			payload["filter"] = filter
 		if start_cursor is not None:
-			payload["start_cursor"] = self.index.to_formatted_uuid(start_cursor)
+			payload["start_cursor"] = self.formatted_uuid(start_cursor)
 
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
@@ -168,6 +172,13 @@ class NotionClient:
 
 		# TODO: Consider storing a sorted list of often visited pages
 
+
+	def set_favourite(self, uuid: int | list[int], set: bool) -> str:
+
+		message = self.index.set_favourite_int(uuid, set)
+		return message
+
+
 	def _generate_notion_url(self, notion_id):
 		if notion_id is None:
 			return None
@@ -177,6 +188,19 @@ class NotionClient:
 		
 		return f"{base_url}{formatted_id}"
 	
+
+	def extract_notion_id(self, url):
+		if url is None:
+			return None
+		
+		base_url = "https://www.notion.so/"
+		# TODO: Strip extra content, if any
+		# TODO: Strip query parameters, if any
+		formatted_id = url.replace(base_url, "")
+		
+		return formatted_id
+
+
 	def convert_message(self, message : dict | list, clean_timestamps = True, clean_type = True) -> dict | list:
 
 		message = self.clean_response_details(message)
@@ -213,14 +237,15 @@ class NotionClient:
 
 		return message
 
+
 	def convert_to_index_id(self, message):
 
 		if isinstance(message, dict):
 			for key, value in message.items():
 				if key in ['id', 'next_cursor', 'page_id', 'database_id', 'block_id']:
 					# Property ids are short, ignore them
-					if self.index.validate_notion_id(value):
-						cleaned_uuid = self.index.clean_uuid(value)
+					if self.index.converter.validate_uuid(value):
+						cleaned_uuid = self.index.converter.clean_uuid(value)
 						self.index.add_uuid(cleaned_uuid, item_type=str(self.key_to_type[key]))
 						message[key] = self.index.to_int(cleaned_uuid)
 					else:
@@ -303,9 +328,16 @@ class NotionClient:
 			del message["request_id"]
 
 		return message
-	
+
+
+	def formatted_uuid(self, uuid: str | int) -> str:
+		if isinstance(uuid, int):
+			uuid = self.index.get_uuid(uuid)
+		return self.index.converter.to_formatted_uuid(uuid)
+
 
 	def save_now(self):
+		#  TODO: Move both to one class that manages storage?
 		self.index.save_now()
 		self.cache.save_now()
 

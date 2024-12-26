@@ -24,7 +24,7 @@ async def test_navigate_to_notion_page(notion_client):
 
 	assert result["object"] == "page"
 	assert "id" in result
-	assert notion_client.index.to_uuid(result["id"]) == notion_client.index.clean_uuid(page_id)
+	assert notion_client.index.to_uuid(result["id"]) == notion_client.index.converter.clean_uuid(page_id)
 	assert "properties" in result
 
 @pytest.mark.asyncio
@@ -35,7 +35,7 @@ async def test_navigate_to_database(notion_client):
 
 	assert result["object"] == "database"
 	assert "id" in result
-	assert notion_client.index.to_uuid(result["id"]) == notion_client.index.clean_uuid(database_id)
+	assert notion_client.index.to_uuid(result["id"]) == notion_client.index.converter.clean_uuid(database_id)
 	assert "properties" in result
 
 @pytest.mark.asyncio

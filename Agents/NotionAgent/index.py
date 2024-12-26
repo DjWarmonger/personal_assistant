@@ -1,28 +1,38 @@
 import re
 import sqlite3
 import threading
-import time
 from typing import List, Tuple
+from urllib.parse import urlparse
 
 from tz_common.logs import log
 from tz_common.timed_storage import TimedStorage
-
-# TODO: Move uuid conversion to common class, share uuids between projects
+from uuid_converter import UUIDConverter
+"""
+TODO: Split class responsibilities:
+- Database management
+- Notion-specific URL and block UUID handling
+- Favourites management
+"""
 
 class Index(TimedStorage):
 
-	UUID_PATTERN = re.compile(r'^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$', re.IGNORECASE)
+	def __init__(self, load_from_disk=True, run_on_start=False):
+		super().__init__(period_ms=3000, run_on_start=run_on_start)
 
-	def __init__(self):
-		super().__init__(period_ms=3000, run_on_start=False)
+		self.converter = UUIDConverter()
 
 		self.conn = sqlite3.connect(':memory:', check_same_thread=False)
 		self.cursor = self.conn.cursor()
 		self.lock = threading.Lock()
-		self.load_from_disk()
-		self.create_table()
 
-		self.start_periodic_save()
+		if load_from_disk:
+			self.load_from_disk()
+		self.create_table()
+		self.create_favourites_table()
+
+		if (run_on_start):
+			self.start_periodic_save()
+
 
 	def create_table(self):
 		table_exists = self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='index_data'").fetchone()
@@ -40,18 +50,113 @@ class Index(TimedStorage):
 			self.set_dirty()
 
 
-	def validate_notion_id(self, notion_id):
-		if not notion_id:
+	def create_favourites_table(self):
+		table_exists = self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='favourites'").fetchone()
+		if not table_exists:
+			self.cursor.execute('''
+				CREATE TABLE IF NOT EXISTS favourites (
+					uuid TEXT UNIQUE
+				)
+			''')
+			self.conn.commit()
+			self.set_dirty()
+
+
+	def get_favourites(self, count: int = 10) -> List[str]:
+		with self.lock:
+			self.cursor.execute('''
+				SELECT f.uuid 
+				FROM favourites f
+				JOIN index_data i ON f.uuid = i.uuid
+				ORDER BY i.visit_count DESC 
+				LIMIT ?
+			''', (count,))
+			results = self.cursor.fetchall()
+
+			# TODO: May want to return visit count and name as well?
+			#log.debug(f"Favourites:", results)
+			return [result[0] for result in results]
+	
+	def set_favourite(self, uuid: str | list[str], add: bool) -> str:
+
+		message = ""
+
+		if isinstance(uuid, str):
+			uuid = self.converter.clean_uuid(uuid)
+		elif isinstance(uuid, list):
+			uuid = [self.converter.clean_uuid(u) for u in uuid]
+		else:
+			raise ValueError(f"Invalid type for set_favourite : {type(uuid)}")
+
+		with self.lock:
+			if isinstance(uuid, str):
+				if add:
+					self.cursor.execute('INSERT OR REPLACE INTO favourites (uuid) VALUES (?)', (uuid,))
+				else:
+					self.cursor.execute('DELETE FROM favourites WHERE uuid = ?', (uuid,))
+
+				message = f"{'Added to' if add else 'Removed from'} favourites : {uuid}"
+
+			elif isinstance(uuid, list):
+				if add:
+					self.cursor.executemany('INSERT OR REPLACE INTO favourites (uuid) VALUES (?)', [(u,) for u in uuid])
+				else:
+					self.cursor.executemany('DELETE FROM favourites WHERE uuid = ?', [(u,) for u in uuid])
+
+				message = f"{'Added to' if add else 'Removed from'} favourites : {', '.join(uuid)}"
+
+			self.conn.commit()
+			self.set_dirty()
+
+		log.debug(message)
+		return message
+	
+
+	def set_favourite_int(self, id : int | list[int], add: bool) -> str:
+
+		with self.lock:
+			if isinstance(id, int):
+				uuids = self.get_uuid(id)
+			elif isinstance(id, list):
+				uuids = [self.get_uuid(i) for i in id]
+		# Remove None values from the list of UUIDs
+		uuids = [uuid for uuid in uuids if uuid is not None]
+		if not uuids:
+			return "None of the provided ids were found in the index"
+
+		return self.set_favourite(uuids, add)
+
+
+	def validate_notion_url(self, notion_url) -> bool:
+		if not notion_url:
 			return False
 		
-		return bool(self.UUID_PATTERN.match(notion_id))
-	
-	def clean_uuid(self, uuid: str) -> str:
-		return uuid.replace("-", "")
+		# TODO: Try to actually GET this url?
+		parsed_url = urlparse(notion_url)
+		return parsed_url.netloc == "www.notion.so"
+
+
+	def url_to_uuid(self, url: str) -> str:
+		# Extract UUID from URL using regex
+		match = re.search(r'[0-9a-f]{32}', url.lower())
+		if not match:
+			raise ValueError("No UUID found in URL")
+		
+		uuid = match.group(0)
+		if not self.converter.validate_uuid(uuid):
+			raise ValueError("Invalid UUID format")
+		
+		return self.converter.clean_uuid(uuid)
+
 
 	def add_uuid(self, uuid: str, name: str = "", item_type: str = "") -> int:
-		uuid = self.clean_uuid(uuid)
+		uuid = self.converter.clean_uuid(uuid)
 		with self.lock:
+			self.cursor.execute('SELECT int_id FROM index_data WHERE uuid = ?', (uuid,))
+			existing_id = self.cursor.fetchone()
+			if existing_id:
+				return existing_id[0]
+
 			self.cursor.execute('''
 				INSERT OR IGNORE INTO index_data (uuid, name, item_type)
 				VALUES (?, ?, ?)
@@ -59,6 +164,7 @@ class Index(TimedStorage):
 			if self.cursor.rowcount > 0:
 				self.set_dirty()
 			self.conn.commit()
+
 			return self.cursor.lastrowid
 
 	def visit_uuid(self, uuid: str):
@@ -92,18 +198,36 @@ class Index(TimedStorage):
 			except ValueError:
 				pass
 
-			if self.validate_notion_id(id):
+			if self.converter.validate_uuid(id):
 				return id
 			else:
 				raise ValueError("Invalid uuid")
 		else:
 			raise TypeError("Invalid type for conversion to uuid")
 		
-	def to_formatted_uuid(self, uuid: str) -> str:
-		# Convert to 8-4-4-4-12 form
 
-		clean = self.to_uuid(uuid)
-		return f"{clean[:8]}-{clean[8:12]}-{clean[12:16]}-{clean[16:20]}-{clean[20:]}"
+	
+	def add_notion_url_or_uuid_to_index(self, url_or_uuid: str, title: str = "") -> int:
+
+		if self.validate_notion_url(url_or_uuid):
+			uuid = self.url_to_uuid(url_or_uuid)
+		else:
+			uuid = url_or_uuid
+
+		if not self.converter.validate_uuid(uuid):
+			raise ValueError(f"Invalid Notion UUID: {uuid}")
+
+		# TODO: Determine item type from url?
+
+		return self.add_uuid(uuid, name=title, item_type="page")
+
+
+	def add_notion_url_or_uuid_to_favourites(self, url_or_uuid: str, set = True,title: str = "") -> int:
+
+		notion_id = self.add_notion_url_or_uuid_to_index(url_or_uuid, title=title)
+		self.set_favourite(url_or_uuid, set)
+		return notion_id
+
 
 	def to_int(self, uuid: str) -> int:
 		with self.lock:
@@ -111,14 +235,18 @@ class Index(TimedStorage):
 			result = self.cursor.fetchone()
 			return result[0] if result else None
 
+
 	def get_uuid(self, int_id: int) -> str:
 		with self.lock:
 			self.cursor.execute('SELECT uuid FROM index_data WHERE int_id = ?', (int_id,))
 			result = self.cursor.fetchone()
 			return result[0] if result else None
 
+
 	def get_int(self, uuid: str) -> int:
+		# FIXME: This is just duplicated method from to_int
 		return self.to_int(uuid)
+
 
 	def get_visit_count(self, int_id: int) -> int:
 		with self.lock:
@@ -126,11 +254,13 @@ class Index(TimedStorage):
 			result = self.cursor.fetchone()
 			return result[0] if result else 0
 
+
 	def set_name(self, int_id: int, name: str):
 		with self.lock:
 			self.cursor.execute('UPDATE index_data SET name = ? WHERE int_id = ?', (name, int_id))
 			self.conn.commit()
 			self.set_dirty()
+
 
 	def get_name(self, int_id: int) -> str:
 		with self.lock:
@@ -138,12 +268,14 @@ class Index(TimedStorage):
 			result = self.cursor.fetchone()
 			return result[0] if result else ""
 
+
 	def delete_uuid(self, uuid: str) -> int:
 		with self.lock:
 			self.cursor.execute('DELETE FROM index_data WHERE uuid = ?', (uuid,))
 			self.conn.commit()
 			self.set_dirty()
 			return self.cursor.rowcount
+
 
 	def get_most_popular(self, count: int) -> str:
 		with self.lock:
@@ -181,6 +313,8 @@ class Index(TimedStorage):
 		except sqlite3.Error:
 			log.flow("No existing index file found. Starting with an empty index.")
 
+
 	def __del__(self):
-		self.save()
+		# FIXME: Do not do that during unit tests
+		#self.save()
 		self.conn.close()

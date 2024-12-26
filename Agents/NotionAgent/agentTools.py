@@ -237,9 +237,76 @@ class NotionQueryDatabaseTool(BaseTool):
 		
 		return client.query_database(notion_id, filter, start_cursor)
 
+# TODO: LLM should use numeric ids
+# But it should be able to add uuid on request as well
+# TODO: Also add Notion URL on request, with validation
+class ChangeFavourtiesTarget(BaseModel):
+
+	urlOrUuid: str = Field(
+		...,
+		description="URL or UUID of the Notion page, block or database to add or remove from favourites"
+	)
+	set: bool = Field(
+		default=True,
+		description="Whether to add or remove the UUID or URL from favourites"
+	)
+	title: str = Field(
+		default="",
+		description="Brieft title of the page to be added to favourites"
+	)
+
+class ChangeFavourtiesSchema(BaseModel):
+	pass
+
+class ChangeFavourties(BaseTool):
+
+	name: str = "ChangeFavourties"
+	description: str = "Change the favourites list"
+	args_schema: Type[ChangeFavourtiesSchema] = ChangeFavourtiesTarget
+
+	def _run(
+		self,
+		urlOrUuid: str,
+		set: bool,
+		title: str = "",
+		run_manager: Optional[CallbackManagerForToolRun] = None,
+	) -> str:
+
+		return self.add_to_favourites(urlOrUuid, set, title)
+
+
+	# TODO: It doesn't do anything asyncronously, is that ok?
+	async def _arun(
+		self,
+		urlOrUuid: str,
+		set: bool,
+		title: str = "",
+		run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
+	) -> str:
+
+		return self.add_to_favourites(urlOrUuid, set, title)
+	
+
+	def add_to_favourites(
+		self,
+		urlOrUuid: str,
+		set: bool,
+		title: str = "",
+	) -> str:
+
+		notion_id = client.index.add_notion_url_or_uuid_to_favourites(urlOrUuid, set, title)
+		
+		return f"Added {urlOrUuid} to favourites with id {notion_id}"
+
+
 def get_link_from_id(notion_id):
 	# Allow to resolve short id into full link for user convenience
 	# Should also work for images and embedded files
+	pass
+
+
+def get_favourites():
+	# TODO: Allow Agent to use this
 	pass
 
 def get_most_visited_pages(count : int = 10):
@@ -253,11 +320,13 @@ def request_human_feedback():
 # Set up the tools to execute them from the graph
 from langgraph.prebuilt import ToolExecutor
 
-tool_search_notion = NotionSearchTool()
-tool_details_notion = NotionPageDetailsTool()
-tool_get_children = NotionGetChildrenTool()
-tool_query_database = NotionQueryDatabaseTool()
 # Set up the agent's tools
-agent_tools = [tool_search_notion, tool_details_notion, tool_get_children, tool_query_database]
+agent_tools = [
+	NotionSearchTool(),
+	NotionPageDetailsTool(),
+	NotionGetChildrenTool(),
+	NotionQueryDatabaseTool(),
+	ChangeFavourties()
+	]
 
 tool_executor = ToolExecutor(agent_tools)
