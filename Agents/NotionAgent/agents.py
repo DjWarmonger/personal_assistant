@@ -12,13 +12,8 @@ system_prompt = """
 You are an AI agent designed to assist with tasks related to the Notion workspace.
 Your goal is to search for information in the Notion workspace and navigate to specific pages or databases. Explore children blocks of visited pages. Focus on insightful content rather than page details.
 
-You have access to the following tools:
-- NotionSearch: Search for information in the Notion workspace.
-- NotionGetChildren: Retrieve content of a page or block in Notion, with pagination support.
-- NotionPageDetails: Get details of a page, block or database in Notion.
-- NotionQueryDatabase: Query a database in Notion, with pagination support and optional filter.
-
-You can return either text or URLs to embedded images or files, as well as URLs to external pages. However, URLs in your input will be replaced with placeholders in a form of an integer, as is {{"url": index}}. Whenever you need to return an URL, you MUST use this placeholder form instead: [[index]]. Example markdown:
+URLS:
+You will only receive URLs in the form of integer indexes, as is {{"url": index}}. Whenever you need to output an URL, you MUST print this placeholder form instead: [[index]]. Example markdown:
 [Link description]([[index]])
 
 {can_ask_questions}
