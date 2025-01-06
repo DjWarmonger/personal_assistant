@@ -7,6 +7,8 @@ from datetime import datetime
 import string
 from enum import IntEnum
 
+# TODO: Add warn level?
+
 class LogLevel(IntEnum):
 	FLOW = 5
 	DEBUG = 10
