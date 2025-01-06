@@ -52,8 +52,6 @@ class NotionClient:
 		if page_id is None and database_id is None:
 			page_id = self.landing_page_id
 
-		# FIXME: "Item page:17 not found in cache"
-
 		try:
 			if page_id is not None:
 				page_id = self.index.to_uuid(page_id)
@@ -84,10 +82,16 @@ class NotionClient:
 
 				data = self.convert_message(response.json(), clean_timestamps=False)
 
-				# FIXME: Freeze here?
-				self.cache.invalidate_page_if_expired(data["id"], data["last_edited_time"])
+				uuid = self.index.to_uuid(data["id"])
+				if uuid is None:
+					self.cache.invalidate_page_if_expired(uuid, data["last_edited_time"])
+					self.index.visit_uuid(uuid)
 
 				data = self.clean_timestamps(data)
+
+				# TODO: Add page to cache? Then when would we invalidate it?
+				# TODO: Load children blocks from cache?
+				# TODO: Increase visit count
 
 				# Possibly invalidate cache, etc.
 				return data
@@ -298,13 +302,10 @@ class NotionClient:
 					# Property ids are short, ignore them
 					if self.index.converter.validate_uuid(value):
 						cleaned_uuid = self.index.converter.clean_uuid(value)
-						log.debug(f"Cleaned UUID: {cleaned_uuid}")
-						# We get here, then hang at add_uuid
 						uuid = self.index.add_uuid(cleaned_uuid)
 						message[key] = uuid
 					else:
-						# FIXME: "title is not valid UUID"
-						log.debug(f" {value} is not valid UUID")
+						# Silently ignore non-uuids
 						pass
 				else:
 					self.convert_to_index_id(value)
