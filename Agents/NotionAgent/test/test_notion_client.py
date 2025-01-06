@@ -10,7 +10,7 @@ load_dotenv()
 
 @pytest_asyncio.fixture
 async def notion_client():
-	client = NotionClient()
+	client = NotionClient(run_on_start=False)
 	try:
 		yield client
 	finally:

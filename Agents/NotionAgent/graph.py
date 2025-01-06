@@ -27,17 +27,20 @@ class AgentState(TypedDict):
 
 def call_tool(state) -> None:
 
-	# TODO: More streamlined, common wrapper to call tools for every agent
-
 	# We know the last message involves at least one tool call
 	last_message = state["functionCalls"]
 
 	tasks = []
 
+	# Handle empty case
+	if not last_message.additional_kwargs.get("tool_calls", []):
+		return {"messages": state["messages"], "functionCalls": []}
+
 	async def get_tool_result(tool, name: str, input_args: dict) -> tuple[str, str]:
-		result = await tool.arun(tool_input=input_args)#, **input_args)
+		result = await tool.arun(tool_input=input_args)
 		return (name, result)
 	
+	# Create tasks
 	for tool_call in last_message.additional_kwargs["tool_calls"]:
 		
 		name = tool_call["function"]["name"]
@@ -73,12 +76,14 @@ def call_tool(state) -> None:
 			# Handle any unexpected errors in the gather itself
 			return {"error": str(e)}
 
-	#start_time = time.time()
-	results = asyncio.run(call_tools())
-	#end_time = time.time()
-	#log.debug(f"Tool calls took {end_time - start_time} seconds")
+	try:
+		loop = asyncio.new_event_loop()
+		asyncio.set_event_loop(loop)
+		processed_results = loop.run_until_complete(call_tools())
+	finally:
+		loop.close()
 
-	for key, result in results.items():
+	for key, result in processed_results.items():
 		log.debug(f"Result:", result)
 		# FIXME: Quote markk at the beginning: "jieUsS3NXOAlfqzN2axiFYd4(NotionGetChildren) returned:
 		message = f"{key} returned:\n{result}"
@@ -124,7 +129,7 @@ def check_tools(state: AgentState) -> AgentState:
 			state["functionCalls"] = last_message
 			log.flow(f"Calling tools")
 
-			ret =  call_tool(state)
+			ret = call_tool(state)
 
 			log.debug(f"Returned from tool calls:\n", ret)
 

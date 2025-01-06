@@ -11,7 +11,7 @@ class TimedStorage(ABC):
 
 	def __init__(self, period_ms: int = 5000, run_on_start: bool = True):
 
-		self._periodic_save_lock = threading.Lock()
+		self._periodic_save_lock = threading.RLock()
 		self._stop_event = threading.Event()
 		self._timer = threading.Thread(target=self._save_periodically, daemon=True)
 
@@ -23,11 +23,20 @@ class TimedStorage(ABC):
 			self._timer.start()
 
 
-	def set_dirty(self, mode = True):
-
-		with self._periodic_save_lock:
-			self.dirty = mode
-			self.last_update = time.time()
+	def set_dirty(self):
+		try:
+			# Add timeout to prevent indefinite blocking
+			if self._periodic_save_lock.acquire(timeout=1.0):
+				try:
+					self.dirty = True
+					self.last_update = time.time()
+				finally:
+					self._periodic_save_lock.release()
+			else:
+				# FIXME: This actully happens all the time :/
+				log.error(f"{self.__class__.__name__}: Failed to acquire lock in set_dirty()")
+		except Exception as e:
+			log.error(f"{self.__class__.__name__}: Error in set_dirty(): {e}")
 
 
 	def clean(self):
@@ -37,19 +46,26 @@ class TimedStorage(ABC):
 
 
 	def is_dirty(self):
-		return self.dirty
+		with self._periodic_save_lock:
+			return self.dirty
 
 
 	def _save_periodically(self):
 
 		while not self._stop_event.is_set():
 			time.sleep(0.1)  # check periodically
-			with self._periodic_save_lock:
-				if self.dirty and (time.time() - self.last_update) * 1000 >= self.period_ms:
-					self.save()
-					self.dirty = False
-					# TODO: Allow custom name in  logs?
-					log.flow(f"Saved {self.__class__.__name__}")
+			try:
+				# Add timeout to prevent indefinite blocking
+				if self._periodic_save_lock.acquire(timeout=1.0):
+					try:
+						if self.dirty and (time.time() - self.last_update) * 1000 >= self.period_ms:
+							self.save()
+							self.dirty = False
+							log.flow(f"Saved {self.__class__.__name__}")
+					finally:
+						self._periodic_save_lock.release()
+			except Exception as e:
+				log.error(f"{self.__class__.__name__}: Error in _save_periodically(): {e}")
 
 
 	@abstractmethod

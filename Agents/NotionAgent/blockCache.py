@@ -16,23 +16,22 @@ class ObjectType(Enum):
 
 class BlockCache(TimedStorage):
 
-	def __init__(self, enable_disk_storage: bool = True):
-
-		super().__init__(period_ms=5000, run_on_start=False)
+	def __init__(self, load_from_disk=False, run_on_start=False):
+		super().__init__(period_ms=3000, run_on_start=run_on_start)
 
 		self.conn = sqlite3.connect(':memory:', check_same_thread=False)
 		self.cursor = self.conn.cursor()
-		self.lock = threading.Lock()
-		self.dirty = False
-		self.enable_disk_storage = enable_disk_storage
+		self.lock = threading.RLock()
 
-		self.load_from_disk()
+		if load_from_disk:
+			self.load_from_disk()
 		self.create_tables()
 
 		# TODO: Set to low value for testing
 		self.max_size = 64 * 1024 * 1024  # 64 MB in bytes
 
-		self.start_periodic_save()
+		if run_on_start:
+			self.start_periodic_save()
 
 
 	@staticmethod
@@ -67,6 +66,8 @@ class BlockCache(TimedStorage):
 
 	def _add_block_internal(self, cache_key: str, content: str, ttl: int = None, parent_key: str = None):
 		now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+		content = str(content)
 		
 		with self.lock:
 			# Check if the cache key already exists
@@ -96,9 +97,10 @@ class BlockCache(TimedStorage):
 			else:
 				log.debug(f"Adding relationship: {parent_key} -> {cache_key}")
 		
-		log.debug(f'{"Updated" if exists else "Added"} block in cache: {cache_key}')
+		log.debug(f'{"Updated block in" if exists else "Added block to"} cache: {cache_key}')
 
 	def add_block(self, uuid: str, content: str, ttl: int = None, parent_uuid: str = None, parent_type: ObjectType = ObjectType.BLOCK):
+
 		cache_key = self.create_cache_key(uuid, ObjectType.BLOCK)
 
 		parent_key = self.create_cache_key(parent_uuid, parent_type) if parent_uuid else None
@@ -113,6 +115,8 @@ class BlockCache(TimedStorage):
 		self._add_block_internal(cache_key, content, ttl)
 
 	def _invalidate_block_recursive(self, cache_key: str):
+
+		log.debug(f"Invalidating block {cache_key}")
 
 		child_keys = []
 		with self.lock:
@@ -135,6 +139,7 @@ class BlockCache(TimedStorage):
 			log.debug(f"Invalidating child {child_key}")
 			self._invalidate_block_recursive(child_key)
 
+
 	def invalidate_block_if_expired(self, uuid: str, timestamp: str):
 		cache_key = self.create_cache_key(uuid, ObjectType.BLOCK)
 
@@ -150,6 +155,7 @@ class BlockCache(TimedStorage):
 			else:
 				log.debug(f"Item {cache_key} not found in cache")
 
+
 	def invalidate_page_if_expired(self, uuid: str, timestamp: str):
 		cache_key = self.create_cache_key(uuid, ObjectType.PAGE)
 		# Invalidate all blocks under this page
@@ -157,6 +163,7 @@ class BlockCache(TimedStorage):
 		
 		# TODO: Check TTL (time to live for all but page info)
 		self._invalidate_block_internal(cache_key, timestamp)
+
 
 	def _get_block_internal(self, cache_key: str) -> Optional[str]:
 
@@ -212,17 +219,16 @@ class BlockCache(TimedStorage):
 			with disk_conn:
 				self.conn.backup(disk_conn)
 			log.flow("Block cache saved to disk")
+			self.clean()
 
 
 	def load_from_disk(self):
-		if not self.enable_disk_storage:
-			return
 		try:
 			with self.lock:
 				disk_conn = sqlite3.connect('block_cache.db')
 				disk_conn.backup(self.conn)
 				log.flow("Block cache loaded from disk")
-				self.set_dirty(False)
+				self.clean()
 		except sqlite3.Error:
 			log.flow("No existing block cache file found. Starting with an empty cache.")
 

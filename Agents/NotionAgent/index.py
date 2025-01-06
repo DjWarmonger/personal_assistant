@@ -10,20 +10,23 @@ from uuid_converter import UUIDConverter
 """
 TODO: Split class responsibilities:
 - Database management
+- Database locking and exception handling
 - Notion-specific URL and block UUID handling
 - Favourites management
 """
 
 class Index(TimedStorage):
 
-	def __init__(self, load_from_disk=True, run_on_start=False):
+	# TODO: Separate test for loading from disk and running on start
+
+	def __init__(self, load_from_disk=False, run_on_start=False):
 		super().__init__(period_ms=3000, run_on_start=run_on_start)
 
 		self.converter = UUIDConverter()
 
-		self.conn = sqlite3.connect(':memory:', check_same_thread=False)
-		self.cursor = self.conn.cursor()
-		self.lock = threading.Lock()
+		self.db_conn = sqlite3.connect(':memory:', check_same_thread=False)
+		self.cursor = self.db_conn.cursor()
+		self.db_lock = threading.RLock()
 
 		if load_from_disk:
 			self.load_from_disk()
@@ -35,35 +38,38 @@ class Index(TimedStorage):
 
 
 	def create_table(self):
-		table_exists = self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='index_data'").fetchone()
-		if not table_exists:
-			self.cursor.execute('''
-				CREATE TABLE IF NOT EXISTS index_data (
-					int_id INTEGER PRIMARY KEY AUTOINCREMENT,
-					uuid TEXT UNIQUE,
-					item_type TEXT,
-					name TEXT,
-					visit_count INTEGER DEFAULT 0
-				)
-			''')
-			self.conn.commit()
-			self.set_dirty()
+		with self.db_lock:
+			table_exists = self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='index_data'").fetchone()
+			if not table_exists:
+				self.cursor.execute('''
+					CREATE TABLE IF NOT EXISTS index_data (
+						int_id INTEGER PRIMARY KEY AUTOINCREMENT,
+						uuid TEXT UNIQUE,
+						name TEXT,
+						visit_count INTEGER DEFAULT 0
+					)
+				''')
+				self.db_conn.commit()
+				self.set_dirty()
+				log.flow("Created index table")
 
 
 	def create_favourites_table(self):
-		table_exists = self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='favourites'").fetchone()
-		if not table_exists:
-			self.cursor.execute('''
-				CREATE TABLE IF NOT EXISTS favourites (
-					uuid TEXT UNIQUE
-				)
-			''')
-			self.conn.commit()
-			self.set_dirty()
+		with self.db_lock:
+			table_exists = self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='favourites'").fetchone()
+			if not table_exists:
+				self.cursor.execute('''
+					CREATE TABLE IF NOT EXISTS favourites (
+						uuid TEXT UNIQUE
+					)
+				''')
+				self.db_conn.commit()
+				self.set_dirty()
+				log.flow("Created favourites table")
 
 
 	def get_favourites(self, count: int = 10) -> List[str]:
-		with self.lock:
+		with self.db_lock:
 			self.cursor.execute('''
 				SELECT f.uuid 
 				FROM favourites f
@@ -76,7 +82,8 @@ class Index(TimedStorage):
 			# TODO: May want to return visit count and name as well?
 			#log.debug(f"Favourites:", results)
 			return [result[0] for result in results]
-	
+
+
 	def set_favourite(self, uuid: str | list[str], add: bool) -> str:
 
 		message = ""
@@ -88,7 +95,7 @@ class Index(TimedStorage):
 		else:
 			raise ValueError(f"Invalid type for set_favourite : {type(uuid)}")
 
-		with self.lock:
+		with self.db_lock:
 			if isinstance(uuid, str):
 				if add:
 					self.cursor.execute('INSERT OR REPLACE INTO favourites (uuid) VALUES (?)', (uuid,))
@@ -105,7 +112,7 @@ class Index(TimedStorage):
 
 				message = f"{'Added to' if add else 'Removed from'} favourites : {', '.join(uuid)}"
 
-			self.conn.commit()
+			self.db_conn.commit()
 			self.set_dirty()
 
 		log.debug(message)
@@ -114,7 +121,7 @@ class Index(TimedStorage):
 
 	def set_favourite_int(self, id : int | list[int], add: bool) -> str:
 
-		with self.lock:
+		with self.db_lock:
 			if isinstance(id, int):
 				uuids = self.get_uuid(id)
 			elif isinstance(id, list):
@@ -149,43 +156,82 @@ class Index(TimedStorage):
 		return self.converter.clean_uuid(uuid)
 
 
-	def add_uuid(self, uuid: str, name: str = "", item_type: str = "") -> int:
+	def add_uuid(self, uuid: str, name: str = "") -> int:
 		uuid = self.converter.clean_uuid(uuid)
-		with self.lock:
+
+		# First check if UUID exists
+		if not self.db_lock.acquire(timeout=5):  # 5 second timeout
+			raise TimeoutError("Could not acquire lock for UUID check")
+		
+		try:
+			self.cursor.execute("PRAGMA busy_timeout = 5000")
 			self.cursor.execute('SELECT int_id FROM index_data WHERE uuid = ?', (uuid,))
 			existing_id = self.cursor.fetchone()
 			if existing_id:
+				log.debug(f"Returning existing UUID {uuid} from index")
 				return existing_id[0]
-
+		except sqlite3.OperationalError as e:
+			log.error(f"Database error during UUID check: {e}")
+			raise
+		except Exception as e:
+			log.error(f"Unexpected error during UUID check: {e}")
+			raise
+		finally:
+			self.db_lock.release()
+			log.debug("Released lock after UUID check")
+		
+		# If not exists, add it with a new lock acquisition
+		if not self.db_lock.acquire(timeout=5):
+			log.error("Timeout while acquiring lock for UUID insertion")
+			raise TimeoutError("Could not acquire lock for UUID insertion")
+		
+		try:
+			self.cursor.execute("PRAGMA busy_timeout = 5000")
 			self.cursor.execute('''
-				INSERT OR IGNORE INTO index_data (uuid, name, item_type)
-				VALUES (?, ?, ?)
-			''', (uuid, name, item_type))
+				INSERT OR IGNORE INTO index_data (uuid, name)
+				VALUES (?, ?)
+				''', (uuid, name))
+			self.db_conn.commit()
+			last_row_id = self.cursor.lastrowid
+
 			if self.cursor.rowcount > 0:
 				self.set_dirty()
-			self.conn.commit()
+			else:
+				log.debug(f"UUID {uuid} already exists in index")
+			
+			return last_row_id
+		except sqlite3.OperationalError as e:
+			log.error(f"Database error during UUID insertion: {e}")
+			raise
+		except Exception as e:
+			log.error(f"Unexpected error during UUID insertion: {e}")
+			raise
+		finally:
+			self.db_lock.release()
+			log.debug("Released lock after UUID insertion")
 
-			return self.cursor.lastrowid
 
 	def visit_uuid(self, uuid: str):
-		with self.lock:
+		with self.db_lock:
 			self.cursor.execute('''
 				UPDATE index_data
 				SET visit_count = visit_count + 1
 				WHERE uuid = ?
 			''', (uuid,))
-			self.conn.commit()
+			self.db_conn.commit()
 			self.set_dirty()
 
+
 	def visit_int(self, int_id: int):
-		with self.lock:
+		with self.db_lock:
 			self.cursor.execute('''
 				UPDATE index_data
 				SET visit_count = visit_count + 1
 				WHERE int_id = ?
 			''', (int_id,))
-			self.conn.commit()
+			self.db_conn.commit()
 			self.set_dirty()
+
 
 	def to_uuid(self, id: int | str) -> str:
 		if isinstance(id, int):
@@ -204,9 +250,8 @@ class Index(TimedStorage):
 				raise ValueError("Invalid uuid")
 		else:
 			raise TypeError("Invalid type for conversion to uuid")
-		
 
-	
+
 	def add_notion_url_or_uuid_to_index(self, url_or_uuid: str, title: str = "") -> int:
 
 		if self.validate_notion_url(url_or_uuid):
@@ -219,7 +264,7 @@ class Index(TimedStorage):
 
 		# TODO: Determine item type from url?
 
-		return self.add_uuid(uuid, name=title, item_type="page")
+		return self.add_uuid(uuid, name=title)
 
 
 	def add_notion_url_or_uuid_to_favourites(self, url_or_uuid: str, set = True,title: str = "") -> int:
@@ -230,14 +275,14 @@ class Index(TimedStorage):
 
 
 	def to_int(self, uuid: str) -> int:
-		with self.lock:
+		with self.db_lock:
 			self.cursor.execute('SELECT int_id FROM index_data WHERE uuid = ?', (uuid,))
 			result = self.cursor.fetchone()
 			return result[0] if result else None
 
 
 	def get_uuid(self, int_id: int) -> str:
-		with self.lock:
+		with self.db_lock:
 			self.cursor.execute('SELECT uuid FROM index_data WHERE int_id = ?', (int_id,))
 			result = self.cursor.fetchone()
 			return result[0] if result else None
@@ -249,38 +294,38 @@ class Index(TimedStorage):
 
 
 	def get_visit_count(self, int_id: int) -> int:
-		with self.lock:
+		with self.db_lock:
 			self.cursor.execute('SELECT visit_count FROM index_data WHERE int_id = ?', (int_id,))
 			result = self.cursor.fetchone()
 			return result[0] if result else 0
 
 
 	def set_name(self, int_id: int, name: str):
-		with self.lock:
+		with self.db_lock:
 			self.cursor.execute('UPDATE index_data SET name = ? WHERE int_id = ?', (name, int_id))
-			self.conn.commit()
+			self.db_conn.commit()
 			self.set_dirty()
 
 
 	def get_name(self, int_id: int) -> str:
-		with self.lock:
+		with self.db_lock:
 			self.cursor.execute('SELECT name FROM index_data WHERE int_id = ?', (int_id,))
 			result = self.cursor.fetchone()
 			return result[0] if result else ""
 
 
 	def delete_uuid(self, uuid: str) -> int:
-		with self.lock:
+		with self.db_lock:
 			self.cursor.execute('DELETE FROM index_data WHERE uuid = ?', (uuid,))
-			self.conn.commit()
+			self.db_conn.commit()
 			self.set_dirty()
 			return self.cursor.rowcount
 
 
 	def get_most_popular(self, count: int) -> str:
-		with self.lock:
+		with self.db_lock:
 			self.cursor.execute('''
-				SELECT int_id, name, item_type, visit_count
+				SELECT int_id, name, visit_count
 				FROM index_data
 				ORDER BY visit_count DESC
 				LIMIT ?
@@ -288,28 +333,47 @@ class Index(TimedStorage):
 			results = self.cursor.fetchall()
 
 		ret = "Index of most visited pages:\n"
-		for int_id, name, item_type, visit_count in results:
-			ret += f"{int_id}: {name} ({item_type}) - visits: {visit_count}\n"
+		for int_id, name, visit_count in results:
+			ret += f"{int_id}: {name} - visits: {visit_count}\n"
 		return ret
 
 
 	def save(self):
-		# Overrides abstract method
-	
-		with self.lock:
-			disk_conn = sqlite3.connect('index.db')
-			with disk_conn:
-				self.conn.backup(disk_conn)
-			log.flow("Index saved to disk")
+		# Create disk connection outside the lock
+		try:
+			disk_conn = sqlite3.connect('index.db', timeout=5)
+		except sqlite3.Error as e:
+			log.error(f"Failed to create disk connection: {e}")
+			return
+		
+		try:
+			# Only lock during the actual backup
+			with self.db_lock:
+				log.debug("Acquired lock for backup")
+				self.cursor.execute("PRAGMA busy_timeout = 5000")
+				disk_conn.execute("PRAGMA busy_timeout = 5000")
+				self.db_conn.backup(disk_conn)
+		except sqlite3.Error as e:
+			log.error(f"Backup failed: {e}")
+			raise
+		except Exception as e:
+			log.error(f"Unexpected error during backup: {e}")
+			raise
+		finally:
+			disk_conn.close()
+			log.debug("Released lock after backup")
+		
+		log.flow("Index saved to disk")
+		self.clean()
 
 
 	def load_from_disk(self):
 		try:
-			with self.lock:
+			with self.db_lock:
 				disk_conn = sqlite3.connect('index.db')
-				disk_conn.backup(self.conn)
-				log.flow("Index loaded from disk")
-				self.set_dirty(False)
+				disk_conn.backup(self.db_conn)
+			log.flow("Index loaded from disk")
+			self.clean()
 		except sqlite3.Error:
 			log.flow("No existing index file found. Starting with an empty index.")
 
@@ -317,4 +381,4 @@ class Index(TimedStorage):
 	def __del__(self):
 		# FIXME: Do not do that during unit tests
 		#self.save()
-		self.conn.close()
+		self.db_conn.close()

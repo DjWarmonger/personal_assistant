@@ -1,10 +1,7 @@
 from dotenv import load_dotenv
 import os
-import json
-import asyncio
 
-import httpx
-from asyncClientManager import AsyncClientManager  # Our new manager
+from asyncClientManager import AsyncClientManager
 from index import Index
 from urlIndex import UrlIndex
 from blockCache import BlockCache, ObjectType
@@ -27,12 +24,13 @@ class NotionClient:
 
 	def __init__(self,
 				 notion_token=NOTION_TOKEN,
-				 landing_page_id=NOTION_LANDING_PAGE_ID):
+				 landing_page_id=NOTION_LANDING_PAGE_ID,
+				 run_on_start=True):
 		self.landing_page_id = landing_page_id
 		self.notion_token = notion_token
 
-		self.index = Index()
-		self.cache = BlockCache()
+		self.index = Index(run_on_start=run_on_start)
+		self.cache = BlockCache(run_on_start=run_on_start)
 		self.url_index = UrlIndex()
 
 		self.headers = {
@@ -53,6 +51,8 @@ class NotionClient:
 	async def get_notion_page_details(self, page_id=None, database_id=None):
 		if page_id is None and database_id is None:
 			page_id = self.landing_page_id
+
+		# FIXME: "Item page:17 not found in cache"
 
 		try:
 			if page_id is not None:
@@ -80,7 +80,15 @@ class NotionClient:
 				log.error(response.status_code)
 				return self.clean_error_message(response.json())
 			else:
-				data = self.convert_message(response.json())
+				# TODO: Check modification date. Invalidate children if modified.
+
+				data = self.convert_message(response.json(), clean_timestamps=False)
+
+				# FIXME: Freeze here?
+				self.cache.invalidate_page_if_expired(data["id"], data["last_edited_time"])
+
+				data = self.clean_timestamps(data)
+
 				# Possibly invalidate cache, etc.
 				return data
 
@@ -94,12 +102,18 @@ class NotionClient:
 		if uuid is None:
 			return None
 
-		# Possibly check block cache here?
+		cached = None
 
 		url = f"https://api.notion.com/v1/blocks/{uuid}/children?page_size=20"
 		if start_cursor is not None:
 			sc_uuid = self.formatted_uuid(start_cursor)
 			url += f"&start_cursor={sc_uuid}"
+			cached = self.cache.get_block(sc_uuid)
+		else:
+			cached = self.cache.get_block(uuid)
+
+		if cached is not None:
+			return cached
 
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
@@ -109,8 +123,33 @@ class NotionClient:
 			log.error(response.status_code)
 			return self.clean_error_message(response.json())
 		else:
-			data = self.convert_message(response.json(), clean_type=False)
-			# Possibly save blocks to cache
+
+			data = self.convert_message(response.json(), clean_type=False, clean_timestamps=False)
+
+			for block in response.json()["results"]:
+				self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
+
+			data = self.clean_timestamps(data)
+
+			children_uuids = [block["id"] for block in data["results"]]
+
+			for uuid, content in zip(children_uuids, data["results"]):
+				# TODO: Also save last_edited_time
+				self.cache.add_block(uuid, content)
+
+			self.cache.add_parent_children_relationships(
+				uuid,
+				children_uuids,
+				parent_type=ObjectType.BLOCK,
+				child_type=ObjectType.BLOCK)
+
+			# TODO: Update or delete children-parent relationships if content of block is modified
+			
+			if start_cursor is None:
+				self.cache.add_block(uuid, data)
+			else:
+				self.cache.add_block(start_cursor, data)
+
 			return data
 
 
@@ -138,12 +177,24 @@ class NotionClient:
 		client = await AsyncClientManager.get_client()
 		response = await client.post(url, headers=self.headers, json=payload)
 
-		if response.status_code != 200:
-			log.error(response.status_code)
-			return self.clean_error_message(response.json())
-		else:
-			data = self.convert_message(response.json())
+		try:
+			response_json = response.json()
+
+			if response.status_code != 200:
+				log.error(response.status_code)
+				return self.clean_error_message(response_json)
+			
+			#log.common(response_json)
+			
+			log.flow("Converting message")
+			data = self.convert_message(response_json, clean_timestamps=False)
+			log.flow(f"Found {len(data['results'])} search results")
+			data = self.clean_timestamps(data)
 			return data
+
+		except Exception as e:
+			log.error(f"Error processing search response: {str(e)}")
+			return {"error": str(e)}
 
 
 	async def query_database(self, database_id, filter=None, start_cursor=None):
@@ -167,6 +218,7 @@ class NotionClient:
 			log.error(response.status_code)
 			return self.clean_error_message(response.json())
 		else:
+			# TODO: Invalidate blockes recursively if they are not up to date
 			data = self.convert_message(response.json(), clean_timestamps=False)
 			return self.clean_timestamps(data)
 
@@ -246,11 +298,14 @@ class NotionClient:
 					# Property ids are short, ignore them
 					if self.index.converter.validate_uuid(value):
 						cleaned_uuid = self.index.converter.clean_uuid(value)
-						self.index.add_uuid(cleaned_uuid, item_type=str(self.key_to_type[key]))
-						message[key] = self.index.to_int(cleaned_uuid)
+						log.debug(f"Cleaned UUID: {cleaned_uuid}")
+						# We get here, then hang at add_uuid
+						uuid = self.index.add_uuid(cleaned_uuid)
+						message[key] = uuid
 					else:
+						# FIXME: "title is not valid UUID"
+						log.debug(f" {value} is not valid UUID")
 						pass
-						#log.flow(f" {value} is not valid UUID")
 				else:
 					self.convert_to_index_id(value)
 		elif isinstance(message, list):

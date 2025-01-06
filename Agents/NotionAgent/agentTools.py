@@ -48,7 +48,7 @@ class NotionSearchTool(BaseTool):
 		run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
 	) -> str:
 		
-		log.flow(f"Searching Notion... {query}")
+		log.flow(f"Searching Notion (async)... {query}")
 		
 		result = await client.search_notion(query)
 		return json_converter.remove_spaces(result)
@@ -246,13 +246,13 @@ class ChangeFavourtiesTarget(BaseModel):
 		...,
 		description="URL or UUID of the Notion page, block or database to add or remove from favourites"
 	)
-	set: bool = Field(
+	add: bool = Field(
 		default=True,
-		description="Whether to add or remove the UUID or URL from favourites"
+		description="Whether to add (True) or remove (False) the UUID or URL from favourites"
 	)
 	title: str = Field(
 		default="",
-		description="Brieft title of the page to be added to favourites"
+		description="Brief title of the page to be added to favourites"
 	)
 
 class ChangeFavourtiesSchema(BaseModel):
@@ -261,13 +261,13 @@ class ChangeFavourtiesSchema(BaseModel):
 class ChangeFavourties(BaseTool):
 
 	name: str = "ChangeFavourties"
-	description: str = "Change the favourites list"
+	description: str = "Change status of a page in favourites"
 	args_schema: Type[ChangeFavourtiesSchema] = ChangeFavourtiesTarget
 
 	def _run(
 		self,
 		urlOrUuid: str,
-		set: bool,
+		add: bool,
 		title: str = "",
 		run_manager: Optional[CallbackManagerForToolRun] = None,
 	) -> str:
@@ -279,7 +279,7 @@ class ChangeFavourties(BaseTool):
 	async def _arun(
 		self,
 		urlOrUuid: str,
-		set: bool,
+		add: bool,
 		title: str = "",
 		run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
 	) -> str:
@@ -290,7 +290,7 @@ class ChangeFavourties(BaseTool):
 	def add_to_favourites(
 		self,
 		urlOrUuid: str,
-		set: bool,
+		add: bool,
 		title: str = "",
 	) -> str:
 

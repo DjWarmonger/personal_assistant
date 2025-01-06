@@ -10,8 +10,10 @@ from blockCache import BlockCache, ObjectType
 
 class TestBlockCache(unittest.TestCase):
 	def setUp(self):
-		self.cache = BlockCache(enable_disk_storage=False)
+		self.cache = BlockCache(load_from_disk=False, run_on_start=False)
 		self.cache.max_size = 1024 * 1024  # Set a smaller max size for testing
+
+	# TODO: Separate test for loading from disk and running on start
 
 	def tearDown(self):
 		del self.cache
