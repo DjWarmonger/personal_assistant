@@ -178,7 +178,6 @@ class Index(TimedStorage):
 			raise
 		finally:
 			self.db_lock.release()
-			log.debug("Released lock after UUID check")
 		
 		# If not exists, add it with a new lock acquisition
 		if not self.db_lock.acquire(timeout=5):
@@ -208,7 +207,6 @@ class Index(TimedStorage):
 			raise
 		finally:
 			self.db_lock.release()
-			log.debug("Released lock after UUID insertion")
 
 
 	def visit_uuid(self, uuid: str):

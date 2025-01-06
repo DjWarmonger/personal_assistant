@@ -99,6 +99,7 @@ class BlockCache(TimedStorage):
 		
 		log.debug(f'{"Updated block in" if exists else "Added block to"} cache: {cache_key}')
 
+
 	def add_block(self, uuid: str, content: str, ttl: int = None, parent_uuid: str = None, parent_type: ObjectType = ObjectType.BLOCK):
 
 		cache_key = self.create_cache_key(uuid, ObjectType.BLOCK)
@@ -106,13 +107,16 @@ class BlockCache(TimedStorage):
 		parent_key = self.create_cache_key(parent_uuid, parent_type) if parent_uuid else None
 		self._add_block_internal(cache_key, content, ttl, parent_key)
 
+
 	def add_page(self, uuid: str, content: str, ttl: int = None):
 		cache_key = self.create_cache_key(uuid, ObjectType.PAGE)
 		self._add_block_internal(cache_key, content, ttl)
 
+
 	def add_database(self, uuid: str, content: str, ttl: int = None):
 		cache_key = self.create_cache_key(uuid, ObjectType.DATABASE)
 		self._add_block_internal(cache_key, content, ttl)
+
 
 	def _invalidate_block_recursive(self, cache_key: str):
 
@@ -190,15 +194,17 @@ class BlockCache(TimedStorage):
 				return content
 			else:
 				return None
-			
+
+
 	def get_block(self, uuid: str) -> Optional[str]:
 		cache_key = self.create_cache_key(uuid, ObjectType.BLOCK)
 		return self._get_block_internal(cache_key)
-			
+
+
 	def get_page(self, uuid: str) -> Optional[str]:
 		cache_key = self.create_cache_key(uuid, ObjectType.PAGE)
 		return self._get_block_internal(cache_key)
-	
+
 	def get_database(self, uuid: str) -> Optional[str]:
 		cache_key = self.create_cache_key(uuid, ObjectType.DATABASE)
 		return self._get_block_internal(cache_key)
@@ -210,6 +216,7 @@ class BlockCache(TimedStorage):
 			self.conn.commit()
 			self.set_dirty()
 			return self.cursor.rowcount
+
 
 	def save(self):
 		# Override abstract method
@@ -232,10 +239,12 @@ class BlockCache(TimedStorage):
 		except sqlite3.Error:
 			log.flow("No existing block cache file found. Starting with an empty cache.")
 
+
 	def __del__(self):
 		# TODO: Elegant way to force save?
 		#self.save()
 		self.conn.close()
+
 
 	def get_blocks_updated_since(self, timestamp: str) -> List[Tuple[str, str, str]]:
 		with self.lock:
@@ -246,7 +255,8 @@ class BlockCache(TimedStorage):
 				ORDER BY timestamp DESC
 			''', (timestamp,))
 			return self.cursor.fetchall()
-		
+
+
 	def _invalidate_block_internal(self, cache_key: str, timestamp: str):
 		with self.lock:
 			self.cursor.execute('''
@@ -266,11 +276,13 @@ class BlockCache(TimedStorage):
 					log.debug(f"Item {cache_key} is still valid")
 			else:
 				log.debug(f"Item {cache_key} not found in cache")
-		
+
+
 	def invalidate_database_if_expired(self, uuid: str, timestamp: str):
 		cache_key = self.create_cache_key(uuid, ObjectType.DATABASE)
 		self._invalidate_block_internal(cache_key, timestamp)
-		
+
+
 	def remove_unused_blocks(self):
 		
 		# TODO: Trigger periodically?
