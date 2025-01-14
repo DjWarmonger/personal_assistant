@@ -2,8 +2,11 @@
 
 `conda activate services`
 
+# Add project root to PYTHONPATH to enable common package import
+`set PYTHONPATH=%PYTHONPATH%;F:\Programowanie\PersonalAssistant`
+
 # Common libraries
-`pip install ipykernel python-dotenv termcolor flask requests pytest pydantic`
+`pip install ipykernel python-dotenv termcolor flask waitress requests pytest pydantic`
 
 # Basic Google API
 `pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib`
@@ -13,3 +16,5 @@
 
 # RSS
 `pip install feedparser`
+
+

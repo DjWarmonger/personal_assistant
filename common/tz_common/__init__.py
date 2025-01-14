@@ -10,10 +10,11 @@ from .json import JsonConverter
 
 # Base classes or tools that solve common problems automagically
 from .timed_storage import TimedStorage
+from .urlIndex import UrlIndex
 
 # Data structures
 # TODO: Separate package for data structures
 from .feedItem import FeedItem, FeedItemFactory
-from .task import AgentTask, TaskStatus, TaskRole
+from .task import AgentTask, TaskStatus, TaskRole, AgentTaskList
 from .action import AgentAction, ActionStatus
 
