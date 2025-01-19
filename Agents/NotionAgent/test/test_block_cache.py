@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from blockCache import BlockCache, ObjectType
-
+from utils import Utils
 class TestBlockCache(unittest.TestCase):
 	def setUp(self):
 		self.cache = BlockCache(load_from_disk=False, run_on_start=False)
@@ -17,6 +17,27 @@ class TestBlockCache(unittest.TestCase):
 
 	def tearDown(self):
 		del self.cache
+
+
+	# TODO: Test if cached item is actually accessible
+	def add_and_check_cached_block(self):
+
+		content = "test_content"
+		uuid = "test_uuid"
+
+		self.cache.add_block(uuid, content)
+		self.assertIsNotNone(self.cache.get_block(uuid))
+
+	# TODO: Test page
+
+	def test_add_and_check_cached_search_results(self):
+		# TODO; Also try pagination
+		pass
+
+
+	def test_add_and_check_cached_db_query_results(self):
+		# TODO: Also try pagination
+		pass
 
 
 	def test_basic_deletion(self):
@@ -104,6 +125,53 @@ class TestBlockCache(unittest.TestCase):
 		self.assertIsNone(self.cache.get_block("child2_uuid"))
 		self.assertIsNone(self.cache.get_block("grandchild_uuid"))
 
+
+	def test_invalidate_page_if_expired(self):
+		# Use the same timestamp format as _add_block_internal
+		current_time = Utils.get_current_time_isoformat()
+		
+		self.cache.add_page("page_uuid", "page_content")
+		self.assertIsNotNone(self.cache.get_page("page_uuid"))
+		
+		time.sleep(1)
+		
+		# Update time didn't change, so nothing should be invalidated
+		self.cache.invalidate_page_if_expired("page_uuid", current_time)
+		self.assertIsNotNone(self.cache.get_page("page_uuid"))
+
+		# Get new time in same format
+		new_time = Utils.get_current_time_isoformat()
+		self.cache.invalidate_page_if_expired("page_uuid", new_time)
+		self.assertIsNone(self.cache.get_page("page_uuid"))
+
+
+	def test_invalidate_block_if_expired(self):
+
+		# Use the same timestamp format as _add_block_internal
+		current_time = Utils.get_current_time_isoformat()
+		
+		self.cache.add_block("block_uuid", "block_content")
+		self.assertIsNotNone(self.cache.get_block("block_uuid"))
+		
+		time.sleep(1)
+		
+		# Update time didn't change, so nothing should be invalidated
+		self.cache.invalidate_block_if_expired("block_uuid", current_time)
+		self.assertIsNotNone(self.cache.get_block("block_uuid"))
+
+		# Get new time in same format
+		new_time = Utils.get_current_time_isoformat()
+		self.cache.invalidate_block_if_expired("block_uuid", new_time)
+		self.assertIsNone(self.cache.get_block("block_uuid"))
+
+
+	def test_invalidating_parent_block(self):
+
+		# TODO: When child block is nvalidated, it's parent page should not be invalidated
+		# TODO: When a page is invaliudated, it's parent block should not be invalidated (page is not visible from block level)
+		pass
+
 if __name__ == '__main__':
 	unittest.main()
+
 

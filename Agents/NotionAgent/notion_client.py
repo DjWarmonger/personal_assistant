@@ -7,6 +7,8 @@ from urlIndex import UrlIndex
 from blockCache import BlockCache, ObjectType
 from tz_common.logs import log, LogLevel
 
+from utils import Utils
+
 load_dotenv()
 log.set_log_level(LogLevel.FLOW)
 
@@ -78,22 +80,22 @@ class NotionClient:
 				log.error(response.status_code)
 				return self.clean_error_message(response.json())
 			else:
-				# TODO: Check modification date. Invalidate children if modified.
-
 				data = self.convert_message(response.json(), clean_timestamps=False)
 
 				uuid = self.index.to_uuid(data["id"])
-				if uuid is None:
-					self.cache.invalidate_page_if_expired(uuid, data["last_edited_time"])
+				# FIXME: Why there is no last_edited_time in unit test?
+				# FIXME: Does this happen with real pages?
+				last_edited_time = data["last_edited_time"] if "last_edited_time" in data else None
+				if uuid is not None:
+					if last_edited_time is not None:
+						self.cache.invalidate_page_if_expired(uuid, Utils.convert_date_to_timestamp(last_edited_time))
 					self.index.visit_uuid(uuid)
 
 				data = self.clean_timestamps(data)
 
+				# TODO: Do we need to create parent-child relationships here?
 				# TODO: Add page to cache? Then when would we invalidate it?
-				# TODO: Load children blocks from cache?
-				# TODO: Increase visit count
 
-				# Possibly invalidate cache, etc.
 				return data
 
 		except ValueError as e:
@@ -107,14 +109,17 @@ class NotionClient:
 			return None
 
 		cached = None
+		cache_key = None
 
 		url = f"https://api.notion.com/v1/blocks/{uuid}/children?page_size=20"
 		if start_cursor is not None:
 			sc_uuid = self.formatted_uuid(start_cursor)
 			url += f"&start_cursor={sc_uuid}"
-			cached = self.cache.get_block(sc_uuid)
+			cache_key = sc_uuid
 		else:
-			cached = self.cache.get_block(uuid)
+			cache_key = uuid
+
+		cached = self.cache.get_block(cache_key)
 
 		if cached is not None:
 			return cached
@@ -133,21 +138,23 @@ class NotionClient:
 			for block in response.json()["results"]:
 				self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
 
-			data = self.clean_timestamps(data)
-
 			children_uuids = [block["id"] for block in data["results"]]
 
+			# TODO: Batch add multiple blocks?
 			for uuid, content in zip(children_uuids, data["results"]):
-				# TODO: Also save last_edited_time
+				# TODO: Save last_edited_time / timestamp in db?
 				self.cache.add_block(uuid, content)
 
+			# TODO: Make sure this enum works for db and page
 			self.cache.add_parent_children_relationships(
-				uuid,
+				cache_key,
 				children_uuids,
 				parent_type=ObjectType.BLOCK,
 				child_type=ObjectType.BLOCK)
 
 			# TODO: Update or delete children-parent relationships if content of block is modified
+
+			data = self.clean_timestamps(data)
 			
 			if start_cursor is None:
 				self.cache.add_block(uuid, data)
@@ -177,6 +184,11 @@ class NotionClient:
 		if start_cursor is not None:
 			payload["start_cursor"] = self.formatted_uuid(start_cursor)
 
+
+		cache_entry = self.cache.get_search_results(query, filter_type, start_cursor)
+		if cache_entry is not None:
+			return cache_entry
+
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
 		response = await client.post(url, headers=self.headers, json=payload)
@@ -188,12 +200,34 @@ class NotionClient:
 				log.error(response.status_code)
 				return self.clean_error_message(response_json)
 			
-			#log.common(response_json)
+			cache_key = self.cache.create_search_results_cache_key(query, filter_type, start_cursor)
 			
+			#log.common(response_json)
+
+			block_ids = [block["id"] for block in response_json["results"]]
+
+			# TODO: Make sure children are actually blocks
+			# TODO: Handle pages or maybe db if they are not blocks
+			self.cache.add_parent_children_relationships(
+				cache_key,
+				block_ids,
+				parent_type=ObjectType.BLOCK,
+				child_type=ObjectType.BLOCK)
+				# TODO: Invalidate cache is any children is modified. But not here, as we're going to add it to cache anyway.
+
+			# Invalidate each child with last_edited_time
+			for block in response_json["results"]:
+				self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
+
+				# TODO: Invalidate cache for all matching parent searches, not just one exact query
+
 			log.flow("Converting message")
-			data = self.convert_message(response_json, clean_timestamps=False)
+			data = self.convert_message(response_json)
 			log.flow(f"Found {len(data['results'])} search results")
-			data = self.clean_timestamps(data)
+
+			# Max ttl for search results is 30 days
+			self.cache.add_search_results(query, data, filter_type, start_cursor, ttl = 30 * 24 * 60 * 60)
+
 			return data
 
 		except Exception as e:
@@ -214,6 +248,10 @@ class NotionClient:
 		if start_cursor is not None:
 			payload["start_cursor"] = self.formatted_uuid(start_cursor)
 
+		cache_entry = self.cache.get_database_query_results(database_id, filter, start_cursor)
+		if cache_entry is not None:
+			return cache_entry
+
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
 		response = await client.post(url, headers=self.headers, json=payload)
@@ -222,11 +260,14 @@ class NotionClient:
 			log.error(response.status_code)
 			return self.clean_error_message(response.json())
 		else:
-			# TODO: Invalidate blockes recursively if they are not up to date
+			# TODO: Invalidate blocks recursively if they are not up to date
 			data = self.convert_message(response.json(), clean_timestamps=False)
-			return self.clean_timestamps(data)
 
-		# TODO: Consider storing a sorted list of often visited pages
+			for block in data["results"]:
+				if "last_edited_time" in block:
+					self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
+
+			return self.clean_timestamps(data)
 
 
 	def set_favourite(self, uuid: int | list[int], set: bool) -> str:

@@ -54,6 +54,8 @@ async def test_search_notion(notion_client):
 	assert "has_more" in result
 	assert len(result["results"]) <= 10
 
+# TODO: Test search results caching
+
 @pytest.mark.asyncio
 async def test_search_notion_with_filter(notion_client):
 	result = await notion_client.search_notion("AI", filter_type="database", sort="ascending")

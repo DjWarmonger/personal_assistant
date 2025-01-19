@@ -4,7 +4,6 @@ import asyncio
 
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import BaseMessage, AIMessage, ToolMessage
-from langgraph.prebuilt import ToolInvocation
 
 from tz_common.logs import log
 from tz_common import create_langfuse_handler
@@ -114,6 +113,7 @@ def call_notion_agent(state: AgentState) -> AgentState:
 	return {"messages": state["messages"], "functionCalls": []}
 
 
+# TODO: Move to library
 def check_tools(state: AgentState) -> AgentState:
 
 	log.flow(f"Entered check_tools")

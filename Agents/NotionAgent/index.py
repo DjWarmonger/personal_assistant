@@ -210,6 +210,9 @@ class Index(TimedStorage):
 
 
 	def visit_uuid(self, uuid: str):
+		"""
+		Increase visit count for a page
+		"""
 		with self.db_lock:
 			self.cursor.execute('''
 				UPDATE index_data
@@ -221,6 +224,9 @@ class Index(TimedStorage):
 
 
 	def visit_int(self, int_id: int):
+		"""
+		Increase visit count for a page
+		"""
 		with self.db_lock:
 			self.cursor.execute('''
 				UPDATE index_data

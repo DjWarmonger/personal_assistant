@@ -9,10 +9,18 @@ from abc import ABC, abstractmethod
 from tz_common.logs import log
 from tz_common.timed_storage import TimedStorage
 
+from utils import Utils
+
+# TODO: Split into cache key utils and db handler?
+
 class ObjectType(Enum):
 	BLOCK = "block"
 	PAGE = "page"
 	DATABASE = "database"
+	SEARCH_RESULTS = "search"
+	DATABASE_QUERY_RESULTS = "database_query"
+
+# TODO: Convert parent "type": "database_id" to "database" : https://developers.notion.com/reference/page
 
 class BlockCache(TimedStorage):
 
@@ -38,9 +46,37 @@ class BlockCache(TimedStorage):
 	def create_cache_key(uuid: str, object_type: ObjectType) -> str:
 		return f"{object_type.value}:{uuid}"
 
+
+	def create_search_results_cache_key(self, query: str, filter : str = None, start_cursor: str = None) -> str:
+
+		key  = query
+
+		if filter is not None:
+			key += f":{filter}"
+
+		if start_cursor is not None:
+			key += f":{start_cursor}"
+
+		return self.create_cache_key(key, ObjectType.SEARCH_RESULTS)
+	
+	def create_database_query_results_cache_key(self, database_id: str, filter : str = None, start_cursor: str = None) -> str:
+		key  = database_id
+
+		if filter is not None:
+			key += f":{filter}"
+
+		if start_cursor is not None:
+			key += f":{start_cursor}"
+
+		return self.create_cache_key(key, ObjectType.DATABASE_QUERY_RESULTS)
+
+
 	def create_tables(self):
 		with self.lock:
 			# Create block_cache table if it doesn't exist
+
+			# timestamp = last_edited_time
+
 			self.cursor.execute('''
 				CREATE TABLE IF NOT EXISTS block_cache (
 					cache_key TEXT PRIMARY KEY,
@@ -64,8 +100,9 @@ class BlockCache(TimedStorage):
 			self.conn.commit()
 			self.set_dirty()
 
+
 	def _add_block_internal(self, cache_key: str, content: str, ttl: int = None, parent_key: str = None):
-		now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+		now = Utils.get_current_time_isoformat()
 
 		content = str(content)
 		
@@ -118,12 +155,27 @@ class BlockCache(TimedStorage):
 		self._add_block_internal(cache_key, content, ttl)
 
 
+	def add_search_results(self,
+						query: str,
+						content: str,
+						filter : str = None,
+						start_cursor: str = None,
+						ttl: int = None):
+
+		# TODO: Use ttl for search results?
+
+		cache_key = self.create_search_results_cache_key(query, filter, start_cursor)
+		self._add_block_internal(cache_key, content, ttl)
+
+
 	def _invalidate_block_recursive(self, cache_key: str):
 
-		log.debug(f"Invalidating block {cache_key}")
+		log.flow(f"Invalidating block {cache_key} and its children recursively")
 
 		child_keys = []
 		with self.lock:
+
+			# TODO: Do not invalidate children pages, only blocks
 			
 			# Find and recursively delete all child blocks
 			self.cursor.execute('SELECT child_key FROM block_relationships WHERE parent_key = ?', (cache_key,))
@@ -144,32 +196,81 @@ class BlockCache(TimedStorage):
 			self._invalidate_block_recursive(child_key)
 
 
-	def invalidate_block_if_expired(self, uuid: str, timestamp: str):
-		cache_key = self.create_cache_key(uuid, ObjectType.BLOCK)
+	def _invalidate_parent_search_or_query(self, cache_key: str):
+
+		log.flow(f"Invalidating parents of block {cache_key}")
+
+		with self.lock:
+			# Find and delete all parent blocks that have this block as a child
+			self.cursor.execute('SELECT parent_key FROM block_relationships WHERE child_key = ?', (cache_key,))
+			parent_keys = self.cursor.fetchall()
+
+			# Filter parent keys that contain "search" or "database_query"
+			filtered_parent_keys = [parent_key for (parent_key,) in parent_keys if
+				ObjectType.SEARCH_RESULTS.value in parent_key or
+				ObjectType.DATABASE_QUERY_RESULTS.value in parent_key]
+
+			# Remove the relationships for this block only for filtered parent keys
+			for parent_key in filtered_parent_keys:
+				self.cursor.execute('DELETE FROM block_relationships WHERE parent_key = ? AND child_key = ?', (parent_key, cache_key))
+			
+			self.conn.commit()
+			self.set_dirty()
+
+		for (parent_key,) in filtered_parent_keys:
+			log.debug(f"Invalidating parent {parent_key}")
+			self._invalidate_block_recursive(parent_key)
+
+
+	def check_if_expired(self, cache_key: str, last_update_time: str) -> bool:
 
 		with self.lock:
 			self.cursor.execute('SELECT timestamp FROM block_cache WHERE cache_key = ?', (cache_key,))
 			result = self.cursor.fetchone()
 			if result:
-				if result[0] < timestamp:
-					self._invalidate_block_recursive(cache_key)
-					log.debug(f"Invalidated item {cache_key} and its children due to expiration")
-				else:
-					log.debug(f"Item {cache_key} is still valid")
+				return result[0] < last_update_time
 			else:
 				log.debug(f"Item {cache_key} not found in cache")
+				return False
 
 
-	def invalidate_page_if_expired(self, uuid: str, timestamp: str):
+	def invalidate_block_if_expired(self, uuid: str, last_update_time: str) -> bool:
+		cache_key = self.create_cache_key(uuid, ObjectType.BLOCK)
+
+		expired = self.check_if_expired(cache_key, last_update_time)
+
+		if expired:
+			self._invalidate_block_recursive(cache_key)
+			log.debug(f"Invalidating item {cache_key} and its children due to expiration")
+		else:
+			pass
+			#log.debug(f"Item {cache_key} is still valid")
+
+		return expired
+
+
+	def invalidate_page_if_expired(self, uuid: str, last_update_time: str):
 		cache_key = self.create_cache_key(uuid, ObjectType.PAGE)
+		# FIXME: Some methods are checking timestamp internally, others are not
+
+		expired = self.check_if_expired(cache_key, last_update_time)
+
 		# Invalidate all blocks under this page
-		self._invalidate_block_recursive(cache_key)
+		if expired:
+			self._invalidate_block_recursive(cache_key)
 		
 		# TODO: Check TTL (time to live for all but page info)
-		self._invalidate_block_internal(cache_key, timestamp)
+		self._invalidate_block_internal(cache_key, last_update_time)
+
+		if expired:
+			self._invalidate_parent_search_or_query(cache_key)
 
 
 	def _get_block_internal(self, cache_key: str) -> Optional[str]:
+		"""
+		Returns the content of the block if it is not expired,
+		otherwise deletes it and returns None
+		"""
 
 		with self.lock:
 			self.cursor.execute('SELECT content, timestamp, ttl FROM block_cache WHERE cache_key = ?', (cache_key,))
@@ -205,10 +306,22 @@ class BlockCache(TimedStorage):
 		cache_key = self.create_cache_key(uuid, ObjectType.PAGE)
 		return self._get_block_internal(cache_key)
 
+
 	def get_database(self, uuid: str) -> Optional[str]:
 		cache_key = self.create_cache_key(uuid, ObjectType.DATABASE)
 		return self._get_block_internal(cache_key)
-	
+
+
+	def get_search_results(self, query: str, filter : str = None, start_cursor: str = None) -> Optional[str]:
+
+		cache_key = self.create_search_results_cache_key(query, filter, start_cursor)
+		return self._get_block_internal(cache_key)
+
+
+	def get_database_query_results(self, database_id: str, filter : str = None, start_cursor: str = None) -> Optional[str]:
+		cache_key = self.create_database_query_results_cache_key(database_id, filter, start_cursor)
+		return self._get_block_internal(cache_key)
+
 
 	def delete_block(self, cache_key: str) -> int:
 		with self.lock:
@@ -258,24 +371,17 @@ class BlockCache(TimedStorage):
 
 
 	def _invalidate_block_internal(self, cache_key: str, timestamp: str):
-		with self.lock:
+		
+		if self.check_if_expired(cache_key, timestamp):
 			self.cursor.execute('''
-				SELECT timestamp FROM block_cache WHERE cache_key = ?
-				''', (cache_key,))
-			result = self.cursor.fetchone()
-			if result:
-				stored_timestamp = result[0]
-				if stored_timestamp and stored_timestamp < timestamp:
-					self.cursor.execute('''
-						DELETE FROM block_cache WHERE cache_key = ?
-					''', (cache_key,))
-					self.conn.commit()
-					self.set_dirty()
-					log.debug(f"Invalidated item {cache_key} due to expiration")
-				else:
-					log.debug(f"Item {cache_key} is still valid")
-			else:
-				log.debug(f"Item {cache_key} not found in cache")
+				DELETE FROM block_cache WHERE cache_key = ?
+			''', (cache_key,))
+			self.conn.commit()
+			self.set_dirty()
+			log.debug(f"Invalidated item {cache_key} due to expiration")
+		else:
+			pass
+			#log.debug(f"Item {cache_key} is still valid")
 
 
 	def invalidate_database_if_expired(self, uuid: str, timestamp: str):
@@ -323,9 +429,7 @@ class BlockCache(TimedStorage):
 				self.cursor.execute("VACUUM")
 				self.conn.commit()
 			
-			log.debug(f"Current size of block cache: {current_size / 1024 / 1024} MB")
-			
-	
+
 
 	def add_parent_child_relationship(self, parent_uuid: str, child_uuid: str, parent_type: ObjectType, child_type: ObjectType = ObjectType.BLOCK):
 
