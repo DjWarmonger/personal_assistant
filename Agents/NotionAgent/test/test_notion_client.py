@@ -79,7 +79,8 @@ async def test_get_children(notion_client):
 
 	if result["has_more"] == True:
 		print(f"Has more: {result['has_more']}, starting cursor in children test: {result['next_cursor']}")
-		result = await notion_client.get_block_content(block_id=block_id, start_cursor=result["next_cursor"])
+		start_cursor=notion_client.index.to_uuid(result["next_cursor"])
+		result = await notion_client.get_block_content(block_id=block_id, start_cursor=start_cursor)
 
 		assert result["object"] == "list"
 		assert "results" in result
@@ -130,6 +131,8 @@ async def test_database_query_with_empty_filter(notion_client):
 	assert "results" in result
 
 	if result["has_more"]:
-		result = await notion_client.query_database(database_id=database_id, filter={}, start_cursor=result["next_cursor"])
+		start_cursor=notion_client.index.to_uuid(result["next_cursor"])
+		result = await notion_client.query_database(database_id=database_id, filter={}, start_cursor=start_cursor)
 		assert result["object"] == "list"
+
 

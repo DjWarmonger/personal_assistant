@@ -95,9 +95,26 @@ def call_tool(state) -> None:
 
 def start(state: AgentState) -> AgentState:
 
-	#log.flow(f"Entered start")
+	log.flow(f"Entered start")
+
+	favourites = client.index.get_favourites_with_names(10)
+
+	# TODO: Add name and id instead of uuid
+	# TODO: Add visit count?
+
+	if favourites:
+		message = f"Here are user's favourite pages. Start with them if they are relevant to the task:\n"
+		for favourite in favourites:
+			message += f"{favourite[1]:<2} ({favourite[0]})\n"
+
+		state["messages"].append(AIMessage(content=message))
+	else:
+		log.error(f"No favourites found")
+
+	# FIXME? content: "KeyError returned:'results'"
 
 	return {"messages": state["messages"], "functionCalls": []}
+	# TODO: Add message with favourite pages
 
 #@observe()
 def call_notion_agent(state: AgentState) -> AgentState:

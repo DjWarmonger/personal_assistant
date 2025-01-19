@@ -133,7 +133,10 @@ class NotionClient:
 			return self.clean_error_message(response.json())
 		else:
 
-			data = self.convert_message(response.json(), clean_type=False, clean_timestamps=False)
+			data = self.convert_message(response.json(),
+							   clean_type=False,
+							   clean_timestamps=False,
+							   convert_to_index_id=False)
 
 			for block in response.json()["results"]:
 				self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
@@ -154,8 +157,11 @@ class NotionClient:
 
 			# TODO: Update or delete children-parent relationships if content of block is modified
 
+			# TODO: Is the type relevant an this point?
+			data = self.clean_type(data)
 			data = self.clean_timestamps(data)
-			
+			data = self.convert_to_index_id(data)
+
 			if start_cursor is None:
 				self.cache.add_block(uuid, data)
 			else:
@@ -261,13 +267,13 @@ class NotionClient:
 			return self.clean_error_message(response.json())
 		else:
 			# TODO: Invalidate blocks recursively if they are not up to date
-			data = self.convert_message(response.json(), clean_timestamps=False)
+			data = self.convert_message(response.json(), clean_timestamps=False, convert_to_index_id=False)
 
 			for block in data["results"]:
 				if "last_edited_time" in block:
 					self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
 
-			return self.clean_timestamps(data)
+			return self.convert_to_index_id(self.clean_timestamps(data))
 
 
 	def set_favourite(self, uuid: int | list[int], set: bool) -> str:
@@ -298,11 +304,18 @@ class NotionClient:
 		return formatted_id
 
 
-	def convert_message(self, message : dict | list, clean_timestamps = True, clean_type = True) -> dict | list:
+	def convert_message(self,
+						message : dict | list,
+						clean_timestamps : bool = True,
+						clean_type : bool = True,
+						convert_to_index_id : bool = True,
+						convert_urls : bool = True) -> dict | list:
 
 		message = self.clean_response_details(message)
-		message = self.convert_to_index_id(message)
-		message = self.convert_urls_to_id(message)
+		if convert_to_index_id:
+			message = self.convert_to_index_id(message)
+		if convert_urls:
+			message = self.convert_urls_to_id(message)
 		if clean_timestamps:
 			message = self.clean_timestamps(message)
 		if clean_type:

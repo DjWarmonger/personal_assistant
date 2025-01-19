@@ -82,6 +82,22 @@ class TestFavourites(unittest.TestCase):
 		self.assertEqual(len(favourites), 3)
 
 
+	def test_get_favourites_with_names(self):
+		test_uuids = [
+			f"123e4567-e89b-12d3-a456-42661417400{i}" 
+			for i in range(5)
+		]
+		for uuid in test_uuids:
+			self.index.add_notion_url_or_uuid_to_favourites(uuid, True)
+		
+		# FIXME: This returns int, not uuid
+		favourites = self.index.get_favourites(count=10)
+		self.assertEqual(len(favourites), 5)
+
+		for favourite in favourites:
+			self.assertIn(self.to_formatted_uuid(favourite), test_uuids)
+
+
 	def tearDown(self):
 		self.index.db_conn.close()
 

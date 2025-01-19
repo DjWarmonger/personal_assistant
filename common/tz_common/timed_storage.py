@@ -1,6 +1,8 @@
 import threading
 import time
 from abc import ABC, abstractmethod
+import atexit
+
 from tz_common.logs import log
 
 class TimedStorage(ABC):
@@ -10,6 +12,10 @@ class TimedStorage(ABC):
 	"""
 
 	def __init__(self, period_ms: int = 5000, run_on_start: bool = True):
+
+		self._is_closing = False  # Add flag to track shutdown state
+
+		atexit.register(self.cleanup)
 
 		self._periodic_save_lock = threading.RLock()
 		self._stop_event = threading.Event()
@@ -99,3 +105,12 @@ class TimedStorage(ABC):
 			self.save()
 			log.flow(f"Saved {self.__class__.__name__}")
 		self.clean()
+
+	@abstractmethod
+	def cleanup(self):
+		"""
+		Cleanup method that is called when the program is exiting.
+		"""
+		pass
+
+

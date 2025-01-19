@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from tz_common.logs import log
 from tz_common.timed_storage import TimedStorage
 
+from uuid_converter import UUIDConverter
 from utils import Utils
 
 # TODO: Split into cache key utils and db handler?
@@ -24,8 +25,16 @@ class ObjectType(Enum):
 
 class BlockCache(TimedStorage):
 
-	def __init__(self, load_from_disk=False, run_on_start=False):
+	def __init__(self,
+			  db_path: str = 'block_cache.db',
+			  load_from_disk: bool = False,
+			  run_on_start: bool = False):
 		super().__init__(period_ms=3000, run_on_start=run_on_start)
+
+		self.db_path = db_path
+		self.save_enabled = run_on_start
+
+		self.converter = UUIDConverter()
 
 		self.conn = sqlite3.connect(':memory:', check_same_thread=False)
 		self.cursor = self.conn.cursor()
@@ -42,9 +51,8 @@ class BlockCache(TimedStorage):
 			self.start_periodic_save()
 
 
-	@staticmethod
-	def create_cache_key(uuid: str, object_type: ObjectType) -> str:
-		return f"{object_type.value}:{uuid}"
+	def create_cache_key(self, uuid: str, object_type: ObjectType) -> str:
+		return f"{object_type.value}:{self.converter.clean_uuid(uuid)}"
 
 
 	def create_search_results_cache_key(self, query: str, filter : str = None, start_cursor: str = None) -> str:
@@ -55,18 +63,19 @@ class BlockCache(TimedStorage):
 			key += f":{filter}"
 
 		if start_cursor is not None:
-			key += f":{start_cursor}"
+			key += f":{self.converter.clean_uuid(start_cursor)}"
 
 		return self.create_cache_key(key, ObjectType.SEARCH_RESULTS)
-	
+
+
 	def create_database_query_results_cache_key(self, database_id: str, filter : str = None, start_cursor: str = None) -> str:
-		key  = database_id
+		key  = self.converter.clean_uuid(database_id)
 
 		if filter is not None:
 			key += f":{filter}"
 
 		if start_cursor is not None:
-			key += f":{start_cursor}"
+			key += f":{self.converter.clean_uuid(start_cursor)}"
 
 		return self.create_cache_key(key, ObjectType.DATABASE_QUERY_RESULTS)
 
@@ -134,6 +143,7 @@ class BlockCache(TimedStorage):
 			else:
 				log.debug(f"Adding relationship: {parent_key} -> {cache_key}")
 		
+		# FIXME: Do not print if content is identical?
 		log.debug(f'{"Updated block in" if exists else "Added block to"} cache: {cache_key}')
 
 
@@ -298,16 +308,19 @@ class BlockCache(TimedStorage):
 
 
 	def get_block(self, uuid: str) -> Optional[str]:
+		uuid = self.converter.clean_uuid(uuid)
 		cache_key = self.create_cache_key(uuid, ObjectType.BLOCK)
 		return self._get_block_internal(cache_key)
 
 
 	def get_page(self, uuid: str) -> Optional[str]:
+		uuid = self.converter.clean_uuid(uuid)
 		cache_key = self.create_cache_key(uuid, ObjectType.PAGE)
 		return self._get_block_internal(cache_key)
 
 
 	def get_database(self, uuid: str) -> Optional[str]:
+		uuid = self.converter.clean_uuid(uuid)
 		cache_key = self.create_cache_key(uuid, ObjectType.DATABASE)
 		return self._get_block_internal(cache_key)
 
@@ -319,6 +332,7 @@ class BlockCache(TimedStorage):
 
 
 	def get_database_query_results(self, database_id: str, filter : str = None, start_cursor: str = None) -> Optional[str]:
+		database_id = self.converter.clean_uuid(database_id)
 		cache_key = self.create_database_query_results_cache_key(database_id, filter, start_cursor)
 		return self._get_block_internal(cache_key)
 
@@ -335,28 +349,40 @@ class BlockCache(TimedStorage):
 		# Override abstract method
 
 		with self.lock:
-			disk_conn = sqlite3.connect('block_cache.db')
+			disk_conn = sqlite3.connect(self.db_path)
 			with disk_conn:
 				self.conn.backup(disk_conn)
 			log.flow("Block cache saved to disk")
 			self.clean()
 
 
+	def cleanup(self):
+		#override
+
+		#  TODO: This method is common, but only for db-based storage. Move to base class?
+
+		# Don't do that during unit tests
+		if not self.save_enabled:
+			return
+
+		if not self._is_closing and self.conn:
+			try:
+				self._is_closing = True
+				self.save()  # Call the virtual save method
+				self.conn.close()
+			except Exception as e:
+				log.error(f"Cleanup failed: {e}")
+
+
 	def load_from_disk(self):
 		try:
 			with self.lock:
-				disk_conn = sqlite3.connect('block_cache.db')
+				disk_conn = sqlite3.connect(self.db_path)
 				disk_conn.backup(self.conn)
 				log.flow("Block cache loaded from disk")
 				self.clean()
 		except sqlite3.Error:
 			log.flow("No existing block cache file found. Starting with an empty cache.")
-
-
-	def __del__(self):
-		# TODO: Elegant way to force save?
-		#self.save()
-		self.conn.close()
 
 
 	def get_blocks_updated_since(self, timestamp: str) -> List[Tuple[str, str, str]]:
@@ -432,6 +458,9 @@ class BlockCache(TimedStorage):
 
 
 	def add_parent_child_relationship(self, parent_uuid: str, child_uuid: str, parent_type: ObjectType, child_type: ObjectType = ObjectType.BLOCK):
+
+		# TODO: Make sure both keys have long uuid form and not int:
+		# block:4fa780c8df7746ff83500cd7d504c3d7 instead of block:2
 
 		parent_key = self.create_cache_key(parent_uuid, parent_type)
 		child_key = self.create_cache_key(child_uuid, child_type)

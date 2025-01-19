@@ -28,6 +28,19 @@ class TestBlockCache(unittest.TestCase):
 		self.cache.add_block(uuid, content)
 		self.assertIsNotNone(self.cache.get_block(uuid))
 
+
+	def check_formatted_uuid(self):
+		uuid = "123e4567-e89b-12d3-a456-426614174000"
+		content = "test_content"
+
+		self.cache.add_block(uuid, content)
+
+		self.assertIsNotNone(self.cache.get_block(uuid))
+		self.assertIsNotNone(self.cache.get_block(uuid.lower()))
+		self.assertIsNotNone(self.cache.get_block(uuid.upper()))
+		short_formatted_uuid = self.cache.converter.to_formatted_uuid(uuid)
+		self.assertIsNotNone(self.cache.get_block(short_formatted_uuid))
+
 	# TODO: Test page
 
 	def test_add_and_check_cached_search_results(self):

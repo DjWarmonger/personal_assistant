@@ -10,13 +10,13 @@ class UUIDConverter:
 
 
 	def clean_uuid(self, uuid: str) -> str:
-		return uuid.replace("-", "")
+		return uuid.replace("-", "").lower()
 
 
 	def to_formatted_uuid(self, uuid: str) -> str:
 		# Convert to 8-4-4-4-12 form
 		clean = self.to_uuid(uuid)
-		return f"{clean[:8]}-{clean[8:12]}-{clean[12:16]}-{clean[16:20]}-{clean[20:]}"
+		return f"{clean[:8]}-{clean[8:12]}-{clean[12:16]}-{clean[16:20]}-{clean[20:]}".lower()
 
 
 	def validate_uuid(self, uuid: str) -> bool:

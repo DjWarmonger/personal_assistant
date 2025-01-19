@@ -19,7 +19,17 @@ class Index(TimedStorage):
 
 	# TODO: Separate test for loading from disk and running on start
 
-	def __init__(self, load_from_disk=False, run_on_start=False):
+	def __init__(self,
+			  db_path: str = 'index.db',
+			  load_from_disk: bool = False,
+			  run_on_start: bool = False):
+
+		
+		self.save_enabled = run_on_start
+		self.db_path = db_path
+		# Register shutdown handler
+		# TODO: Move to TimedStorage
+
 		super().__init__(period_ms=3000, run_on_start=run_on_start)
 
 		self.converter = UUIDConverter()
@@ -80,8 +90,26 @@ class Index(TimedStorage):
 			results = self.cursor.fetchall()
 
 			# TODO: May want to return visit count and name as well?
-			#log.debug(f"Favourites:", results)
-			return [result[0] for result in results]
+			ret = [result[0] for result in results]
+			log.common(f"Favourites:", ret)
+			return ret
+		
+
+	def get_favourites_with_names(self, count: int = 10) -> List[str]:
+
+		# TODO: Add visit count?
+
+		with self.db_lock:
+			self.cursor.execute('''
+				SELECT i.int_id, i.name
+				FROM favourites f
+				JOIN index_data i ON f.uuid = i.uuid
+				ORDER BY i.visit_count DESC 
+				LIMIT ?
+			''', (count,))
+			results = self.cursor.fetchall()
+			log.common(f"Favourites with descriptions:", "\n".join([f"{r[0]:02}: {r[1]}" for r in results]))
+			return results
 
 
 	def set_favourite(self, uuid: str | list[str], add: bool) -> str:
@@ -342,47 +370,43 @@ class Index(TimedStorage):
 		return ret
 
 
-	def save(self):
-		# Create disk connection outside the lock
-		try:
-			disk_conn = sqlite3.connect('index.db', timeout=5)
-		except sqlite3.Error as e:
-			log.error(f"Failed to create disk connection: {e}")
-			return
-		
-		try:
-			# Only lock during the actual backup
-			with self.db_lock:
-				log.debug("Acquired lock for backup")
-				self.cursor.execute("PRAGMA busy_timeout = 5000")
-				disk_conn.execute("PRAGMA busy_timeout = 5000")
-				self.db_conn.backup(disk_conn)
-		except sqlite3.Error as e:
-			log.error(f"Backup failed: {e}")
-			raise
-		except Exception as e:
-			log.error(f"Unexpected error during backup: {e}")
-			raise
-		finally:
-			disk_conn.close()
-			log.debug("Released lock after backup")
-		
-		log.flow("Index saved to disk")
-		self.clean()
-
-
 	def load_from_disk(self):
 		try:
 			with self.db_lock:
-				disk_conn = sqlite3.connect('index.db')
+				disk_conn = sqlite3.connect(self.db_path)
 				disk_conn.backup(self.db_conn)
+				disk_conn.close()
 			log.flow("Index loaded from disk")
 			self.clean()
 		except sqlite3.Error:
 			log.flow("No existing index file found. Starting with an empty index.")
 
 
-	def __del__(self):
-		# FIXME: Do not do that during unit tests
-		#self.save()
-		self.db_conn.close()
+	def save(self):
+		#override
+		if self._is_closing or not self.db_conn:
+			return
+		
+		try:
+			with self.db_lock:
+				disk_conn = sqlite3.connect(self.db_path)
+				self.db_conn.backup(disk_conn)
+				disk_conn.close()
+			log.flow("Index saved to disk")
+		except Exception as e:
+			log.error(f"Failed to save index to disk: {e}")
+
+
+	def cleanup(self):
+		#override
+		# Don't do that during unit tests
+		if not self.save_enabled:
+			return
+
+		if not self._is_closing and self.db_conn:
+			try:
+				self._is_closing = True
+				self.save()  # Call the virtual save method
+				self.db_conn.close()
+			except Exception as e:
+				log.error(f"Cleanup failed: {e}")
