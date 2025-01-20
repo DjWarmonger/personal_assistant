@@ -24,7 +24,7 @@ class Index(TimedStorage):
 			  load_from_disk: bool = False,
 			  run_on_start: bool = False):
 
-		
+		self._is_closing = False
 		self.save_enabled = run_on_start
 		self.db_path = db_path
 		# Register shutdown handler
@@ -38,19 +38,40 @@ class Index(TimedStorage):
 		self.cursor = self.db_conn.cursor()
 		self.db_lock = threading.RLock()
 
+		import atexit
+		atexit.register(self.cleanup)
+
 		if load_from_disk:
 			self.load_from_disk()
-		self.create_table()
-		self.create_favourites_table()
+			# Check if tables exist after loading
+			if not self._tables_exist():
+				self._create_tables()
+		else:
+			# Only create tables if we're not loading from disk
+			self._create_tables()
 
 		if (run_on_start):
 			self.start_periodic_save()
 
 
-	def create_table(self):
-		with self.db_lock:
-			table_exists = self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='index_data'").fetchone()
-			if not table_exists:
+	def _tables_exist(self):
+		"""Check if required tables already exist"""
+		try:
+			self.cursor.execute("""
+				SELECT name FROM sqlite_master 
+				WHERE type='table' AND name='index_data'
+			""")
+			return self.cursor.fetchone() is not None
+		except Exception as e:
+			log.error(f"Error checking tables: {e}")
+			return False
+
+
+	def _create_tables(self):
+		"""Create tables only if they don't exist"""
+		try:
+			with self.db_lock:
+				# Use CREATE TABLE IF NOT EXISTS
 				self.cursor.execute('''
 					CREATE TABLE IF NOT EXISTS index_data (
 						int_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,6 +83,10 @@ class Index(TimedStorage):
 				self.db_conn.commit()
 				self.set_dirty()
 				log.flow("Created index table")
+
+			self.create_favourites_table()
+		except Exception as e:
+			log.error(f"Error creating tables: {e}")
 
 
 	def create_favourites_table(self):

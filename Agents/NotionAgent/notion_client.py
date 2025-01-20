@@ -27,12 +27,13 @@ class NotionClient:
 	def __init__(self,
 				 notion_token=NOTION_TOKEN,
 				 landing_page_id=NOTION_LANDING_PAGE_ID,
+				 load_from_disk=True,
 				 run_on_start=True):
 		self.landing_page_id = landing_page_id
 		self.notion_token = notion_token
 
-		self.index = Index(run_on_start=run_on_start)
-		self.cache = BlockCache(run_on_start=run_on_start)
+		self.index = Index(load_from_disk=load_from_disk, run_on_start=run_on_start)
+		self.cache = BlockCache(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.url_index = UrlIndex()
 
 		self.headers = {
