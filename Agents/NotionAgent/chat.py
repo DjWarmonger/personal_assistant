@@ -46,10 +46,3 @@ def chat(loop = True, user_prompt = "") -> str:
 
 if __name__ == "__main__":
 	chat()
-	# Only for saving db
-	#time.sleep(5)
-
-# Hello, search my Notion for AI projects and give me a summary of the projects.
-# Znajdź w Notion moje projekty AI i przedstaw krótkie podsumowanie tych projektów.
-# Jak wygląda moja to-do lista na dziś?
-# Znajdź zadania w bazie "Sprawy życiowe" ze statusem "Blocked" i przedstaw ich podsumowanie.

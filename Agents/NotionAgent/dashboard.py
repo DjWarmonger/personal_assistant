@@ -45,13 +45,18 @@ def _():
 
     todo_prompts=['Przejdź do "Kalendarza" i wyświetl wszystkie wydarzenia zaplanowane na ten miesiąc.']
 
-    prompts_eng = ["Hello, search my Notion for AI projects and give me a summary of the projects", "Summarize all info present on Stop OCD project page. List current project status and remaining tasks.",
+    prompts_eng = ["navigate to notion integration page. Get all text from this page.",
+    "Hello, search my Notion for AI projects and give me a summary of the projects", "Summarize all info present on Stop OCD project page. List current project status and remaining tasks.",
 
     "List topics mentioned in my C++ 20 notes. Are there any C++20 features missing in that article?"]
 
     promts_favourites=['Dodaj tę stronę TODO do ulubionych: https://www.notion.so/TODO-dzi-4fa780c8df7746ff83500cd7d504c3d7',
 
-    'Dodaj tę stronę TODO do ulubionych: https://www.notion.so/TODO-dzi-4fa780c8df7746ff83500cd7d504c3d7. Następnie wyświetl zadania z dzisiejszej listy TODO.']
+    'Dodaj tę stronę TODO do ulubionych: https://www.notion.so/TODO-dzi-4fa780c8df7746ff83500cd7d504c3d7. Następnie wyświetl zadania z dzisiejszej listy TODO.',
+                      
+    'Dodaj też tą - Sprawy Życiowe: https://www.notion.so/fb76be1f96684194952d4ddfac58df48?v=da89c8956e7f4975900b04cba03cc526',
+    
+    'Add this page to favourites: https://www.notion.so/Integracja-z-Notion-1029efeb6676804488d6c61da2eb04b9']
 
     prompts = promts_favourites + prompts_pl + prompts_eng
     return prompts, prompts_eng, prompts_pl, promts_favourites, todo_prompts
