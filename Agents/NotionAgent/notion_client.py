@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 import os
+import asyncio
 
 from asyncClientManager import AsyncClientManager
 from index import Index
@@ -102,9 +103,29 @@ class NotionClient:
 		except ValueError as e:
 			log.error(e)
 			return str(e)
+		
+
+	async def get_block_children(self, uuid: str) -> dict:
+		"""
+		This should be called only if we know that children have been already fetched.
+		"""
+
+		indexes = self.cache.get_children_uuids(uuid)
+
+		# TODO: Handle case where children are paginated
+
+		# TODO: Make sure that key matches child
+		tasks = {index: self.get_block_content(index, get_children=False) for index in indexes}
+		# TODO: Move to asyncClientManager?
+		children = await asyncio.gather(*tasks.values())
+		return {index: child for index, child in zip(tasks.keys(), children)}
 
 
-	async def get_block_content(self, block_id, start_cursor=None):
+	async def get_block_content(self,
+							 block_id,
+							 get_children = False,
+							 start_cursor=None):
+
 		uuid = self.index.to_uuid(block_id)
 		if uuid is None:
 			return None
@@ -123,7 +144,18 @@ class NotionClient:
 		cached = self.cache.get_block(cache_key)
 
 		if cached is not None:
-			return cached
+			if not get_children:
+				return cached
+			else:
+				if self.cache.get_children_fetched_for_block(cache_key):
+					return await self.get_block_children(cache_key)
+				else:
+					# Proceed to retrieve this block AND its children
+					pass
+			
+		# If block is not cached, proceed as before.
+
+		# FIXME: if block is cached, children are never retrieved
 
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
@@ -138,27 +170,37 @@ class NotionClient:
 							   clean_type=False,
 							   clean_timestamps=False,
 							   convert_to_index_id=False)
+			
+			# TODO: Increase visit count
 
-			for block in response.json()["results"]:
-				self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
+			# FIXME: No key 'results' in response
 
-			children_uuids = [block["id"] for block in data["results"]]
+			if "results" not in data:
+				log.error(f"No key 'results' when retrieving children for block {uuid}")
+			else:
+				for block in response.json()["results"]:
+					self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
 
-			# TODO: Batch add multiple blocks?
-			for uuid, content in zip(children_uuids, data["results"]):
-				# TODO: Save last_edited_time / timestamp in db?
-				self.cache.add_block(uuid, content)
+				children_uuids = [block["id"] for block in data["results"]]
 
-			# TODO: Make sure this enum works for db and page
-			self.cache.add_parent_children_relationships(
-				cache_key,
-				children_uuids,
-				parent_type=ObjectType.BLOCK,
-				child_type=ObjectType.BLOCK)
+				# TODO: Batch add multiple blocks?
+				for uuid, content in zip(children_uuids, data["results"]):
+					# TODO: Save last_edited_time / timestamp in db?
+					self.cache.add_block(uuid, content)
+
+				# TODO: Make sure this enum works for db and page
+				self.cache.add_parent_children_relationships(
+					cache_key,
+					children_uuids,
+					parent_type=ObjectType.BLOCK,
+					child_type=ObjectType.BLOCK)
+				
+				if children_uuids:
+					self.cache.add_children_fetched_for_block(cache_key)
 
 			# TODO: Update or delete children-parent relationships if content of block is modified
 
-			# TODO: Is the type relevant an this point?
+			# TODO: Should the type be returned or saved in cached block?
 			data = self.clean_type(data)
 			data = self.clean_timestamps(data)
 			data = self.convert_to_index_id(data)
@@ -167,6 +209,11 @@ class NotionClient:
 				self.cache.add_block(uuid, data)
 			else:
 				self.cache.add_block(start_cursor, data)
+
+			if get_children:
+				# Proceed to retrieve children on lower level
+				log.flow("Retrieving children of just retrieved block")
+				data = await self.get_block_children(cache_key)
 
 			return data
 

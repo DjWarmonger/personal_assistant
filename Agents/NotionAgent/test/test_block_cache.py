@@ -53,43 +53,6 @@ class TestBlockCache(unittest.TestCase):
 		pass
 
 
-	def test_basic_deletion(self):
-		# Add an item to the cache
-		self.cache.add_block("test_uuid", "test_content")
-		
-		# Verify the item is in the cache
-		self.assertIsNotNone(self.cache.get_block("test_uuid"))
-		
-		# Delete the item
-		self.cache.delete_block(self.cache.create_cache_key("test_uuid", ObjectType.BLOCK))
-		
-		# Verify the item is no longer in the cache
-		self.assertIsNone(self.cache.get_block("test_uuid"))
-
-
-	def test_deleting_non_existent_item(self):
-		# Attempt to delete an item that doesn't exist in the cache
-		result = self.cache.delete_block(self.cache.create_cache_key("non_existent_uuid", ObjectType.BLOCK))
-		
-		# Verify the operation doesn't cause errors and returns 0 (no rows affected)
-		self.assertEqual(result, 0)
-
-
-	def test_multiple_deletions(self):
-		# Add multiple items to the cache
-		items = [("uuid1", "content1"), ("uuid2", "content2"), ("uuid3", "content3")]
-		for uuid, content in items:
-			self.cache.add_block(uuid, content)
-		
-		# Delete all items one by one
-		for uuid, _ in items:
-			self.cache.delete_block(self.cache.create_cache_key(uuid, ObjectType.BLOCK))
-		
-		# Verify the cache is empty after all deletions
-		for uuid, _ in items:
-			self.assertIsNone(self.cache.get_block(uuid))
-
-
 	def test_timed_expiration_deletion(self):
 		# Add items with different expiration times
 		self.cache.add_block("short_ttl", "content1", ttl=1)

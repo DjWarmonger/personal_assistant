@@ -105,6 +105,12 @@ class BlockCache(TimedStorage):
 					FOREIGN KEY (child_key) REFERENCES block_cache(cache_key)
 				)
 			''')
+
+			self.cursor.execute('''
+				CREATE TABLE IF NOT EXISTS children_fetched_for_block (
+					cache_key TEXT PRIMARY KEY
+				)
+			''')
 			
 			self.conn.commit()
 			self.set_dirty()
@@ -196,6 +202,8 @@ class BlockCache(TimedStorage):
 			
 			# Remove the relationships for this block
 			self.cursor.execute('DELETE FROM block_relationships WHERE parent_key = ? OR child_key = ?', (cache_key, cache_key))
+
+			self.remove_children_fetched_for_block(cache_key)
 			
 			self.conn.commit()
 			self.set_dirty()
@@ -295,7 +303,6 @@ class BlockCache(TimedStorage):
 					if (now - stored_time).total_seconds() > ttl:
 						log.debug(f"Item {cache_key} has expired")
 
-						# TODO: Refactor but do not set double lock?
 						self.cursor.execute('DELETE FROM block_cache WHERE cache_key = ?', (cache_key,))
 						self.conn.commit()
 						self.set_dirty()
@@ -337,12 +344,18 @@ class BlockCache(TimedStorage):
 		return self._get_block_internal(cache_key)
 
 
-	def delete_block(self, cache_key: str) -> int:
+	def get_children_uuids(self, uuid: str) -> list[str]:
+
+		cache_key = self.create_cache_key(uuid, ObjectType.BLOCK)
+
+		log.debug(f"Getting children indexes for {cache_key}")
+
+		children_keys = []
 		with self.lock:
-			self.cursor.execute('DELETE FROM block_cache WHERE cache_key = ?', (cache_key,))
-			self.conn.commit()
-			self.set_dirty()
-			return self.cursor.rowcount
+			self.cursor.execute('SELECT child_key FROM block_relationships WHERE parent_key = ?', (cache_key,))
+			children_keys = self.cursor.fetchall()
+
+		return [self.converter.strip_cache_prefix(child_key) for (child_key,) in children_keys]
 
 
 	def save(self):
@@ -443,6 +456,8 @@ class BlockCache(TimedStorage):
 						LIMIT 1000
 					)
 				''')
+				# TODO: Remove from other tables? What if block was not accessed but its parent was?
+
 				self.conn.commit()
 				self.set_dirty()
 
@@ -458,9 +473,6 @@ class BlockCache(TimedStorage):
 
 
 	def add_parent_child_relationship(self, parent_uuid: str, child_uuid: str, parent_type: ObjectType, child_type: ObjectType = ObjectType.BLOCK):
-
-		# TODO: Make sure both keys have long uuid form and not int:
-		# block:4fa780c8df7746ff83500cd7d504c3d7 instead of block:2
 
 		parent_key = self.create_cache_key(parent_uuid, parent_type)
 		child_key = self.create_cache_key(child_uuid, child_type)
@@ -492,3 +504,26 @@ class BlockCache(TimedStorage):
 			self.set_dirty()
 
 		log.debug(f"Added parent-children relationships: {parent_key} -> {len(children_uuids)} children")
+
+
+	def add_children_fetched_for_block(self, cache_key: str):
+		with self.lock:
+			self.cursor.execute('''
+				INSERT OR IGNORE INTO children_fetched_for_block (cache_key)
+				VALUES (?)
+			''', (cache_key,))
+			self.conn.commit()
+			self.set_dirty()
+
+
+	def get_children_fetched_for_block(self, cache_key: str) -> bool:
+		with self.lock:
+			self.cursor.execute('SELECT 1 FROM children_fetched_for_block WHERE cache_key = ?', (cache_key,))
+			return self.cursor.fetchone() is not None
+
+
+	def remove_children_fetched_for_block(self, cache_key: str):
+		with self.lock:
+			self.cursor.execute('DELETE FROM children_fetched_for_block WHERE cache_key = ?', (cache_key,))
+			self.conn.commit()
+			self.set_dirty()
