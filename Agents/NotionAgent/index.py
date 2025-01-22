@@ -27,8 +27,6 @@ class Index(TimedStorage):
 		self._is_closing = False
 		self.save_enabled = run_on_start
 		self.db_path = db_path
-		# Register shutdown handler
-		# TODO: Move to TimedStorage
 
 		super().__init__(period_ms=3000, run_on_start=run_on_start)
 
@@ -114,7 +112,6 @@ class Index(TimedStorage):
 			''', (count,))
 			results = self.cursor.fetchall()
 
-			# TODO: May want to return visit count and name as well?
 			ret = [result[0] for result in results]
 			log.common(f"Favourites:", ret)
 			return ret
@@ -304,7 +301,8 @@ class Index(TimedStorage):
 			if self.converter.validate_uuid(id):
 				return id
 			else:
-				raise ValueError("Invalid uuid")
+				log.error(f"Invalid uuid: {id}")
+				raise ValueError(f"Invalid uuid")
 		else:
 			raise TypeError("Invalid type for conversion to uuid")
 
@@ -343,11 +341,6 @@ class Index(TimedStorage):
 			self.cursor.execute('SELECT uuid FROM index_data WHERE int_id = ?', (int_id,))
 			result = self.cursor.fetchone()
 			return result[0] if result else None
-
-
-	def get_int(self, uuid: str) -> int:
-		# FIXME: This is just duplicated method from to_int
-		return self.to_int(uuid)
 
 
 	def get_visit_count(self, int_id: int) -> int:

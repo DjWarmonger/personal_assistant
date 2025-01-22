@@ -46,6 +46,7 @@ def _():
     todo_prompts=['Przejdź do "Kalendarza" i wyświetl wszystkie wydarzenia zaplanowane na ten miesiąc.']
 
     prompts_eng = ["navigate to notion integration page. Get all text from this page.",
+    
     "Hello, search my Notion for AI projects and give me a summary of the projects", "Summarize all info present on Stop OCD project page. List current project status and remaining tasks.",
 
     "List topics mentioned in my C++ 20 notes. Are there any C++20 features missing in that article?"]

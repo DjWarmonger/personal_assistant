@@ -84,7 +84,7 @@ def call_tool(state) -> None:
 
 	for key, result in processed_results.items():
 		log.debug(f"Result:", result)
-		# FIXME: Quote markk at the beginning: "jieUsS3NXOAlfqzN2axiFYd4(NotionGetChildren) returned:
+		# FIXME: Quote mark at the beginning: "jieUsS3NXOAlfqzN2axiFYd4(NotionGetChildren) returned:
 		message = f"{key} returned:\n{result}"
 		state["messages"].append(AIMessage(content=message))
 
@@ -99,7 +99,6 @@ def start(state: AgentState) -> AgentState:
 
 	favourites = client.index.get_favourites_with_names(10)
 
-	# TODO: Add name and id instead of uuid
 	# TODO: Add visit count?
 
 	if favourites:
@@ -111,10 +110,7 @@ def start(state: AgentState) -> AgentState:
 	else:
 		log.error(f"No favourites found")
 
-	# FIXME? content: "KeyError returned:'results'"
-
 	return {"messages": state["messages"], "functionCalls": []}
-	# TODO: Add message with favourite pages
 
 #@observe()
 def call_notion_agent(state: AgentState) -> AgentState:
@@ -188,8 +184,6 @@ def response_check(state: AgentState) -> str:
 	else:
 		return "continue"
 	
-	# TODO: Save index when response is returned?
-
 # TODO: Rename if it works
 def empty_action(state: AgentState):
 

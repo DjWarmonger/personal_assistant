@@ -31,4 +31,10 @@ class UUIDConverter:
 		if not self.validate_uuid(uuid):
 			raise ValueError("Invalid UUID format")
 		return self.clean_uuid(uuid)
+	
+
+	def strip_cache_prefix(self, uuid: str) -> str:
+
+		prefix, uuid = uuid.split(":")
+		return self.to_uuid(uuid)
 
