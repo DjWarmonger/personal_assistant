@@ -111,14 +111,19 @@ class NotionClient:
 		"""
 
 		indexes = self.cache.get_children_uuids(uuid)
+		indexes =[self.index.to_int(index) for index in indexes]
 
 		# TODO: Handle case where children are paginated
 
-		# TODO: Make sure that key matches child
-		tasks = {index: self.get_block_content(index, get_children=False) for index in indexes}
+		async def get_children(index) -> tuple[int, dict]:
+			children = await self.get_block_content(index, get_children=False)
+			return index, children
+
+		tasks = {index: get_children(index) for index in indexes}
 		# TODO: Move to asyncClientManager?
 		children = await asyncio.gather(*tasks.values())
-		return {index: child for index, child in zip(tasks.keys(), children)}
+
+		return {index: child for index, child in children}
 
 
 	async def get_block_content(self,
@@ -149,13 +154,9 @@ class NotionClient:
 			else:
 				if self.cache.get_children_fetched_for_block(cache_key):
 					return await self.get_block_children(cache_key)
-				else:
-					# Proceed to retrieve this block AND its children
-					pass
+			# Proceed to retrieve this block AND its children
 			
 		# If block is not cached, proceed as before.
-
-		# FIXME: if block is cached, children are never retrieved
 
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
@@ -185,7 +186,10 @@ class NotionClient:
 
 				# TODO: Batch add multiple blocks?
 				for uuid, content in zip(children_uuids, data["results"]):
+
 					# TODO: Save last_edited_time / timestamp in db?
+					content = self.convert_message(content)
+
 					self.cache.add_block(uuid, content)
 
 				# TODO: Make sure this enum works for db and page

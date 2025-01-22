@@ -23,6 +23,9 @@ class UUIDConverter:
 		if not uuid:
 			return False
 		
+		if type(uuid) == int:
+			return False
+		
 		return bool(self.UUID_PATTERN.match(uuid))
 
 
