@@ -344,18 +344,6 @@ class NotionClient:
 		return f"{base_url}{formatted_id}"
 	
 
-	def extract_notion_id(self, url):
-		if url is None:
-			return None
-		
-		base_url = "https://www.notion.so/"
-		# TODO: Strip extra content, if any
-		# TODO: Strip query parameters, if any
-		formatted_id = url.replace(base_url, "")
-		
-		return formatted_id
-
-
 	def convert_message(self,
 						message : dict | list,
 						clean_timestamps : bool = True,
