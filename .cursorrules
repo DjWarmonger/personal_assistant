@@ -1,0 +1,18 @@
+# TODO: Project overwiev
+
+# TODO: Project goals
+
+## Dockerization
+
+- Must be simple to build and deploy all agents at once.
+- Provide easy “one-step” config for container-based projects.
+
+### TODO: Build and deploy all the agents at once.
+
+# TODO: Project structure
+
+# TODO: Used libraries
+
+## Patterns and preferences
+
+- When calling async tasks, make sure that each task returns a tuple of (key, value) so that each result can be assigned to related input.
