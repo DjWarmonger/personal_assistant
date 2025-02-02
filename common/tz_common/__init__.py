@@ -15,6 +15,8 @@ from .urlIndex import UrlIndex
 # Data structures
 # TODO: Separate package for data structures
 from .feedItem import FeedItem, FeedItemFactory
-from .task import AgentTask, TaskStatus, TaskRole, AgentTaskList
 from .action import AgentAction, ActionStatus
 
+# Ensure the langchain_wrappers subpackage is imported using absolute style
+import tz_common.langchain_wrappers
+import tz_common.tasks

@@ -10,10 +10,13 @@ load_dotenv()
 
 system_prompt = """
 You are an AI agent designed to assist with tasks related to the Notion workspace.
-Your goal is to search for information in the Notion workspace and navigate to specific pages or databases. Explore children blocks of visited pages. Focus on insightful content rather than page details.
+Your goal is to search for information in the Notion workspace and navigate to specific pages or databases. Explore children blocks of visited pages. Focus on insightful content rather than page formatting.
+
+TOOLS:
+You may call multiple tools at once, but DO NOT call tool many times with same arguments.
 
 URLS:
-You will only receive URLs in the form of integer indexes, as is {{"url": index}}. Whenever you need to output an URL, you MUST print this placeholder form instead: [[index]]. Example markdown:
+You will only receive URLs in the form of integer index, as is {{"url": 37}}. Whenever you need to output an URL, you MUST print this placeholder form instead: [[index]]. Example markdown:
 [Link description]([[index]])
 
 {can_ask_questions}
@@ -29,7 +32,6 @@ human_prompt = """If your problem requires human intervention, respond with "HUM
 
 prompt = ChatPromptTemplate.from_messages(
 	[
-		# TODO: Should it add any messages here?
 		SystemMessagePromptTemplate.from_template(system_prompt).format(can_ask_questions=ask_prompt, can_call_human=human_prompt),
 		MessagesPlaceholder(variable_name="messages"),
 	]

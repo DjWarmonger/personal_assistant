@@ -15,7 +15,7 @@ The goals of utils is to streamline AI agent development, by providing a set of 
 
 * Minimize cognitive load. User should not need to guess or assume anything in order to use the tool.
 
-## TODO: Separate tools into different packages, especially:
+## Separate tools into different packages, especially:
 
 * Data structures and ontologies
 
@@ -32,7 +32,8 @@ Each of the utils is supposed to be self-contained tool that can be simply used 
 ## Concurrency
 
 - Run slow LLM calls in separate threads.
-- Ensure result IDs match request IDs without user involvement.
+- Dispatch multiple tasks in parallel, use syncio.gather to wait for all tasks to complete.
+- Ensure result IDs match request IDs without user involvement. Use dictionaries {task_id : result} to keep track of results.
 
 # Used libraries
 

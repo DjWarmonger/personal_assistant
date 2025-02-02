@@ -10,11 +10,13 @@ class TaskStatus(Enum):
 	COMPLETED = 2
 	BLOCKED = 3  # May require intervention of user, or other agent, or just wait for issue to be resolved
 	FAILED = 4
-	
+
+
 class TaskRole(Enum):
 	USER = 0
 	AGENT = 1
 	OS = 2 # eg. objective roadblocks that need to be resolved
+
 
 class AgentTask(BaseModel):
 	"""Represents a clearly defined goal that needs to be completed by an agent. Task can be completed over many attempts, or not at all. Tasks are persistent between sessions."""

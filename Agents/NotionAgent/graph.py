@@ -7,6 +7,7 @@ from langchain_core.messages import BaseMessage, AIMessage, ToolMessage
 
 from tz_common.logs import log
 from tz_common import create_langfuse_handler
+from tz_common.langchain_wrappers import AgentState, check_and_call_tools
 from agents import notion_agent_runnable
 from langfuse.decorators import observe
 from agentTools import tool_executor, client
@@ -16,84 +17,13 @@ import time
 
 langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
 
-class AgentState(TypedDict):
-
-	messages: Sequence[BaseMessage]
-	functionCalls: Sequence[BaseMessage] #One message can contain multiple tool calls
-	#TODO: Limit number of actions agent can take
-	#TODO: Remind agent about the limit
+class NotionAgentState(AgentState):
+	pass
 
 
-def call_tool(state) -> None:
+def start(state: NotionAgentState) -> NotionAgentState:
 
-	# We know the last message involves at least one tool call
-	last_message = state["functionCalls"]
-
-	tasks = []
-
-	# Handle empty case
-	if not last_message.additional_kwargs.get("tool_calls", []):
-		return {"messages": state["messages"], "functionCalls": []}
-
-	async def get_tool_result(tool, name: str, input_args: dict) -> tuple[str, str]:
-		result = await tool.arun(tool_input=input_args)
-		return (name, result)
-	
-	# Create tasks
-	for tool_call in last_message.additional_kwargs["tool_calls"]:
-		
-		name = tool_call["function"]["name"]
-		input_args = json.loads(tool_call["function"]["arguments"])
-
-		for tool in tool_executor.tools:
-			if tool.name == name:
-				tool_name = f"{tool_call['id'].rsplit('_', 1)[1]}({tool.name})"
-				log.flow(f"Calling tool: {tool_name}")
-
-				tasks.append(get_tool_result(tool, tool_name, input_args))
-
-	# TODO: Test exceptions
-	async def call_tools():
-		try:
-			results = await asyncio.gather(*tasks, return_exceptions=True)
-			processed_results = {}
-			
-			for result in results:
-				if isinstance(result, Exception):
-					# Convert exception to string message
-					error_message = str(result)
-					log.error(f"Error: {error_message}")
-					processed_results[result.__class__.__name__] = error_message
-				else:
-					# Assuming result is a tuple of (key, value)
-					key, value = result
-					processed_results[key] = value
-					
-			return processed_results
-			
-		except Exception as e:
-			# Handle any unexpected errors in the gather itself
-			return {"error": str(e)}
-
-	try:
-		loop = asyncio.new_event_loop()
-		asyncio.set_event_loop(loop)
-		processed_results = loop.run_until_complete(call_tools())
-	finally:
-		loop.close()
-
-	for key, result in processed_results.items():
-		log.debug(f"Result:", result)
-		# FIXME: Quote mark at the beginning: "jieUsS3NXOAlfqzN2axiFYd4(NotionGetChildren) returned:
-		message = f"{key} returned:\n{result}"
-		state["messages"].append(AIMessage(content=message))
-
-	log.flow(f"Size of messages: {len(state['messages'])}")
-
-	return {"messages": state["messages"], "functionCalls": []}
-
-
-def start(state: AgentState) -> AgentState:
+	# TODO: Consider  exporting to library?
 
 	log.flow(f"Entered start")
 
@@ -112,7 +42,7 @@ def start(state: AgentState) -> AgentState:
 
 	return {"messages": state["messages"], "functionCalls": []}
 
-#@observe()
+
 def call_notion_agent(state: AgentState) -> AgentState:
 
 	#log.flow(f"Entered call_notion_agent")
@@ -126,31 +56,8 @@ def call_notion_agent(state: AgentState) -> AgentState:
 	return {"messages": state["messages"], "functionCalls": []}
 
 
-# TODO: Move to library
-def check_tools(state: AgentState) -> AgentState:
-
-	log.flow(f"Entered check_tools")
-
-	last_message = state["messages"][-1]
-
-	if last_message:
-
-		log.debug(f"Last message:\n", str(last_message))
-
-		# If there are no tool calls, then we finish
-		if "tool_calls" in last_message.additional_kwargs:
-			state["functionCalls"] = last_message
-			log.flow(f"Calling tools")
-
-			ret = call_tool(state)
-
-			log.debug(f"Returned from tool calls:\n", ret)
-
-			return ret
-
-	# Otherwise, we continue
-	log.flow(f"No tool calls")
-	return {"messages": state["messages"]}
+def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
+	return check_and_call_tools(state, tool_executor)
 
 
 def response_check(state: AgentState) -> str:
@@ -201,7 +108,8 @@ graph.set_entry_point("start")
 
 graph.add_node("start", start)
 graph.add_node("callNotionAgent", call_notion_agent)
-graph.add_node("checkTools", check_tools)
+# FIXME: TypeError: check_and_call_tools() missing 1 required positional argument: 'tool_executor'
+graph.add_node("checkTools", check_and_call_tools_wrapper)
 graph.add_node("responseCheck", empty_action)
 
 graph.add_edge("start", "callNotionAgent")

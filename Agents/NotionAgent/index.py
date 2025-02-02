@@ -130,7 +130,7 @@ class Index(TimedStorage):
 				LIMIT ?
 			''', (count,))
 			results = self.cursor.fetchall()
-			log.common(f"Favourites with descriptions:", "\n".join([f"{r[0]:02}: {r[1]}" for r in results]))
+			log.common("Favourites with descriptions:\n", "\n".join([f"{r[0]:02}: {r[1]}" for r in results]))
 			return results
 
 
