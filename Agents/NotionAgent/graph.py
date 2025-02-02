@@ -62,14 +62,14 @@ def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
 
 def response_check(state: AgentState) -> str:
 
-	# TODO: Use AgentAction, ActionStatus
 	#log.flow(f"Entered response_check")
+
+	# TODO: Use AgentTask
 
 	response = state["messages"][-1]
 
 	if "TASK_COMPLETED" in response.content:
 		log.flow(f"Task completed")
-		# FIXME: TASK_COMPLETED should be removed from visible message
 		state["messages"][-1].content.replace("TASK_COMPLETED", "")
 		return "completed"
 	
@@ -91,8 +91,10 @@ def response_check(state: AgentState) -> str:
 	else:
 		return "continue"
 	
-# TODO: Rename if it works
+
 def empty_action(state: AgentState):
+	# TODO: Rename if it works
+	# TODO: Consider exporting to library
 
 	for msg in state["messages"]:
 		msg.content = client.url_index.replace_placeholders(msg.content)
@@ -102,13 +104,12 @@ def empty_action(state: AgentState):
 	return {"messages": state["messages"]}
 
 
-graph = StateGraph(AgentState)
+graph = StateGraph(NotionAgentState)
 
 graph.set_entry_point("start")
 
 graph.add_node("start", start)
 graph.add_node("callNotionAgent", call_notion_agent)
-# FIXME: TypeError: check_and_call_tools() missing 1 required positional argument: 'tool_executor'
 graph.add_node("checkTools", check_and_call_tools_wrapper)
 graph.add_node("responseCheck", empty_action)
 
