@@ -21,10 +21,6 @@ async def get_tool_result(tool, tool_name: str, state: AgentState, input_args: d
 	return (tool_name, result)
 
 
-#FIXME:
-# #Calling tool: iuU6oPIRPWvC2omhlvsO9tGc(NotionGetChildren)
-#Error: ContextAwareTool._arun() missing 1 required positional argument: 'context'
-
 def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentState):
 
 	tasks = []
@@ -35,10 +31,17 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 		input_args = json.loads(tool_call["function"]["arguments"])
 		for tool in tool_executor.tools:
 			if tool.name == name:
+
+				# TODO: log actual inpup parameters signature
 				tool_name = f"{tool_call['id'].rsplit('_', 1)[1]}({tool.name})"
 				log.flow(f"Calling tool: {tool_name}")
 
-				#log.debug(f"input_args:", input_args)
+				#log.debug(f"Tool signature:", tool.args)
+				log.debug(f"input_args:", input_args)
+
+				# FIXME: Incorrect input_args
+				# input_args:{'__arg1': '1'}
+
 				#log.debug(f"state:", state)
 				tasks.append(get_tool_result(tool, tool_name, state, input_args))
 

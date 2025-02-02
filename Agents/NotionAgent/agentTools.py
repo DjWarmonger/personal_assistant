@@ -1,10 +1,5 @@
 from typing import Optional, Type, Any
-from pydantic.v1 import BaseModel, Field, validator
-from langchain.callbacks.manager import (
-	AsyncCallbackManagerForToolRun,
-	CallbackManagerForToolRun,
-)
-from langchain_core.tools import BaseTool
+from langchain_core.pydantic_v1 import Field, validator
 
 from langfuse.decorators import observe
 from notion_client import NotionClient
@@ -24,7 +19,6 @@ class NotionSearchTool(ContextAwareTool):
 		query: str = Field(..., description="Search query")
 
 
-	# FIXME: Never awaited
 	async def _run(self, context: AgentState, query: str, **kwargs: Any) -> tuple[AgentState, str]:
 		log.flow(f"Searching Notion... {query}")
 		result = await client.search_notion(query)
@@ -144,3 +138,39 @@ agent_tools = [
 	]
 
 tool_executor = ToolExecutor(agent_tools)
+
+
+"""
+def custom_convert_to_openai_function(tool):
+	return {
+		"name": tool.name,
+		"description": tool.description,
+		"parameters": {
+			"type": "object",
+			"properties": {
+				field_name: {
+					"type": "string",  # or appropriate type
+					"description": field.description
+				} for field_name, field in tool.args_schema.__fields__.items()
+			},
+			"required": list(tool.args_schema.__fields__.keys())
+		}
+	}
+"""
+
+import json
+import langchain_core.utils.function_calling
+# Monkey patch to use our custom convert_to_openai_function
+# FIXME: Very ugly, but works
+langchain_core.utils.function_calling.convert_to_openai_function = lambda tool: tool.convert_to_openai_function()
+
+"""
+for tool in agent_tools:
+
+	print("Tool call schema:")
+	print(tool.tool_call_schema.schema())
+
+	openai_function = langchain_core.utils.function_calling.convert_to_openai_function(tool)
+	print("OpenAI Function Schema:")
+	print(json.dumps(openai_function, indent=2))
+"""
