@@ -51,13 +51,12 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 				if isinstance(result, Exception):
 					error_message = str(result)
 
-					# FIXME: Error: Object of type coroutine is not JSON serializable
 					log.error(f"Error: {error_message}")
 					processed_results[result.__class__.__name__] = error_message
 				else:
-					# Append results
+					# Append results - Only message
 					key, value = result
-					processed_results[key] = value
+					processed_results[key] = value[-1]
 
 			return processed_results
 
