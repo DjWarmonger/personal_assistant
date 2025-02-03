@@ -76,7 +76,10 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 	for key, result in processed_results.items():
 		log.debug("Result:", result)
 		message = f"{key} returned:\n{result}"
-		state["messages"].append(AIMessage(content=message))
+		ai_message = AIMessage(content=message)
+		state["recentResults"].append(ai_message)
+		state["toolResults"].append(ai_message)
+		#state = trim_recent_results(state)
 
 	return state
 
@@ -84,7 +87,13 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 def check_and_call_tools(state: AgentState, tool_executor: ToolExecutor) -> AgentState:
 	
 	log.flow(f"Entered check_tools")
- 
+
+	if "recentResults" not in state:
+		state["recentResults"] = []
+
+	if "toolResults" not in state:
+		state["toolResults"] = []
+
 	last_message = state["messages"][-1]
  
 	if not last_message.additional_kwargs.get("tool_calls", []):

@@ -7,7 +7,7 @@ from langchain_core.messages import BaseMessage, AIMessage, ToolMessage
 
 from tz_common.logs import log
 from tz_common import create_langfuse_handler
-from tz_common.langchain_wrappers import AgentState, check_and_call_tools
+from tz_common.langchain_wrappers import AgentState, trim_recent_results, check_and_call_tools
 from agents import notion_agent_runnable
 from langfuse.decorators import observe
 from agentTools import tool_executor, client
@@ -40,16 +40,31 @@ def start(state: NotionAgentState) -> NotionAgentState:
 	else:
 		log.error(f"No favourites found")
 
-	return {"messages": state["messages"], "functionCalls": []}
+	return {
+		"messages": state["messages"],
+		"functionCalls": [],
+		"recentResults": []
+		}
+	# TODO: Discard favourites message after first run
 
 
-def call_notion_agent(state: AgentState) -> AgentState:
+def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
 	#log.flow(f"Entered call_notion_agent")
 
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 
-	response = notion_agent_runnable.invoke({"messages": state["messages"]})
+	# TODO: Add initial message to state?
+
+	# OK, but we now need to store the results somewhere
+	# state = trim_recent_results(state, 10000)
+	recent_calls = "Recent results of tool calls:\n"
+	recent_calls += "\n\n".join([str(result.content) for result in state["recentResults"]])
+
+	# Only append them once for this call, do not permanently add them to message history
+	messages_with_context = state["messages"] + [AIMessage(content=recent_calls)]
+
+	response = notion_agent_runnable.invoke({"messages": messages_with_context})
 
 	state["messages"].append(response)
 

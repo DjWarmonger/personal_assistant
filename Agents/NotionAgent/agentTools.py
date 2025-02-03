@@ -51,7 +51,7 @@ class NotionGetChildrenTool(ContextAwareTool):
 	async def _run(self, context: AgentState, index: int | str, start_cursor: Optional[str] = None, **kwargs: Any) -> tuple[AgentState, str]:
 		cursor_info = f" start cursor: {start_cursor}" if start_cursor is not None else ""
 		log.flow(f"Retrieving children of Notion block... {index}{cursor_info}")
-		result = await client.get_block_content(block_id=index, start_cursor=start_cursor, )
+		result = await client.get_block_content(block_id=index, start_cursor=start_cursor, get_children=True)
 		return context, json_converter.remove_spaces(result)
 
 
