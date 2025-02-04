@@ -6,6 +6,7 @@ from asyncClientManager import AsyncClientManager
 from index import Index
 from urlIndex import UrlIndex
 from blockCache import BlockCache, ObjectType
+from blockTree import BlockTree
 from tz_common.logs import log, LogLevel
 
 from utils import Utils
@@ -36,6 +37,9 @@ class NotionClient:
 		self.index = Index(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.cache = BlockCache(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.url_index = UrlIndex()
+		self.tree = BlockTree()
+		# TODO: Populate blockTree
+		# TODO: Delete items from blockTree when cache is invalidated?
 
 		self.headers = {
 			"Authorization": f"Bearer {self.notion_token}",
@@ -109,7 +113,7 @@ class NotionClient:
 		"""
 		This should be called only if we know that children have been already fetched.
 		"""
-
+		log.debug(f"get_block_children called with uuid: {uuid} (type: {type(uuid).__name__})")
 		indexes = self.cache.get_children_uuids(uuid)
 		indexes =[self.index.to_int(index) for index in indexes]
 
@@ -153,7 +157,7 @@ class NotionClient:
 				return cached
 			else:
 				if self.cache.get_children_fetched_for_block(cache_key):
-					return await self.get_block_children(cache_key)
+					return await self.get_all_children_recursively(cache_key)
 			# Proceed to retrieve this block AND its children
 			
 		# If block is not cached, proceed as before.
@@ -215,11 +219,41 @@ class NotionClient:
 				self.cache.add_block(start_cursor, data)
 
 			if get_children:
-				# Proceed to retrieve children on lower level
-				log.flow("Retrieving children of just retrieved block")
-				data = await self.get_block_children(cache_key)
+				# Proceed to retrieve children on lower level recursively
+				log.flow("Retrieving children recursively for block " + str(cache_key))
+				data = await self.get_all_children_recursively(cache_key)
+				return data
 
 			return data
+		
+	
+	async def get_all_children_recursively(self, block_identifier) -> dict:
+		"""
+		Recursively fetch and flatten all children blocks for the given block identifier.
+		Returns a dictionary mapping each child block's id (int) to its content.
+		"""
+		#log.debug(f"get_all_children_recursively called with block_identifier: {block_identifier} (type: {type(block_identifier).__name__})")
+		# If block_identifier is an int, convert it to uuid string.
+		if isinstance(block_identifier, int):
+			converted = self.index.get_uuid(block_identifier)
+			#log.debug(f"Converted block_identifier {block_identifier} (int) to uuid string: {converted}")
+			block_identifier = converted
+		flat_children = {}
+		# Get immediate children
+		immediate_children = await self.get_block_children(block_identifier)
+		for child_id, child_content in immediate_children.items():
+			#log.debug(f"Processing child: {child_id} (type: {type(child_id).__name__})")
+			flat_children[child_id] = child_content
+			# Ensure child_id is a uuid string when recursing
+			child_uuid = child_id
+			if isinstance(child_id, int):
+				converted_child = self.index.get_uuid(child_id)
+				#log.debug(f"Converted child_id {child_id} (int) to uuid string: {converted_child}")
+				child_uuid = converted_child
+			# Recursively get descendants of the child block
+			descendants = await self.get_all_children_recursively(child_uuid)
+			flat_children.update(descendants)
+		return flat_children
 
 
 	async def search_notion(self, query, filter_type=None,
@@ -490,5 +524,8 @@ class NotionClient:
 		#  TODO: Move both to one class that manages storage?
 		self.index.save_now()
 		self.cache.save_now()
+
+
+
 
 
