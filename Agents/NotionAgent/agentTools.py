@@ -57,8 +57,13 @@ class NotionGetChildrenTool(ContextAwareTool):
 
 		result = await client.get_block_content(block_id=index, start_cursor=start_cursor, get_children=True)
 
-		# FIXME: Add all visited children to visitedBlocks
-		context["visitedBlocks"][index] = result
+		if type(result) == dict:
+			for id, content in result.items():
+				context["visitedBlocks"][int(id)] = content
+		elif type(index) == int:
+			context["visitedBlocks"][index] = result
+		else:
+			log.error(f"Unhandled key type: {type(index)}")
 
 		return context, json_converter.remove_spaces(result)
 

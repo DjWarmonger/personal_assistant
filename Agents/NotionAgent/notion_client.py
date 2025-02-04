@@ -197,6 +197,8 @@ class NotionClient:
 					self.cache.add_block(uuid, content)
 
 				# TODO: Make sure this enum works for db and page
+
+				# FIXME: Do this also for recursive children
 				self.cache.add_parent_children_relationships(
 					cache_key,
 					children_uuids,

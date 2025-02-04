@@ -74,7 +74,7 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 		loop.close()
 
 	for key, result in processed_results.items():
-		log.debug("Result:", result)
+		log.debug(f"Result of tool {key}:", result)
 		message = f"{key} returned:\n{result}"
 		ai_message = AIMessage(content=message)
 		state["recentResults"].append(ai_message)

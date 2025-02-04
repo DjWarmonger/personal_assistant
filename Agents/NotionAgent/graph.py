@@ -43,13 +43,14 @@ def start(state: NotionAgentState) -> NotionAgentState:
 	else:
 		log.error(f"No favourites found")
 
+	# TODO: Add initial message to state?
+
 	return {
 		"messages": state["messages"],
 		"functionCalls": [],
 		"recentResults": [],
 		"visitedBlocks": {}
 		}
-	# TODO: Discard favourites message after first run
 
 
 def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
@@ -58,9 +59,7 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 
-	# TODO: Add initial message to state?
-
-	# OK, but we now need to store the results somewhere
+	# TODO: Trim the results but process visitedBlocks instead
 	# state = trim_recent_results(state, 10000)
 	recent_calls = "Recent results of tool calls:\n"
 	recent_calls += "\n\n".join([str(result.content) for result in state["recentResults"]])
@@ -118,7 +117,9 @@ def clean_output(state: AgentState):
 	for msg in state["messages"]:
 		msg.content = client.url_index.replace_placeholders(msg.content)
 
-	log.knowledge(f"Visited blocks:", state['visitedBlocks'].keys())
+	# TODO: Discard favourites message after first loop
+
+	log.knowledge(f"Visited blocks:", sorted(state['visitedBlocks'].keys()))
 
 	#client.save_now()
 
