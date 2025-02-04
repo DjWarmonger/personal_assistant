@@ -11,14 +11,13 @@ from tz_common.langchain_wrappers import AgentState, trim_recent_results, check_
 from agents import notion_agent_runnable
 from langfuse.decorators import observe
 from agentTools import tool_executor, client
+from agentState import NotionAgentState
 
 import os
 import time
 
+# TODO: Add to other agents?
 langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
-
-class NotionAgentState(AgentState):
-	pass
 
 
 def start(state: NotionAgentState) -> NotionAgentState:
@@ -26,6 +25,10 @@ def start(state: NotionAgentState) -> NotionAgentState:
 	# TODO: Consider  exporting to library?
 
 	log.flow(f"Entered start")
+	log.debug(f"State type: {type(state)}")
+	log.debug(f"State methods: {dir(state)}")
+
+	log.debug(f"AgentState:", state)
 
 	favourites = client.index.get_favourites_with_names(10)
 
@@ -43,7 +46,8 @@ def start(state: NotionAgentState) -> NotionAgentState:
 	return {
 		"messages": state["messages"],
 		"functionCalls": [],
-		"recentResults": []
+		"recentResults": [],
+		"visitedBlocks": {}
 		}
 	# TODO: Discard favourites message after first run
 
@@ -107,12 +111,14 @@ def response_check(state: AgentState) -> str:
 		return "continue"
 	
 
-def empty_action(state: AgentState):
-	# TODO: Rename if it works
-	# TODO: Consider exporting to library
+def clean_output(state: AgentState):
+
+	# This is an extra node from which we can exit the graph and return the result
 
 	for msg in state["messages"]:
 		msg.content = client.url_index.replace_placeholders(msg.content)
+
+	log.knowledge(f"Visited blocks:", state['visitedBlocks'].keys())
 
 	#client.save_now()
 
@@ -126,7 +132,7 @@ graph.set_entry_point("start")
 graph.add_node("start", start)
 graph.add_node("callNotionAgent", call_notion_agent)
 graph.add_node("checkTools", check_and_call_tools_wrapper)
-graph.add_node("responseCheck", empty_action)
+graph.add_node("responseCheck", clean_output)
 
 graph.add_edge("start", "callNotionAgent")
 graph.add_edge("callNotionAgent", "checkTools")

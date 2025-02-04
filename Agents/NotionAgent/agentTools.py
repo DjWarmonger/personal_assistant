@@ -36,6 +36,9 @@ class NotionPageDetailsTool(ContextAwareTool):
 	async def _run(self, context: AgentState, notion_id: str, **kwargs: Any) -> tuple[AgentState, str]:
 		log.flow(f"Getting details of Notion page... {notion_id}")
 		result = await client.get_notion_page_details(page_id=notion_id)
+
+		context["visitedBlocks"][notion_id] = result
+
 		return context, json_converter.remove_spaces(result)
 
 
@@ -51,7 +54,12 @@ class NotionGetChildrenTool(ContextAwareTool):
 	async def _run(self, context: AgentState, index: int | str, start_cursor: Optional[str] = None, **kwargs: Any) -> tuple[AgentState, str]:
 		cursor_info = f" start cursor: {start_cursor}" if start_cursor is not None else ""
 		log.flow(f"Retrieving children of Notion block... {index}{cursor_info}")
+
 		result = await client.get_block_content(block_id=index, start_cursor=start_cursor, get_children=True)
+
+		# FIXME: Add all visited children to visitedBlocks
+		context["visitedBlocks"][index] = result
+
 		return context, json_converter.remove_spaces(result)
 
 
@@ -67,9 +75,12 @@ class NotionGetBlockContentTool(ContextAwareTool):
 	async def _run(self, context: AgentState, index: int | str, start_cursor: Optional[str] = None, **kwargs: Any) -> tuple[AgentState, str]:
 		cursor_info = f" start cursor: {start_cursor}" if start_cursor is not None else ""
 		log.flow(f"Retrieving content of Notion block... {index}{cursor_info}")
+		
 		result = await client.get_block_content(get_children=False,
 							block_id=index,
 							start_cursor=start_cursor)
+		context["visitedBlocks"][index] = result
+
 		return context, json_converter.remove_spaces(result)
 
 
