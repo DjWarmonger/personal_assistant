@@ -210,7 +210,6 @@ class NotionClient:
 
 			# TODO: Update or delete children-parent relationships if content of block is modified
 
-			# TODO: Should the type be returned or saved in cached block?
 			data = self.clean_type(data)
 			data = self.clean_timestamps(data)
 			data = self.convert_to_index_id(data)
@@ -234,15 +233,32 @@ class NotionClient:
 		Recursively fetch and flatten all children blocks for the given block identifier.
 		Returns a dictionary mapping each child block's id (int) to its content.
 		"""
-		#log.debug(f"get_all_children_recursively called with block_identifier: {block_identifier} (type: {type(block_identifier).__name__})")
 		# If block_identifier is an int, convert it to uuid string.
 		if isinstance(block_identifier, int):
 			converted = self.index.get_uuid(block_identifier)
 			#log.debug(f"Converted block_identifier {block_identifier} (int) to uuid string: {converted}")
 			block_identifier = converted
+
 		flat_children = {}
 		# Get immediate children
 		immediate_children = await self.get_block_children(block_identifier)
+
+		if immediate_children:
+
+			child_uuids = [self.index.to_uuid(child_id) for child_id in list(immediate_children.keys())]
+
+			#log.debug(f"Adding parent-children relationships for block {block_identifier}:", child_uuids)
+			# Add relationships for nested blocks as well.
+			self.cache.add_parent_children_relationships(
+				block_identifier,
+				child_uuids,
+				parent_type=ObjectType.BLOCK,
+				child_type=ObjectType.BLOCK)
+			
+			#log.debug(f"Adding children fetched for block {block_identifier}:", child_uuids)
+
+			self.cache.add_children_fetched_for_block(block_identifier)
+
 		for child_id, child_content in immediate_children.items():
 			#log.debug(f"Processing child: {child_id} (type: {type(child_id).__name__})")
 			flat_children[child_id] = child_content
@@ -255,6 +271,9 @@ class NotionClient:
 			# Recursively get descendants of the child block
 			descendants = await self.get_all_children_recursively(child_uuid)
 			flat_children.update(descendants)
+
+		# Log the visited nested blocks (using a similar style as in graph.py)
+		#log.debug(f"Visited nested blocks:", list(flat_children.keys()))
 		return flat_children
 
 
