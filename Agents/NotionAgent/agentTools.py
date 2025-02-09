@@ -4,8 +4,8 @@ from langchain_core.pydantic_v1 import Field, validator
 from langfuse.decorators import observe
 from notion_client import NotionClient
 from tz_common import log, JsonConverter
-from tz_common.tasks import AgentTask
-from tz_common.langchain_wrappers import ContextAwareTool, AgentState
+from tz_common.tasks import AgentTask, AgentTaskList
+from tz_common.langchain_wrappers import ContextAwareTool, AgentState, AddTaskTool, CompleteTaskTool
 
 client = NotionClient()
 json_converter = JsonConverter()
@@ -123,8 +123,34 @@ class ChangeFavourties(ContextAwareTool):
 		return context, result
 
 
+class SetTaskListTool(ContextAwareTool):
+
+	# FIXME: Apparently 4o-mini can't pull this off
+
+	# TODO: Move to common lib
+
+	name: str = "SetTaskList"
+	description: str = "Set the task list for the current agent, replacing the existing task list"
+
+	class ArgsSchema(ContextAwareTool.ArgsSchema):
+		task_list: AgentTaskList = Field(..., description="List of AgentTask objects to replace current tasks")
+
+
+	async def _run(self, context: AgentState, task_list: AgentTaskList, **kwargs: Any) -> tuple[AgentState, str]:
+
+		# FIXME: Must be formatted as TaskList. Else, add tasks one by one.
+
+		log.debug("Task list:", task_list)
+
+		# TODO: What about already solved tasks? Erase them, overwrite?
+		context["unsolved_tasks"] = set(task_list)
+		return context, "Task list set"
+
+
+
 # Stub functions for additional functionality
 def get_link_from_id(notion_id):
+
 	log.flow(f"Resolving link for notion_id {notion_id}")
 	# Allow to resolve short id into full link for user convenience
 	pass
@@ -152,9 +178,14 @@ agent_tools = [
 	NotionQueryDatabaseTool(),
 	ChangeFavourties()
 	]
+planner_tools = [AddTaskTool(),
+				 CompleteTaskTool()] + agent_tools
+writer_tools = [CompleteTaskTool()]
 
+
+planner_tool_executor = ToolExecutor(planner_tools)
 tool_executor = ToolExecutor(agent_tools)
-
+writer_tool_executor = ToolExecutor(writer_tools)
 
 """
 def custom_convert_to_openai_function(tool):

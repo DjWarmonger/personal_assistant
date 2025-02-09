@@ -80,32 +80,19 @@ def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
 
 def response_check(state: AgentState) -> str:
 
-	#log.flow(f"Entered response_check")
-
 	# TODO: Use AgentTask
 
-	response = state["messages"][-1]
+	if len(state["unsolved_tasks"]) == 0:
+		for task in state["solved_tasks"]:
+			if task.status == "failed":
+				log.error(f"Task failed: {task.name}")
+				return "failed"
 
-	if "TASK_COMPLETED" in response.content:
-		log.flow(f"Task completed")
-		state["messages"][-1].content.replace("TASK_COMPLETED", "")
+		log.flow(f"All tasks completed")
 		return "completed"
-	
-	elif "TASK_FAILED" in response.content:
-		log.error(f"Task failed")
-		state["messages"][-1].content.replace("TASK_FAILED", "")
-		return "failed"
-	
-	elif "HUMAN_FEEDBACK_NEEDED" in response.content:
-		log.flow(f"Human feedback needed")
-		state["messages"][-1].content.replace("HUMAN_FEEDBACK_NEEDED", "")
-		return "human_feedback_needed"
-	
-	elif "AGENT_QUESTION" in response.content:
-		log.flow(f"Agent question")
-		state["messages"][-1].content.replace("AGENT_QUESTION", "")
-		return "agent_question"
 
+	# TODO: handle human feedback tool
+	# TODO: Handle agent question tool
 	else:
 		return "continue"
 	

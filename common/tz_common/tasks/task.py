@@ -20,23 +20,26 @@ class TaskRole(Enum):
 
 class AgentTask(BaseModel):
 	"""Represents a clearly defined goal that needs to be completed by an agent. Task can be completed over many attempts, or not at all. Tasks are persistent between sessions."""
-	
+
 	id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-	role: TaskRole = Field(default=TaskRole.USER)
-	role_id: str = Field(default="User") # eg. user id, agent id
-	goal: str # What needs to be done
+	role: TaskRole = Field(default=TaskRole.USER, description="Who requested this task")
+	role_id: str = Field(default="User", description="eg. user id, agent id")
+	goal: str = Field(description="What needs to be done: Requirements and expected results, including format of the output")
 	status: TaskStatus = Field(default=TaskStatus.NOT_STARTED)
-	resolution: Optional[str] = Field(default=None) # What happened with this task
+	resolution: Optional[str] = Field(default=None, description="Resolution of the task, ie. achieved result or failure.")
+	data_output: Optional[str] = Field(default=None, description="Actual result of the task, ie. answer to question, data or other output. Should be in the format specified in the goal.")
 	# TODO: A field for actual result of the task (data?)
-	related_messages: List[str] = Field(default_factory=list)
-	related_documents: List[str] = Field(default_factory=list)
+
+	#related_messages: List[str] = Field(default_factory=list)
+	#related_documents: List[str] = Field(default_factory=list)
 
 	def start(self):
 		self.status = TaskStatus.IN_PROGRESS
 
-	def complete(self, resolution: str):
+	def complete(self, resolution: str, data_output: str = ""):
 		self.status = TaskStatus.COMPLETED
 		self.resolution = resolution
+		self.data_output = data_output
 
 	def to_json(self):
 		return {

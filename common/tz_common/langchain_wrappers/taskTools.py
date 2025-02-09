@@ -16,29 +16,28 @@ class CompleteTaskTool(ContextAwareTool):
 		status: TaskStatus = Field(description="Status of the task after completion")
 		answer: str = Field(description="If task is a question or query, provide detailed answer (ie. data, tables, etc). Otherwise briefly describe the result of the task.")
 
-	args_schema: type[ArgsSchema] = ArgsSchema
+	#args_schema: type[ArgsSchema] = ArgsSchema
 
-	async def _arun(self, context: AgentState, task_id: str, status: TaskStatus, answer: str, **kwargs: Any) -> tuple[AgentState, str]:
-		# Implement the async complete task logic with safe updates to context (state)
-		async def modify_state(state: AgentState) -> AgentState:
-			log.flow(f"Completing task: {task_id}")
-			goal = ""
-			for unsolved_task in state.unsolved_tasks:
-				if str(unsolved_task.id) == str(task_id):
-					goal = unsolved_task.goal
-					break
-			task = AgentTask(id=task_id, goal=goal)
-			# Mark task as complete with the answer
-			task.complete(answer)
-			state.completed_tasks.add(task)
-			if task in state.unsolved_tasks:
-				state.unsolved_tasks.remove(task)
-			else:
-				log.error(f"Task not found in unsolved tasks: {task_id}")
-			return state
+	async def _run(self, context: AgentState, task_id: str, status: TaskStatus, resolution: str, data_output: str, **kwargs: Any) -> tuple[AgentState, str]:
+		log.flow(f"Completing task: {task_id}")
+		
+		goal = ""
+		for unsolved_task in context["unsolvedTasks"]:
+			if str(unsolved_task.id) == str(task_id):
+				goal = unsolved_task.goal
+				break
 
-		new_state = await context.async_update_state(modify_state)
-		return new_state, f"Completed task {task_id} with answer: {answer}"
+		task = AgentTask(id=task_id, goal=goal)
+		task.complete(resolution, data_output)
+		
+
+		context["completedTasks"].add(task)
+		if task in context["unsolvedTasks"]:
+			context["unsolvedTasks"].remove(task)
+		else:
+			log.error(f"Task not found in unsolved tasks: {task_id}")
+
+		return context, f"Completed task {task_id} with resolution: {resolution}, output: {data_output}"
 
 
 class AddTaskTool(ContextAwareTool):
@@ -46,17 +45,25 @@ class AddTaskTool(ContextAwareTool):
 	description: str = "Add a task to the agent's task list"
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		task: AgentTask = Field(description="The task to add to the agent's task list")
+		#task: AgentTask = Field(description="The task object to add to the agent's task list")
+		role: TaskRole = Field(description=f"Who requested this task: {', '.join([role.name for role in TaskRole])}")
+		role_id: str = Field(description="eg. user id, agent id")
+		goal: str = Field(description="What needs to be done: Requirements and expected results, including format of the output")
 
-	args_schema: type[ArgsSchema] = ArgsSchema
+	#args_schema: type[ArgsSchema] = ArgsSchema
 
-	async def _arun(self, context: AgentState, task: AgentTask, **kwargs: Any) -> tuple[AgentState, str]:
-		# Implement async add task logic with safe state updates
-		async def modify_state(state: AgentState) -> AgentState:
-			log.flow(f"Adding task: {task.id}")
-			state.unsolved_tasks.add(task)
-			return state
+	# TODO: Just define all the arguments in the tool?
 
-		new_state = await context.async_update_state(modify_state)
-		return new_state, f"Added task {task.id} to the agent's task list"
+	async def _run(self, context: AgentState, role: TaskRole, role_id: str, goal: str, **kwargs: Any) -> tuple[AgentState, str]:
+
+		if type(role) == str:
+			role = TaskRole[role.upper()]
+
+		task = AgentTask(role=role, role_id=role_id, goal=goal)
+
+		log.flow(f"Adding task: {task.id}: {task.goal}")
+		context["unsolvedTasks"].add(task)
+		return context, f"Added task {task.id} to the agent's task list"
+
+
 
