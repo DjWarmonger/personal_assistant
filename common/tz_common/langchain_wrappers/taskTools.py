@@ -16,7 +16,6 @@ class CompleteTaskTool(ContextAwareTool):
 		status: TaskStatus = Field(description="Status of the task after completion")
 		answer: str = Field(description="If task is a question or query, provide detailed answer (ie. data, tables, etc). Otherwise briefly describe the result of the task.")
 
-	#args_schema: type[ArgsSchema] = ArgsSchema
 
 	async def _run(self, context: AgentState, task_id: str, status: TaskStatus, resolution: str, data_output: str, **kwargs: Any) -> tuple[AgentState, str]:
 		log.flow(f"Completing task: {task_id}")
@@ -45,14 +44,13 @@ class AddTaskTool(ContextAwareTool):
 	description: str = "Add a task to the agent's task list"
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
+		#TODO: Use AgentTasl without boilerplate redefinition
 		#task: AgentTask = Field(description="The task object to add to the agent's task list")
+
 		role: TaskRole = Field(description=f"Who requested this task: {', '.join([role.name for role in TaskRole])}")
 		role_id: str = Field(description="eg. user id, agent id")
 		goal: str = Field(description="What needs to be done: Requirements and expected results, including format of the output")
 
-	#args_schema: type[ArgsSchema] = ArgsSchema
-
-	# TODO: Just define all the arguments in the tool?
 
 	async def _run(self, context: AgentState, role: TaskRole, role_id: str, goal: str, **kwargs: Any) -> tuple[AgentState, str]:
 

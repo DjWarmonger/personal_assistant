@@ -1,6 +1,7 @@
 from enum import Enum
 import uuid
-from typing import Optional, List
+from typing import Optional, List, Set
+
 
 from pydantic.v1 import BaseModel, Field
 
@@ -36,10 +37,12 @@ class AgentTask(BaseModel):
 	def start(self):
 		self.status = TaskStatus.IN_PROGRESS
 
+
 	def complete(self, resolution: str, data_output: str = ""):
 		self.status = TaskStatus.COMPLETED
 		self.resolution = resolution
 		self.data_output = data_output
+
 
 	def to_json(self):
 		return {
@@ -49,26 +52,50 @@ class AgentTask(BaseModel):
 			"resolution": self.resolution
 		}
 
+
 	def __str__(self):
 		string = f"Task Id: {self.id} - {self.goal} - {self.status.name}"
 		if self.resolution:
 			string += f" - {self.resolution}"
 		return string
 
+
 	def __eq__(self, other):
 		if isinstance(other, AgentTask):
 			return str(self.id) == str(other.id)
 		return False
 
+
 	def __hash__(self):
 		return hash(self.id)
 
 
+	def is_todo(self) -> bool:
+		return self.status == TaskStatus.NOT_STARTED or self.status == TaskStatus.IN_PROGRESS
+
+
+	def is_done(self) -> bool:
+		return self.status == TaskStatus.COMPLETED
+
+
+
 class AgentTaskList(BaseModel):
+
 	"""Manages a collection of agent tasks with methods for adding, finding and filtering tasks"""
 	
 	tasks: List[AgentTask] = Field(default_factory=list)
-	
+
+	@classmethod
+	def from_list(cls, task_list: List[AgentTask]) -> "AgentTaskList":
+		"""Create an AgentTaskList from a list of tasks"""
+		return cls(tasks=task_list)
+
+	@classmethod 
+	def from_set(cls, task_set: Set[AgentTask]) -> "AgentTaskList":
+		"""Create an AgentTaskList from a set of tasks"""
+		return cls(tasks=list(task_set))
+
+
 	def add(self, task: AgentTask) -> bool:
 		"""
 		Add a task to the list if it doesn't already exist.
@@ -114,5 +141,9 @@ class AgentTaskList(BaseModel):
 	
 	def __getitem__(self, index: int) -> AgentTask:
 		return self.tasks[index]
+	
+	def __str__(self) -> str:
+		return "\n".join([str(task) for task in self.tasks])
+
 
 # TODO: Kolejny indeks tasków, który mapuje uuid na integer?
