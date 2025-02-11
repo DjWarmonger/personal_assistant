@@ -1,0 +1,8 @@
+---
+description: Storing Context Info for Agents
+globs: ../blockCache, ./graph.py, ./writerGraph.py, ./editorGraph.py
+---
+# Block Cache
+
+- Store block type (page, database, etc.) and summary.
+- Keep track of the parent-child tree for nested blocks.

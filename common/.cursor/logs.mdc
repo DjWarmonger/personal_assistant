@@ -1,0 +1,14 @@
+---
+description: Custom log system
+globs: *.py
+---
+- Always use logs from [logs.py](mdc:tz_common/logs.py) istead of print.
+
+- Add log import at the beginning of every file:
+from tz_common.logs import log
+
+# Log formatting
+
+- Use first argument of log (colored) as a header. Use second part (not colored) for extra info, ie. detailed message or structure dump. In case of very short details part, ie. single string id of logged entity, use only first argument and skip the other.
+
+- For collections of large structures use "\n".join(), possibly with list comprehension.

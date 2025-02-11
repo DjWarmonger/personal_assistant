@@ -1,0 +1,15 @@
+---
+description: Target multi-agent architetcure
+globs: ./*.py
+---
+# Architecture
+
+## Agents
+
+- **Query Decomposition Agent**: May break down queries into actionable steps.
+- **Main Notion-Browsing Agent**: Handles navigation, caching, and favorites.
+- **Summary Agent (TODO)**: Summarizes or reports on retrieved content.
+- **Edit Agent (TODO)**: Edits Notion pages and invalidates cache after editing.
+- **Block Captioning Agent (TODO)**: Could annotate or caption blocks
+  - Operate in the background. It is not worth waiting for caption agent if it stops the main process.
+- **Background Agents (TODO)**: Potentially extract or structure data from fetched content.

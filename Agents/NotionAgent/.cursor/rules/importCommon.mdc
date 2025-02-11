@@ -1,0 +1,5 @@
+---
+description: Import common library
+globs: *.py
+---
+[.cursorrules](mdc:NotionAgent/NotionAgent/f:/Programowanie/PersonalAssistant/common/.cursorrules)/logs.mdc

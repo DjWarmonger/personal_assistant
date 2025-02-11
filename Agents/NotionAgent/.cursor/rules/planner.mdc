@@ -1,0 +1,9 @@
+---
+description: Planner Agent goals
+globs: ./plannerGraph.py
+---
+## Understand User Request
+
+- Plan how to gather all relevant content.
+- Request clarifications in subsequent queries.
+- Maintain context throughout the chat with user.

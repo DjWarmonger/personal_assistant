@@ -1,0 +1,34 @@
+---
+description: Project overview and goals
+globs: tz_common/**/*.py
+---
+# Project overview
+
+TZ Common is a library of utils, serving as  apart of TZ Framework for Autonomous Agents.
+
+# Project Goals
+
+The goals of utils is to streamline AI agent development, by providing a set of tools and utilities that are easy to use and understand. In particular:
+
+- Provide ready, out-of-the-box utils with minimal configuration.
+- Hide internals (async, concurrency) from the user; no guesswork required.
+- Keep each tool self-contained; avoid large dependency chains.
+- Prefer direct usage over multiple layers of abstraction.
+
+* Reduce code duplication
+
+* Minimize cognitive load. User should not need to guess or assume anything in order to use the tool.
+
+## Separate tools into different packages, especially:
+
+* Data structures and ontologies
+
+* LangChain wrappers
+
+* Data converters
+
+* Indexes and storage
+
+# Architecture and methodologies
+
+Each of the utils is supposed to be self-contained tool that can be simply used for a given purpose. Ease of use and understanding is the main focus, while generalizability is secondary.

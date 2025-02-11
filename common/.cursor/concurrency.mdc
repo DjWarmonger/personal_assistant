@@ -1,0 +1,7 @@
+---
+description: Concurrency
+globs: *.py
+---
+- Run multiple LLM or API calls in separate threads.
+- Dispatch multiple tasks in parallel, use syncio.gather to wait for all tasks to complete.
+- Ensure result IDs match request IDs without user involvement. Return unique task id from every task. Use dictionaries {task_id : result} to keep track of results.

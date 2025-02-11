@@ -1,0 +1,9 @@
+---
+description: Features and use cases of Favourites
+globs: ./index.py, ./plannerGraph.py, ./agents.py
+---
+### Favourite Pages
+
+- Maintain a favorites list for quick access (e.g., daily to-dos, main project pages).
+- User can add and remove favorites.
+- User can also provide a Notion URL directly.

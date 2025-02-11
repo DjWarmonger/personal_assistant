@@ -1,0 +1,36 @@
+---
+description: Project overwiew and goals
+globs: ./**/*.py
+---
+# Project Overview
+
+Notion Agent interacts with Notion’s API, navigating across pages, retrieving relevant content, and returning it to the user. It can handle requests from humans or other agents. Future plans include more advanced configurations.
+
+# Project Goals
+
+- Reliably retrieve relevant content from multiple Notion pages.
+- Preserve all text without alteration or loss of context.
+- Make retrieved data persistent, possibly transferring it to permanent storage, after which it might be deleted from Notion.
+  - Process or enchance the data, providing valuable knowledge and insights. This knowledge may become input to other AI-based systems.
+
+## Users
+
+- Users can be human, another agent, or a script.
+- Notion Agent can be queried once for a single response or engaged in a (short-lived) chat session.
+- In script mode, all processing must occur in a single pass.
+
+## Pain Points
+
+- Notion API limits requests to 3 per second.
+- Each Notion Block requires a separate fetch.
+- Keyword-based text search may fail to capture user intent.
+- Search often returns recent items, which might include already completed tasks.
+
+## Optimization
+
+- Minimize token usage.
+- Cache fetched blocks and their children to speed repeated queries.
+- Maintain parent-child relationships to preserve context.
+- Strip unnecessary data from blocks to keep them concise.
+- Consider replacing UUIDs/URLs with shorter placeholders.
+- Avoid re-fetching or reprocessing identical content.

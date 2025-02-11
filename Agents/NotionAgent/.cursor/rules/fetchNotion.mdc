@@ -1,0 +1,9 @@
+---
+description: Notion Retrieval features
+globs: ./notion_client.py, ./graph.py, ./agentTools.py
+---
+## Fetch Notion Pages
+
+- Browse multiple pages, potentially in multiple query-response cycles.
+- Perform Notion text searches and query databases.
+- Support pagination.

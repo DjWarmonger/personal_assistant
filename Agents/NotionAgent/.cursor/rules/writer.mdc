@@ -1,0 +1,14 @@
+---
+description: Writer Agent guidelines
+globs: 
+---
+## Summaries & Knowledge Extraction
+
+- Make Agent provide meaningful summaries, plans, or extracted knowledge, rather than raw copy-paste from Notion.
+- Ensure these outputs are coherent, context-rich, and directly address user queries.
+- Return results in Markdown by default for clarity.
+- External media links may be returned, but not the actual media.
+
+## Placeholders
+
+All URLs are stored as integer placeholders. Writer may only output these placeholders. They will be replaced with apriopriate URL programnatically.

@@ -1,40 +1,3 @@
-# Project overview
-
-TZ Common is a library of utils, serving as  apart of TZ Framework for Autonomous Agents.
-
-# Project Goals
-
-The goals of utils is to streamline AI agent development, by providing a set of tools and utilities that are easy to use and understand. In particular:
-
-- Provide ready, out-of-the-box utils with minimal configuration.
-- Hide internals (async, concurrency) from the user; no guesswork required.
-- Keep each tool self-contained; avoid large dependency chains.
-- Prefer direct usage over multiple layers of abstraction.
-
-* Reduce code duplication
-
-* Minimize cognitive load. User should not need to guess or assume anything in order to use the tool.
-
-## Separate tools into different packages, especially:
-
-* Data structures and ontologies
-
-* LangChain wrappers
-
-* Data converters
-
-* Indexes and storage
-
-# Architecture and methodologies
-
-Each of the utils is supposed to be self-contained tool that can be simply used for a given purpose. Ease of use and understanding is the main focus, while generalizability is secondary.
-
-## Concurrency
-
-- Run slow LLM calls in separate threads.
-- Dispatch multiple tasks in parallel, use syncio.gather to wait for all tasks to complete.
-- Ensure result IDs match request IDs without user involvement. Use dictionaries {task_id : result} to keep track of results.
-
 # Used libraries
 
 - Use Python std libs where possible.
@@ -64,11 +27,12 @@ Industry standard, mainly used for visualizing knowledge graph and future compat
 
 # Library Contents
 
+- Split tools into packages (e.g., data structures, LangChain wrappers).
+
 ## Context data representation
 
 - Represent context and knowledge in human-readable formats.
 - Assign UUIDs for all data sources and artifacts to enable tracing.
-- Split tools into packages (e.g., data structures, LangChain wrappers).
 
 ### TODO: Document class
 
