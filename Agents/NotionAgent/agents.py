@@ -22,8 +22,8 @@ load_dotenv()
 # TODO: Rewrite this for reasoning model
 
 planner_agent_prompt = """
-You are the Planner Agent for Notion content retrieval system. Your sole purpose is to prepare task list for other agents.
-Your role is to break down the user's problem description into a clear, ordered sequence of actionable tasks. Each task should be possible to accomplish with a tool call.
+You are the Planner Agent for Notion content retrieval system. Your sole purpose is to prepare task list for other agents: Notion navigation agent and Writer agent.
+Your role is to break down the user's problem description into a clear, ordered sequence of actionable tasks. Each task should be possible to accomplish with a single tool call. Provide indexes and titles of known pages where relevant. Only request search if known pages are insufficient.
 Only use AddTaskTool to define tasks for other agents and CompleteTaskTool to mark them as completed.
 AVOID calling any other tools which are listed just as reference of tools available to other agents.
 
@@ -36,10 +36,10 @@ Goals:
 	- Use the CompleteTask tool when if a response indicates that task has been completed
 	- Do NOT use any other tools.
 	- Add exactly one main task with role USER and role_id set to "User" that will be used for final output when completed.
-	- Add neccessary sub-tasks for Notion Agent with role_id set to "Notion".
-	- Add neccessary sub-tasks for Writer Agent with role_id set to "Writer"
+	- Add comprehensive list of sub-tasks for Notion Agent with role "AGENT" and role_id "NOTION". These tasks need to be comprehensive and retrieve as much information as possible.
+	- Add sub-tasks for Writer Agent with role "AGENT" and role_id "WRITER" to edit the final response.
 	- Complete the task with role USER ater receiving satisfactory response from other agents.
-
+	- Add all neccessary tasks at once with multiple tool calls.
 
 Additional info:
 	- Remember that context, including parent–child relationships and block hierarchies, is preserved programmatically via Tasks and BlockTree.
@@ -68,34 +68,37 @@ planner_prompt = ChatPromptTemplate.from_messages(
 	]
 )
 
+# TODO: How to exit the graph in case of unrecoverable error?
+
+# TODO: How to mark task as failed?
+
 system_prompt = """
 You are an AI agent designed to assist with tasks related to the Notion workspace.
-Your goal is to search for information in the Notion workspace and navigate to specific pages or databases. Explore children blocks of visited pages. Focus on insightful content rather than page formatting.
+Your goal is to search for information in the Notion workspace and navigate to specific pages or databases. Explore children blocks of visited pages.
 
 <instructions>
 You may call multiple tools at once, but DO NOT call tool many times with same arguments.
 </instructions>
 
-{can_ask_questions}
-
 <instructions>
-Use CompleteTask tool to indicate that given task is finished. Finishing all tasks will be considered as completing the assignment.
+If a message indicates that a page or block was visited, consider it as visited. You will not get direct access to page content.
 </instructions>
 
-{can_call_human}
+<instructions>
+Use complete_task tool to indicate that given task is finished. Finishing all tasks will be considered as completing the assignment.
+</instructions>
 """
 
 # TODO: Use CompleteTask instead of this promp
 
-# TODO: Add (optional) tools for asking questions and calling human
 
-ask_prompt = """Ask clarifying questions as needed. Mark question with 'AGENT_QUESTION'.""" if os.getenv("CAN_ASK_QUESTIONS") == "true" else ""
+# TODO: Add (optional) tools for asking questions and calling human
 
 human_prompt = """If your problem requires human intervention, respond with "HUMAN_FEEDBACK_NEEDED".""" if os.getenv("CAN_CALL_HUMAN") == "true" else ""
 
 prompt = ChatPromptTemplate.from_messages(
 	[
-		SystemMessagePromptTemplate.from_template(system_prompt).format(can_ask_questions=ask_prompt, can_call_human=human_prompt),
+		SystemMessagePromptTemplate.from_template(system_prompt),
 		MessagesPlaceholder(variable_name="messages"),
 	]
 )

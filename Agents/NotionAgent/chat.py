@@ -2,7 +2,8 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 
 from tz_common.logs import log
 from plannerGraph import planner_runnable
-from graph import app, langfuse_handler
+from graph import notion_agent, langfuse_handler
+
 
 def chat(loop = True, user_prompt = "") -> str:
 
@@ -31,14 +32,21 @@ def chat(loop = True, user_prompt = "") -> str:
 
 		# TODO: Call planner agent instead
 
-		#response = app.invoke({"messages": history.messages}, config={"callbacks": [langfuse_handler]})
+		#response = notion_agent.invoke({"messages": history.messages}, config={"callbacks": [langfuse_handler]})
+
 
 		# FIXME: Langfuse cannot handle dicts
 
-		response = planner_runnable.invoke({"messages": history.messages}, config={"callbacks": [langfuse_handler]})
+		response = planner_runnable.invoke(
+			{
+				"messages": history.messages,
+				"actions": [],
+				#"unsolvedTasks": set(),
+				#"completedTasks": set()
+			},
+			config={"callbacks": [langfuse_handler]}
+		)
 		log.ai("Assistant: \n", sorted(response["unsolvedTasks"].union(response["completedTasks"])))
-
-
 
 
 		# FIXME: Render \n as actual new lines
@@ -50,8 +58,8 @@ def chat(loop = True, user_prompt = "") -> str:
 			history.add_message(message)
 
 		if not loop:
-			return "Task list retrieved successfully"
-			#return response["messages"][-1].content
+			#return "Task list retrieved successfully"
+			return response["messages"][-1].content
 
 
 

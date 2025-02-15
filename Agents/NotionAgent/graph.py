@@ -8,10 +8,14 @@ from langchain_core.messages import BaseMessage, AIMessage, ToolMessage
 from tz_common.logs import log
 from tz_common import create_langfuse_handler
 from tz_common.langchain_wrappers import AgentState, trim_recent_results, check_and_call_tools
+from tz_common.tasks import AgentTaskList
+from tz_common.actions import AgentActionListUtils
+
 from agents import notion_agent_runnable
 from langfuse.decorators import observe
 from agentTools import tool_executor, client
 from agentState import NotionAgentState
+from blockTree import BlockTree
 
 import os
 import time
@@ -22,56 +26,90 @@ langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
 
 def start(state: NotionAgentState) -> NotionAgentState:
 
-	# TODO: Consider  exporting to library?
-
-	log.flow(f"Entered start")
-	log.debug(f"State type: {type(state)}")
-	log.debug(f"State methods: {dir(state)}")
+	log.flow(f"Notion Agent: Entered start")
+	#log.debug(f"State type: {type(state)}")
+	#log.debug(f"State methods: {dir(state)}")
 
 	log.debug(f"AgentState:", state)
 
-	favourites = client.index.get_favourites_with_names(10)
-
-	# TODO: Add visit count?
-
-	if favourites:
-		message = f"Here are user's favourite pages. Start with them if they are relevant to the task:\n"
-		for favourite in favourites:
-			message += f"{favourite[1]:<2} ({favourite[0]})\n"
-
-		state["messages"].append(AIMessage(content=message))
-	else:
-		log.error(f"No favourites found")
-
 	# TODO: Add initial message to state?
+
+	# TODO: Mark all tasks as "in progress"?
 
 	return {
 		"messages": state["messages"],
-		"functionCalls": [],
+		"actions": [],
 		"recentResults": [],
-		"visitedBlocks": {}
+		"visitedBlocks": {},
+		"blockTree": BlockTree()
 		}
 
 
 def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
-	#log.flow(f"Entered call_notion_agent")
+	log.flow(f"Entered call_notion_agent")
 
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 
-	# TODO: Trim the results but process visitedBlocks instead
-	# state = trim_recent_results(state, 10000)
+	remaining_tasks = f"Remaining tasks:\n{str(AgentTaskList.from_set(state['unsolvedTasks']))}"
+	completed_tasks = f"Completed tasks:\n{str(AgentTaskList.from_set(state['completedTasks']))}"
+
+	# TODO: Add history of function calls
+
+	tree_str = ""
+	
+	if not state["blockTree"].is_empty():
+		tree_mapping = client.index.to_int(state["blockTree"].get_all_nodes())
+
+		#log.debug(f"Tree ids:", tree_mapping.values())
+		tree_names = client.index.get_names(list(tree_mapping.keys()))
+
+		log.debug(f"Tree names:", {uuid: name for uuid, name in tree_names.items() if name != ""})
+
+		for uuid, index in tree_mapping.items():
+			if index in tree_names and tree_names[index] != "":
+				tree_mapping[uuid] = f"{index}:{tree_names[index]}"
+			else:
+				tree_mapping[uuid] = f"{index}"
+
+		tree_str = state['blockTree'].get_tree_str(tree_mapping)
+
+		log.knowledge("\n\nVisited blocks:\n", tree_str)
+
+		tree_str = f"Tree of blocks visited so far:" + '\n' + tree_str
+
+	state = trim_recent_results(state, 2000)
 	recent_calls = "Recent results of tool calls:\n"
 	recent_calls += "\n\n".join([str(result.content) for result in state["recentResults"]])
 
 	# Only append them once for this call, do not permanently add them to message history
-	messages_with_context = state["messages"] + [AIMessage(content=recent_calls)]
+
+	if state["actions"]:
+		actions_str = "Actions taken:\n" + AgentActionListUtils.actions_to_string(state["actions"])
+
+	# FIXME: Messages are multiplicated over iterations
+	messages_with_context = [message for message in state["messages"]]
+	if state['unsolvedTasks']:
+		messages_with_context.append(AIMessage(content=remaining_tasks))
+	if state['completedTasks']:
+		messages_with_context.append(AIMessage(content=completed_tasks))
+	if not state["blockTree"].is_empty():
+		messages_with_context.append(AIMessage(content=tree_str))
+	if state["actions"]:
+		messages_with_context.append(AIMessage(content=actions_str))
+	if state["recentResults"]:
+		messages_with_context.append(AIMessage(content=recent_calls))
 
 	response = notion_agent_runnable.invoke({"messages": messages_with_context})
 
 	state["messages"].append(response)
+	log.debug(f"Length of messages: {len(state['messages'])}")
 
-	return {"messages": state["messages"], "functionCalls": []}
+	return {
+		"messages": state["messages"],
+		"functionCalls": [],
+		"recentResults": []
+	}
 
 
 def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
@@ -80,10 +118,11 @@ def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
 
 def response_check(state: AgentState) -> str:
 
-	# TODO: Use AgentTask
+	log.knowledge(f"Unsolved tasks:", "\n".join([str(task) for task in state['unsolvedTasks']]))
+	log.knowledge(f"Completed tasks:", "\n".join([str(task) for task in state['completedTasks']]))
 
-	if len(state["unsolved_tasks"]) == 0:
-		for task in state["solved_tasks"]:
+	if len(state["unsolvedTasks"]) == 0:
+		for task in state["completedTasks"]:
 			if task.status == "failed":
 				log.error(f"Task failed: {task.name}")
 				return "failed"
@@ -96,6 +135,8 @@ def response_check(state: AgentState) -> str:
 	else:
 		return "continue"
 	
+	# FIXME: Response is not returned, graph keeps loping
+	
 
 def clean_output(state: AgentState):
 
@@ -103,10 +144,6 @@ def clean_output(state: AgentState):
 
 	for msg in state["messages"]:
 		msg.content = client.url_index.replace_placeholders(msg.content)
-
-	# TODO: Discard favourites message after first loop
-
-	log.knowledge(f"Visited blocks:", sorted(state['visitedBlocks'].keys()))
 
 	#client.save_now()
 
@@ -138,4 +175,4 @@ graph.add_conditional_edges(
 	}
 )
 
-app = graph.compile()
+notion_agent = graph.compile()

@@ -14,10 +14,16 @@ class CompleteTaskTool(ContextAwareTool):
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		task_id: str = Field(description="ID of the task to complete (eg. UUID or 01)")
 		status: TaskStatus = Field(description="Status of the task after completion")
-		answer: str = Field(description="If task is a question or query, provide detailed answer (ie. data, tables, etc). Otherwise briefly describe the result of the task.")
+		resolution: str = Field(description="Resolution of the task, ie. achieved result or reason of failure.")
+		data_output: str = Field(description="If task is a question or query, provide detailed answer, including data, tables, etc.")
 
+	async def _run(self,
+				context: AgentState,
+				task_id: str, status: TaskStatus,
+				resolution: str,
+				data_output: str,
+				**kwargs: Any) -> tuple[AgentState, str]:
 
-	async def _run(self, context: AgentState, task_id: str, status: TaskStatus, resolution: str, data_output: str, **kwargs: Any) -> tuple[AgentState, str]:
 		log.flow(f"Completing task: {task_id}")
 		
 		goal = ""

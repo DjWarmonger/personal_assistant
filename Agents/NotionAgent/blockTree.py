@@ -53,6 +53,16 @@ class BlockTree:
 			self.add_relationship(parent_uuid, child_uuid)
 
 
+	def add_parent(self, parent_uuid: str) -> None:
+		"""Add a parent block, might be root with no children"""
+		parent_uuid = self.converter.clean_uuid(parent_uuid)
+
+		if parent_uuid not in self.children:
+			self.children[parent_uuid] = []
+
+		# FIXME: What is this "parent is not actually a root"?
+
+
 	def get_parent(self, uuid: str) -> Optional[str]:
 		"""Get parent UUID of a block"""
 		uuid = self.converter.clean_uuid(uuid)
@@ -67,8 +77,19 @@ class BlockTree:
 
 	def get_roots(self) -> List[str]:
 		"""Get all root nodes (blocks with no parents)"""
-		all_nodes = set(self.children.keys()) | set(self.parents.keys())
+		all_nodes = self.get_all_nodes() #set(self.children.keys()) | set(self.parents.keys())
 		return [uuid for uuid in all_nodes if uuid not in self.parents]
+	
+
+	def get_all_nodes(self) -> List[str]:
+		"""Get all nodes in the tree"""
+		# Flatten children values (lists) into a single set
+		children_nodes = set()
+		for children_list in self.children.values():
+			children_nodes.update(children_list)
+
+		# Parents without children are possible, but children always have parents
+		return list(set(self.parents.values()) | self.parents.keys() | children_nodes | self.children.keys())
 
 
 	def get_tree_str(self, titles: Optional[Dict[str, str]] = None) -> str:
@@ -90,7 +111,7 @@ class BlockTree:
 				marker = "└──" if is_last else "├──"
 				lines.append(f"{prefix}{marker}{name}".rstrip())
 			else:
-				lines.append(name.rstrip())
+				lines.append(str(name).rstrip())
 
 			# Recursively add children
 			children = self.get_children(uuid)
@@ -155,3 +176,7 @@ class BlockTree:
 			if uuid in self.children:
 				for child in self.children[uuid][:]:  # Copy list since we're modifying it
 					self.remove_relationship(uuid, child)
+
+
+	def is_empty(self):
+		return not self.parents and not self.children

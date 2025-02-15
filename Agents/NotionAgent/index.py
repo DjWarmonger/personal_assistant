@@ -329,11 +329,21 @@ class Index(TimedStorage):
 		return notion_id
 
 
-	def to_int(self, uuid: str) -> int:
+	def to_int(self, uuid: str | list[str]) -> int:
+		# TODO: Add unit test
 		with self.db_lock:
-			self.cursor.execute('SELECT int_id FROM index_data WHERE uuid = ?', (uuid,))
-			result = self.cursor.fetchone()
-			return result[0] if result else None
+			if isinstance(uuid, str):
+				self.cursor.execute('SELECT int_id FROM index_data WHERE uuid = ?', (uuid,))
+				result = self.cursor.fetchone()
+				return result[0] if result else None
+			elif isinstance(uuid, list):
+				placeholders = ','.join('?' for _ in uuid)
+				query = f"SELECT uuid, int_id FROM index_data WHERE uuid IN ({placeholders})"
+				self.cursor.execute(query, uuid)
+				rows = self.cursor.fetchall()
+				return {row[0]: row[1] for row in rows}
+			else:
+				raise ValueError(f"Invalid type for to_int: {type(uuid)}")
 
 
 	def get_uuid(self, int_id: int) -> str:
@@ -362,6 +372,15 @@ class Index(TimedStorage):
 			self.cursor.execute('SELECT name FROM index_data WHERE int_id = ?', (int_id,))
 			result = self.cursor.fetchone()
 			return result[0] if result else ""
+
+
+	def get_names(self, int_ids: list[int]) -> dict[int, str]:
+		with self.db_lock:
+			placeholders = ','.join('?' for _ in int_ids)
+			query = f"SELECT int_id, name FROM index_data WHERE int_id IN ({placeholders})"
+			self.cursor.execute(query, int_ids)
+			results = {row[0]: row[1] for row in self.cursor.fetchall()}
+			return {id: results.get(id, "") for id in int_ids}
 
 
 	def delete_uuid(self, uuid: str) -> int:

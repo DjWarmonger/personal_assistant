@@ -2,7 +2,6 @@ from enum import Enum
 import uuid
 from typing import Optional, List, Set
 
-
 from pydantic.v1 import BaseModel, Field
 
 class TaskStatus(Enum):
@@ -78,6 +77,15 @@ class AgentTask(BaseModel):
 		return self.status == TaskStatus.COMPLETED
 
 
+	def __lt__(self, other) -> bool:
+		"""
+		Implement less than comparison for AgentTask objects.
+		Compares based on task IDs to enable sorting.
+		"""
+		if not isinstance(other, AgentTask):
+			return NotImplemented
+		return str(self.id) < str(other.id)
+
 
 class AgentTaskList(BaseModel):
 
@@ -144,6 +152,7 @@ class AgentTaskList(BaseModel):
 	
 	def __str__(self) -> str:
 		return "\n".join([str(task) for task in self.tasks])
+	
 
 
 # TODO: Kolejny indeks tasków, który mapuje uuid na integer?

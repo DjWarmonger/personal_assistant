@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 import os
 import asyncio
+from typing import Optional
 
 from asyncClientManager import AsyncClientManager
 from index import Index
@@ -38,7 +39,7 @@ class NotionClient:
 		self.cache = BlockCache(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.url_index = UrlIndex()
 		self.tree = BlockTree()
-		# TODO: Populate blockTree
+
 		# TODO: Delete items from blockTree when cache is invalidated?
 
 		self.headers = {
@@ -57,6 +58,17 @@ class NotionClient:
 
 
 	async def get_notion_page_details(self, page_id=None, database_id=None):
+
+		""" FIXME:
+		Getting details of Notion page... 1
+		Returning existing UUID 1029efeb6676804488d6c61da2eb04b9 from index
+		Returning existing UUID c08ae2d4dc4d4ef2b0cfeb6c2c22c605 from index
+		Item page:1029efeb6676804488d6c61da2eb04b9 not found in cache
+		Item page:1029efeb6676804488d6c61da2eb04b9 not found in cache
+
+		# FIXME: Pages are not cached, do not attempt to retrieve item with page: prefix
+		"""
+
 		if page_id is None and database_id is None:
 			page_id = self.landing_page_id
 
@@ -99,9 +111,6 @@ class NotionClient:
 
 				data = self.clean_timestamps(data)
 
-				# TODO: Do we need to create parent-child relationships here?
-				# TODO: Add page to cache? Then when would we invalidate it?
-
 				return data
 
 		except ValueError as e:
@@ -109,7 +118,7 @@ class NotionClient:
 			return str(e)
 		
 
-	async def get_block_children(self, uuid: str) -> dict:
+	async def get_block_children(self, uuid: str, block_tree: Optional[BlockTree] = None) -> dict:
 		"""
 		This should be called only if we know that children have been already fetched.
 		"""
@@ -124,20 +133,33 @@ class NotionClient:
 			return index, children
 
 		tasks = {index: get_children(index) for index in indexes}
-		# TODO: Move to asyncClientManager?
 		children = await asyncio.gather(*tasks.values())
-
-		return {index: child for index, child in children}
+		children_dict = {index: child for index, child in children}
+		if block_tree is not None:
+			child_ids = list(children_dict.keys())
+			converted_children = [self.index.to_uuid(child_id) for child_id in child_ids]
+			# Update the tree with parent-child relationships
+			block_tree.add_relationships(self.index.to_uuid(uuid), converted_children)
+		return children_dict
 
 
 	async def get_block_content(self,
 							 block_id,
 							 get_children = False,
-							 start_cursor=None):
+							 start_cursor=None,
+							 block_tree: Optional[BlockTree] = None):
 
 		uuid = self.index.to_uuid(block_id)
 		if uuid is None:
 			return None
+		
+		if block_tree is not None:
+			# Always mark root as visited
+			# TODO: What is we get exception before retrieving any results?
+			# FIXME: cached key with start_cursor should not have separate children from just cached uuid key
+			pass
+			# FIXME: Can add parent, but it gets not children relationships
+			#block_tree.add_parent(uuid)
 
 		cached = None
 		cache_key = None
@@ -157,9 +179,8 @@ class NotionClient:
 				return cached
 			else:
 				if self.cache.get_children_fetched_for_block(cache_key):
-					return await self.get_all_children_recursively(cache_key)
+					return await self.get_all_children_recursively(cache_key, block_tree)
 			# Proceed to retrieve this block AND its children
-			
 		# If block is not cached, proceed as before.
 
 		await AsyncClientManager.wait_for_next_request()
@@ -222,13 +243,13 @@ class NotionClient:
 			if get_children:
 				# Proceed to retrieve children on lower level recursively
 				log.flow("Retrieving children recursively for block " + str(cache_key))
-				data = await self.get_all_children_recursively(cache_key)
+				data = await self.get_all_children_recursively(cache_key, block_tree)
 				return data
 
 			return data
 		
 	
-	async def get_all_children_recursively(self, block_identifier) -> dict:
+	async def get_all_children_recursively(self, block_identifier, block_tree: Optional[BlockTree] = None) -> dict:
 		"""
 		Recursively fetch and flatten all children blocks for the given block identifier.
 		Returns a dictionary mapping each child block's id (int) to its content.
@@ -241,14 +262,15 @@ class NotionClient:
 
 		flat_children = {}
 		# Get immediate children
-		immediate_children = await self.get_block_children(block_identifier)
+		immediate_children = await self.get_block_children(block_identifier, block_tree)
 
+		# FIXME: What if there are no children?
 		if immediate_children:
 
 			child_uuids = [self.index.to_uuid(child_id) for child_id in list(immediate_children.keys())]
-
+			if block_tree is not None:
+				block_tree.add_relationships(block_identifier, child_uuids)
 			#log.debug(f"Adding parent-children relationships for block {block_identifier}:", child_uuids)
-			# Add relationships for nested blocks as well.
 			self.cache.add_parent_children_relationships(
 				block_identifier,
 				child_uuids,
@@ -269,7 +291,7 @@ class NotionClient:
 				#log.debug(f"Converted child_id {child_id} (int) to uuid string: {converted_child}")
 				child_uuid = converted_child
 			# Recursively get descendants of the child block
-			descendants = await self.get_all_children_recursively(child_uuid)
+			descendants = await self.get_all_children_recursively(child_uuid, block_tree)
 			flat_children.update(descendants)
 
 		# Log the visited nested blocks (using a similar style as in graph.py)
@@ -336,7 +358,12 @@ class NotionClient:
 
 			log.flow("Converting message")
 			data = self.convert_message(response_json)
-			log.flow(f"Found {len(data['results'])} search results")
+
+			if len(data["results"]) > 0:
+				log.flow(f"Found {len(data['results'])} search results")
+			else:
+				log.flow("No search results found for this query")
+
 
 			# Max ttl for search results is 30 days
 			self.cache.add_search_results(query, data, filter_type, start_cursor, ttl = 30 * 24 * 60 * 60)

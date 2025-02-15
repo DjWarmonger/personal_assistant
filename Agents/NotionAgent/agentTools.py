@@ -37,7 +37,20 @@ class NotionPageDetailsTool(ContextAwareTool):
 		log.flow(f"Getting details of Notion page... {notion_id}")
 		result = await client.get_notion_page_details(page_id=notion_id)
 
-		context["visitedBlocks"][notion_id] = result
+		if isinstance(notion_id, str):
+			try:
+				index = int(notion_id)
+			except ValueError:
+				index = client.index.to_int(notion_id)
+		else:
+			index = int(notion_id)
+
+		if index is None:
+			raise ValueError(f"Invalid page index: {notion_id}")
+		
+		visited_dict = dict(context["visitedBlocks"])
+		visited_dict[index] = result
+		context["visitedBlocks"] = list(visited_dict.items())
 
 		return context, json_converter.remove_spaces(result)
 
@@ -55,22 +68,27 @@ class NotionGetChildrenTool(ContextAwareTool):
 		cursor_info = f" start cursor: {start_cursor}" if start_cursor is not None else ""
 		log.flow(f"Retrieving children of Notion block... {index}{cursor_info}")
 
-		result = await client.get_block_content(block_id=index, start_cursor=start_cursor, get_children=True)
+		result = await client.get_block_content(block_id=index, start_cursor=start_cursor, get_children=True, block_tree=context.get("block_tree"))
+
+		visited_dict = dict(context["visitedBlocks"])
 
 		if type(result) == dict:
 			for id, content in result.items():
-				context["visitedBlocks"][int(id)] = content
+				visited_dict[int(id)] = content
 		elif type(index) == int:
-			context["visitedBlocks"][index] = result
+			visited_dict[index] = result
 		else:
 			log.error(f"Unhandled key type: {type(index)}")
+
+		context["visitedBlocks"] = list(visited_dict.items())
 
 		return context, json_converter.remove_spaces(result)
 
 
 class NotionGetBlockContentTool(ContextAwareTool):
 	name: str = "NotionGetBlockContent"
-	description: str = "Retrieve content of a page or block in Notion"
+	description: str = "Retrieve content of a page or block in Notion, recursively"
+
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		index: int | str = Field(..., description="Index id or uuid of the page or block to retrieve content for")
@@ -83,8 +101,22 @@ class NotionGetBlockContentTool(ContextAwareTool):
 		
 		result = await client.get_block_content(get_children=False,
 							block_id=index,
-							start_cursor=start_cursor)
-		context["visitedBlocks"][index] = result
+							start_cursor=start_cursor,
+							block_tree=context.get("block_tree"))
+		
+		if isinstance(index, str):
+			try:
+				index = int(index)
+			except ValueError:
+				index = client.index.to_int(index)
+				if index is None:
+					raise ValueError(f"Invalid block index: {index}")
+
+		visited_dict = dict(context["visitedBlocks"])
+		visited_dict[index] = result
+		context["visitedBlocks"] = list(visited_dict.items())
+
+		# TODO: return ids of all retrievedchildren
 
 		return context, json_converter.remove_spaces(result)
 
@@ -176,34 +208,16 @@ agent_tools = [
 	NotionGetBlockContentTool(),
 	NotionGetChildrenTool(),
 	NotionQueryDatabaseTool(),
-	ChangeFavourties()
+	ChangeFavourties(),
+	CompleteTaskTool()
 	]
-planner_tools = [AddTaskTool(),
-				 CompleteTaskTool()] + agent_tools
+planner_tools = [AddTaskTool()] + agent_tools
 writer_tools = [CompleteTaskTool()]
 
 
 planner_tool_executor = ToolExecutor(planner_tools)
 tool_executor = ToolExecutor(agent_tools)
 writer_tool_executor = ToolExecutor(writer_tools)
-
-"""
-def custom_convert_to_openai_function(tool):
-	return {
-		"name": tool.name,
-		"description": tool.description,
-		"parameters": {
-			"type": "object",
-			"properties": {
-				field_name: {
-					"type": "string",  # or appropriate type
-					"description": field.description
-				} for field_name, field in tool.args_schema.__fields__.items()
-			},
-			"required": list(tool.args_schema.__fields__.keys())
-		}
-	}
-"""
 
 import json
 import langchain_core.utils.function_calling

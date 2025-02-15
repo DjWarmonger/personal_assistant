@@ -1,18 +1,26 @@
+from typing import Any
+
+from pydantic import Field
+
 from tz_common.langchain_wrappers import AgentState
+from blockTree import BlockTree
+
 
 class PlannerAgentState(AgentState):
-	
-	pass
+
+	def __init__(self, **data: Any):
+		# TODO: Remove, didn't help
+		super().__init__(**data)
 
 
 class NotionAgentState(AgentState):
+		
+	visitedBlocks: list[tuple[int, str]] = Field(default_factory=list)
+	blockTree: BlockTree = BlockTree()
 
-	# TODO: Make sure key is converted to int
-	visitedBlocks: dict[int, str] = {}
-	
 
 class WriterAgentState(AgentState):
 
-	pass
+	blockTree: BlockTree = BlockTree()
 
 # TODO: Design flow betwen agents?

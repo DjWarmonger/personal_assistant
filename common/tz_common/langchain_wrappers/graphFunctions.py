@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 import json
 import asyncio
 
@@ -7,9 +7,10 @@ from langgraph.prebuilt import ToolExecutor
 
 from tz_common import log
 from .agentState import AgentState
+from tz_common.actions import AgentAction, AgentActionListUtils
 
 
-async def get_tool_result(tool, tool_name: str, state: AgentState, input_args: dict, ) -> tuple[str, str]:
+async def get_tool_result(tool, action: AgentAction, state: AgentState, input_args: dict) -> tuple[str, str]:
 
 	#log.debug(f"arun input_args:", input_args)
 	#log.debug(f"arun state:", state)
@@ -18,7 +19,7 @@ async def get_tool_result(tool, tool_name: str, state: AgentState, input_args: d
 	input_args["context"] = state
 
 	result = await tool.arun(tool_input=input_args)
-	return (tool_name, result)
+	return (action, result)
 
 
 def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentState):
@@ -32,18 +33,21 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 		for tool in tool_executor.tools:
 			if tool.name == name:
 
-				# TODO: log actual inpup parameters signature
-				tool_name = f"{tool_call['id'].rsplit('_', 1)[1]}({tool.name})"
+				action = AgentAction.from_tool_call(name, tool_call["id"].rsplit('_', 1)[1], input_args)
+				action.set_in_progress()
+				state["actions"].append(action)
+
+				tool_name = action.to_tool_call_string()
 				log.flow(f"Calling tool: {tool_name}")
 
 				#log.debug(f"Tool signature:", tool.args)
 				log.debug(f"input_args:", input_args)
 
-				# FIXME: Incorrect input_args
-				# input_args:{'__arg1': '1'}
+				# TODO: Set agent_id to calling agent
+				# TODO: Store agent name in State?
 
 				#log.debug(f"state:", state)
-				tasks.append(get_tool_result(tool, tool_name, state, input_args))
+				tasks.append(get_tool_result(tool, action, state, input_args))
 
 	async def call_tools():
 		# Dispatch tool calls asynchronously
@@ -57,9 +61,9 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 					log.error(f"Error: {error_message}")
 					processed_results[result.__class__.__name__] = error_message
 				else:
-					# Append results - Only message
-					key, value = result
-					processed_results[key] = value[-1]
+					action, (_, message) = result
+					processed_results[action.to_tool_call_string()] = (action, message)
+					# TODO: Add "related message" with tool output to action
 
 			return processed_results
 
@@ -73,13 +77,15 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 	finally:
 		loop.close()
 
-	for key, result in processed_results.items():
-		log.debug(f"Result of tool {key}:", result)
-		message = f"{key} returned:\n{result}"
+	for key, (action, message) in processed_results.items():
+		log.debug(f"Result of tool {key}:", message)
 		ai_message = AIMessage(content=message)
 		state["recentResults"].append(ai_message)
 		state["toolResults"].append(ai_message)
-		#state = trim_recent_results(state)
+		AgentActionListUtils.complete_action(state["actions"], action.id, "Tool call succeeded")
+		#log.debug(f"Completed action {action.id}")
+
+	log.flow(f"Actions after tool calls: {len(state['actions'])}")
 
 	return state
 
@@ -93,6 +99,9 @@ def check_and_call_tools(state: AgentState, tool_executor: ToolExecutor) -> Agen
 
 	if "toolResults" not in state:
 		state["toolResults"] = []
+
+	if "actions" not in state:
+		state["actions"] = []
 
 	last_message = state["messages"][-1]
  

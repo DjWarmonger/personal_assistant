@@ -115,7 +115,6 @@ class ContextAwareTool(BaseTool):
 		return type_mapping.get(python_type, "string")
 
 
-
 	def _run(self, context: AgentState, **kwargs: Any) -> tuple[AgentState, str]:
 		"""
 		Override this method to implement tool-specific logic.
@@ -147,3 +146,5 @@ class ContextAwareTool(BaseTool):
 			if asyncio.iscoroutine(result):
 				result = await result
 			return result
+	
+	# TODO: Extra method to get concise description of tool result for AgentAction
