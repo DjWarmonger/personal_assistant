@@ -1,0 +1,5 @@
+---
+description: Used library version
+globs: *.py
+---
+Always use Pydantic.v1

@@ -1,0 +1,15 @@
+---
+description: How to order imported modules
+globs: *.py
+---
+Reorder imported modules as follows:
+
+- Python standard library
+[empty line]
+- 3rd party libraries (ie. LangChain)
+[empty line]
+- tz_common imports
+[empty line]
+- Import local project files
+
+Do not add multiple empty lines if some of these categories are missing.

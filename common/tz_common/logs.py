@@ -70,11 +70,17 @@ class Log:
 			print(colored(colored_text, color) + plaintext)
 
 	def user_silent(self, colored_text: str):
+		"""
+		User input or request. # TODO: Explain what's for?
+		"""
 		colored_text = self._filter_printable(colored_text)
 		self.logger.log(LogLevel.USER.value, colored_text)
 		return str(colored_text)
 
 	def user(self, colored_text: str, plaintext: str = ""):
+		"""
+		User input or request.
+		"""
 		self._print_log(colored_text, plaintext, LogLevel.USER)
 		return str(colored_text) + str(plaintext)
 
@@ -83,14 +89,23 @@ class Log:
 		return str(colored_text) + str(plaintext)
 
 	def knowledge(self, colored_text: str, plaintext: str = ""):
+		"""
+		Used for internal AI knowlege, permanent or temporary
+		"""
 		self._print_log(colored_text, plaintext, LogLevel.KNOWLEDGE)
 		return str(colored_text) + str(plaintext)
 	
 	def ai(self, colored_text: str, plaintext: str = ""):
+		"""
+		Reply from chatbots to user. User can be another AI or human.
+		"""
 		self._print_log(colored_text, plaintext, LogLevel.AI)
 		return str(colored_text) + str(plaintext)
 	
 	def flow(self, colored_text: str, plaintext: str = ""):
+		"""
+		Flow of the program, main steps and actions. Entering new functions or graph states.
+		"""
 		self._print_log(colored_text, plaintext, LogLevel.FLOW)
 		return str(colored_text) + str(plaintext)
 	
@@ -99,6 +114,9 @@ class Log:
 		return str(colored_text) + str(plaintext)
 	
 	def common(self, colored_text: str, plaintext: str = ""):
+		"""
+		Large blocks of text, for instance web page content or config files.
+		"""
 		self._print_log(colored_text, plaintext, LogLevel.COMMON)
 		return str(colored_text) + str(plaintext)
 
