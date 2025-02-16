@@ -67,7 +67,21 @@ class AgentAction(BaseModel):
 
 
 	def __str__(self) -> str:
-		return f"{self.id} - {self.description} - {self.status.name}"
+		return f"{self.status.name:10} {self.id} - {self.description[:200]}{'...' if len(self.description) > 200 else ''}"
+	
+
+	def __hash__(self):
+		return hash(self.id)
+	
+
+	def __lt__(self, other) -> bool:
+		"""
+		Implement less than comparison for AgentAction objects.
+		Compares based on action IDs to enable sorting.
+		"""
+		if not isinstance(other, AgentAction):
+			return NotImplemented
+		return str(self.id) < str(other.id)
 
 # TODO: Kolejny indeks akcji, który mapuje uuid na integer?
 
@@ -97,3 +111,13 @@ class AgentActionListUtils:
 	def actions_to_string(actions: List[AgentAction]) -> str:
 		return "\n".join([str(action) for action in actions])
 
+
+	def create_failed_action(resolution: str, id: str = "") -> AgentAction:
+
+		# TODO: Identify input action
+		return AgentAction(
+			id=id,
+			description="",
+			resolution=resolution,
+			status=ActionStatus.FAILED,
+		)

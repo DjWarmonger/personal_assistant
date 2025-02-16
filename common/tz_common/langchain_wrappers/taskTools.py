@@ -19,28 +19,37 @@ class CompleteTaskTool(ContextAwareTool):
 
 	async def _run(self,
 				context: AgentState,
-				task_id: str, status: TaskStatus,
+				task_id: str,
+				status: TaskStatus,
 				resolution: str,
 				data_output: str,
 				**kwargs: Any) -> tuple[AgentState, str]:
 
 		log.flow(f"Completing task: {task_id}")
 		
-		goal = ""
+		goal = None
 		for unsolved_task in context["unsolvedTasks"]:
 			if str(unsolved_task.id) == str(task_id):
 				goal = unsolved_task.goal
 				break
 
-		task = AgentTask(id=task_id, goal=goal)
-		task.complete(resolution, data_output)
+		if goal is None:
+			# FIXME: If task id is wrong, then it won't be marked as failed
+			raise ValueError(f"Task not found in unsolved tasks: {task_id}")
 		
+		task = AgentTask(id=task_id, goal=goal)
 
-		context["completedTasks"].add(task)
+		# TODO: Use status field
+		task.complete(resolution, data_output)
+
 		if task in context["unsolvedTasks"]:
 			context["unsolvedTasks"].remove(task)
 		else:
-			log.error(f"Task not found in unsolved tasks: {task_id}")
+			for solved_task in context["completedTasks"]:
+				if str(solved_task.id) == str(task_id):
+					raise ValueError(f"Task already completed: {task_id}")
+
+		context["completedTasks"].add(task)
 
 		return context, f"Completed task {task_id} with resolution: {resolution}, output: {data_output}"
 

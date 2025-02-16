@@ -6,10 +6,11 @@ from tz_common.logs import log
 from tz_common.tasks import TaskStatus, TaskRole
 from tz_common.langchain_wrappers import check_and_call_tools
 
-from agents import planner_agent_runnable, notion_agent_runnable, writer_agent_runnable
+from agents import planner_agent_runnable
 from agentTools import planner_tool_executor, client
 from agentState import PlannerAgentState, NotionAgentState, WriterAgentState
-from graph import notion_agent, langfuse_handler
+from graph import notion_agent
+from writerGraph import writer_agent
 
 
 def start(state: PlannerAgentState) -> PlannerAgentState:
@@ -17,7 +18,7 @@ def start(state: PlannerAgentState) -> PlannerAgentState:
 	log.flow(f"Entered start")
 
 	# TODO: Analyze situations when there's more than one initial message
-	state["initialPrompt"] = [state["messages"]]
+	initial_prompt = state["messages"]
 
 	favourites = client.index.get_favourites_with_names(10)
 
@@ -32,12 +33,13 @@ def start(state: PlannerAgentState) -> PlannerAgentState:
 		log.error(f"No favourites found")
 
 	return {
+		"initialPrompt": initial_prompt,
 		"messages": state["messages"],
 		"unsolvedTasks": set(),
 		"completedTasks": set(),
 		"actions": [],
 		"toolResults": [],
-		"recentResults": []
+		"recentResults": [],
 		}
 
 
@@ -64,12 +66,11 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 
 	log.flow(f"Entered call_agents")
 
-	log.debug(f"Planner agent state type:", type(state))
-	log.debug(f"Planner agent state:", state)
+	#log.debug(f"Planner agent state type:", type(state))
 
 
 	# TODO: Why it is not a dict?
-	log.debug(f"State before call_agents:", "\n".join([f"{k}: {v}" for k, v in state.items()]))
+	#log.debug(f"State before call_agents:", "\n".join([f"{k}: {v}" for k, v in state.items()]))
 
 	if "unsolvedTasks" not in state:
 		log.error(f"No unsolved tasks found")
@@ -81,18 +82,9 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 
 	# TODO: Pass messages list (?) to notion agent
 
-	# TODO: Convert each agent call to separate nodes
-
 	unsolvedTasksNotion = set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "NOTION" and task.is_todo()])
 
 
-	"""
-	notion_agent_state = NotionAgentState(
-		messages=state["initialPrompt"],
-		unsolvedTasks=unsolvedTasksNotion,
-		completedTasks=state["completedTasks"]
-	)
-	"""
 	notion_agent_state = {
 		"messages": state["messages"],
 		"unsolvedTasks": list(unsolvedTasksNotion),
@@ -101,7 +93,8 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 		"completedTasks": state["completedTasks"],
 		"actions": [],
 		"toolResults": [],
-		"recentResults": []
+		"recentResults": [],
+		"visitedBlocks": []
 	}
 
 	log.debug("State before notion agent:", {
@@ -115,24 +108,36 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 
 	# TODO: Read remaining tasks back from notion agent
 
-	# TODO: pass messages list (?) to writer agent
-
 	unsolvedTasksWriter = set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "WRITER" and task.is_todo()])
 
-
+	"""
+	# FIXME: Automagically convert to dict
 	writer_agent_state = WriterAgentState(
 		messages=state["initialPrompt"],
-		unsolvedTasks=unsolvedTasksWriter,
+		unsolvedTasks=list(unsolvedTasksWriter),
 		completedTasks=notion_agent_response["completedTasks"],
 		visitedBlocks=notion_agent_response["visitedBlocks"],
-		block_tree=notion_agent_response["blockTree"]
+		blockTree=notion_agent_response["blockTree"],
+		toolResults=[],
+		recentResults=[]
 	)
+	"""
+
+	writer_agent_state = {
+		"messages": state["initialPrompt"],
+		"unsolvedTasks": list(unsolvedTasksWriter),
+		"completedTasks": notion_agent_response["completedTasks"],
+		"visitedBlocks": notion_agent_response["visitedBlocks"],
+		"blockTree": notion_agent_response["blockTree"],
+		"toolResults": [],
+		"recentResults": []
+	}
 
 	log.debug(f"Writer agent state:", writer_agent_state)
 
-	return writer_agent_state
+	#return writer_agent_state
 
-	writer_agent_response = writer_agent_runnable.invoke(writer_agent_state)
+	writer_agent_response = writer_agent.invoke(writer_agent_state)
 
 	log.debug(f"Writer agent response:", writer_agent_response)
 
@@ -141,36 +146,21 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 	"""
 	# TODO: pass main requets to writer agent?
 
-
-
-	# TODO: Pass all retrieved pages to writer agent
-
-	writer_agent_state = WriterAgentState(
-		unsolvedTasks=state["unsolvedTasks"],
-		completedTasks=state["completedTasks"]
-	)
-
-
 	# TODO: Actually return final response
 	"""
 
 	# TODO: Remember visited blocks for subsequent calls?
 
 	return {"messages": state["messages"],
-			"solvedTasks": writer_agent_state["completedTasks"],
-			"unsolvedTasks": writer_agent_state["unsolvedTasks"]}
-
+			"solvedTasks": list(set(writer_agent_state["completedTasks"])),
+			"unsolvedTasks": list(set(writer_agent_state["unsolvedTasks"]))}
 
 
 def check_tasks(state: PlannerAgentState) -> str:
 
 	log.flow(f"Entered check_tasks")
 	#return "completed"
-
 	# TODO: Define it as an enum somehwere
-
-	# FIXME: This was called, so task list should be present:
-	#$ Result of tool Xi4SkabF5gU20V2mqRaTqCic(SetTaskList):Task list set
 
 	# TODO: Only check status of user task
 	if "unsolvedTasks" not in state:
@@ -201,28 +191,39 @@ def check_tasks(state: PlannerAgentState) -> str:
 
 def handle_output(state: PlannerAgentState):
 
-	log.knowledge(f"Current task list:", sorted(state['unsolvedTasks'].union(state['completedTasks'])))
+	# FIXME: Result of writer task is not copied to main task
 
-	return {"messages": state["messages"]}
+	log.knowledge(f"Current task list:", sorted(list(set(state['unsolvedTasks']) | set(state['completedTasks']))))
+
+	completed_task = None
+	for task in state["completedTasks"]:
+		if task.role == TaskRole.USER:
+			completed_task = task
+			break
+
+	if not completed_task:
+		raise ValueError("No user task found in completed tasks")
+
+	return {"messages": state["messages"] + [AIMessage(content=completed_task.data_output)]}
 
 
 planner_graph = StateGraph(PlannerAgentState)
 
-planner_graph.set_entry_point("start")
+planner_graph.set_entry_point("plannerStart")
 
-planner_graph.add_node("start", start)
+planner_graph.add_node("plannerStart", start)
 planner_graph.add_node("planning", planning)
-planner_graph.add_node("checkTools", check_and_call_tools_wrapper)
+planner_graph.add_node("checkPlannerTools", check_and_call_tools_wrapper)
 planner_graph.add_node("callAgents", call_agents)
-planner_graph.add_node("checkTasks", handle_output)
+planner_graph.add_node("checkPlannerTasks", handle_output)
 
-planner_graph.add_edge("start", "planning")
-planner_graph.add_edge("planning", "checkTools")
-planner_graph.add_edge("checkTools", "callAgents")
-planner_graph.add_edge("callAgents", "checkTasks")
+planner_graph.add_edge("plannerStart", "planning")
+planner_graph.add_edge("planning", "checkPlannerTools")
+planner_graph.add_edge("checkPlannerTools", "callAgents")
+planner_graph.add_edge("callAgents", "checkPlannerTasks")
 
 planner_graph.add_conditional_edges(
-	"checkTasks",
+	"checkPlannerTasks",
 	check_tasks,
 	{
 		"completed": END,

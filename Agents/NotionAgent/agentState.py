@@ -21,6 +21,7 @@ class NotionAgentState(AgentState):
 
 class WriterAgentState(AgentState):
 
+	visitedBlocks: list[tuple[int, str]] = Field(default_factory=list)
 	blockTree: BlockTree = BlockTree()
 
 # TODO: Design flow betwen agents?

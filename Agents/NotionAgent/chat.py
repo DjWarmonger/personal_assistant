@@ -46,7 +46,8 @@ def chat(loop = True, user_prompt = "") -> str:
 			},
 			config={"callbacks": [langfuse_handler]}
 		)
-		log.ai("Assistant: \n", sorted(response["unsolvedTasks"].union(response["completedTasks"])))
+
+		log.ai("Assistant: \n", response["messages"][-1].content)
 
 
 		# FIXME: Render \n as actual new lines

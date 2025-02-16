@@ -308,7 +308,7 @@ class BlockCache(TimedStorage):
 						self.set_dirty()
 						return None
 
-				log.debug(f"Returning cached {cache_key.split(':')[1]}")
+				#log.debug(f"Returning cached {cache_key.split(':')[1]}")
 				return content
 			else:
 				return None
@@ -348,7 +348,7 @@ class BlockCache(TimedStorage):
 
 		cache_key = self.create_cache_key(uuid, ObjectType.BLOCK)
 
-		log.debug(f"Getting children indexes for {cache_key}")
+		#log.debug(f"Getting children indexes for {cache_key}")
 
 		children_keys = []
 		with self.lock:

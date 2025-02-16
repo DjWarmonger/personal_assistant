@@ -21,7 +21,6 @@ class AgentState(TypedDict):
 	recentResults: Sequence[BaseMessage]
 
 
-
 def create_agent_state() -> AgentState:
 	"""Create a new AgentState with default values"""
 	return {

@@ -137,6 +137,10 @@ class BlockTree:
 
 		# Join lines and ensure no trailing whitespace
 		return "\n".join(line.rstrip() for line in all_lines)
+	
+
+	def __str__(self):
+		return self.get_tree_str()
 
 
 	def remove_relationship(self, parent_uuid: str, child_uuid: str) -> None:

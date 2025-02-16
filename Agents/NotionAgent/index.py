@@ -218,7 +218,7 @@ class Index(TimedStorage):
 			self.cursor.execute('SELECT int_id FROM index_data WHERE uuid = ?', (uuid,))
 			existing_id = self.cursor.fetchone()
 			if existing_id:
-				log.debug(f"Returning existing UUID {uuid} from index")
+				#log.debug(f"Returning existing UUID {uuid} from index")
 				return existing_id[0]
 		except sqlite3.OperationalError as e:
 			log.error(f"Database error during UUID check: {e}")

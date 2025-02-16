@@ -7,19 +7,19 @@ from langgraph.prebuilt import ToolExecutor
 
 from tz_common import log
 from .agentState import AgentState
-from tz_common.actions import AgentAction, AgentActionListUtils
+from tz_common.actions import AgentAction, AgentActionListUtils, ActionStatus
 
 
 async def get_tool_result(tool, action: AgentAction, state: AgentState, input_args: dict) -> tuple[str, str]:
-
-	#log.debug(f"arun input_args:", input_args)
-	#log.debug(f"arun state:", state)
-
-	# Workaround for args handling in langchain
-	input_args["context"] = state
-
-	result = await tool.arun(tool_input=input_args)
-	return (action, result)
+	try:
+		# Workaround for args handling in langchain
+		input_args["context"] = state
+		result = await tool.arun(tool_input=input_args)
+		return (action, result)
+	except Exception as e:
+		# Attach the action to the exception context
+		e.args = (action,) + e.args
+		raise
 
 
 def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentState):
@@ -57,9 +57,11 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 			for result in results:
 				if isinstance(result, Exception):
 					error_message = str(result)
-
 					log.error(f"Error: {error_message}")
-					processed_results[result.__class__.__name__] = error_message
+					# Get the action from the task that failed
+					failed_action = result.__context__.args[0]  # Access the action from the task
+					failed_action.fail(error_message)
+					processed_results[failed_action.to_tool_call_string()] = (failed_action, error_message)
 				else:
 					action, (_, message) = result
 					processed_results[action.to_tool_call_string()] = (action, message)
@@ -68,7 +70,7 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 			return processed_results
 
 		except Exception as e:
-			return {"error": str(e)}
+			return {}
 
 	try:
 		loop = asyncio.new_event_loop()
@@ -82,8 +84,13 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 		ai_message = AIMessage(content=message)
 		state["recentResults"].append(ai_message)
 		state["toolResults"].append(ai_message)
-		AgentActionListUtils.complete_action(state["actions"], action.id, "Tool call succeeded")
-		#log.debug(f"Completed action {action.id}")
+
+		if action.status == ActionStatus.COMPLETED:
+			log.debug(f"Tool call succeeded: {action.id}")
+			#AgentActionListUtils.complete_action(state["actions"], action.id, "Tool call succeeded")
+		elif action.status == ActionStatus.FAILED:
+			log.debug(f"Tool call failed: {action.id}")
+			#AgentActionListUtils.complete_action(state["actions"], action.id, "Tool call failed")
 
 	log.flow(f"Actions after tool calls: {len(state['actions'])}")
 

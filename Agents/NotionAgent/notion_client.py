@@ -122,7 +122,7 @@ class NotionClient:
 		"""
 		This should be called only if we know that children have been already fetched.
 		"""
-		log.debug(f"get_block_children called with uuid: {uuid} (type: {type(uuid).__name__})")
+		#log.debug(f"get_block_children called with uuid: {uuid} (type: {type(uuid).__name__})")
 		indexes = self.cache.get_children_uuids(uuid)
 		indexes =[self.index.to_int(index) for index in indexes]
 

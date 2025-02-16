@@ -7,50 +7,36 @@ from tz_common.langchain_wrappers import AgentState, trim_recent_results, check_
 from tz_common.tasks import AgentTaskList
 from tz_common.actions import AgentActionListUtils
 
-from agents import notion_agent_runnable
+from agents import writer_agent_runnable
 from langfuse.decorators import observe
 from agentTools import tool_executor, client
-from agentState import NotionAgentState
+from agentState import WriterAgentState
 from blockTree import BlockTree
 
-# TODO: Add to other agents?
-langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
+def start(state: WriterAgentState) -> WriterAgentState:
 
-
-def start(state: NotionAgentState) -> NotionAgentState:
-
-	log.flow(f"Notion Agent: Entered start")
-	#log.debug(f"State type: {type(state)}")
-	#log.debug(f"State methods: {dir(state)}")
-
-	log.debug(f"AgentState:", state)
-
-	# TODO: Add initial message to state?
-
-	# TODO: Mark all tasks as "in progress"?
+	log.flow(f"Entered start")
 
 	return {
 		"messages": state["messages"],
 		"actions": [],
-		"recentResults": [],
-		"visitedBlocks": {},
-		"blockTree": BlockTree()
-		}
+		"recentResults": []
+	}
 
 
-def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
+def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 
-	log.flow(f"Entered call_notion_agent")
+	log.flow(f"Entered call_writer_agent")
 
+	# FIXME: Original user query might be confusing
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 
 	remaining_tasks = f"Remaining tasks:\n{str(AgentTaskList.from_set(state['unsolvedTasks']))}"
 	completed_tasks = f"Completed tasks:\n{str(AgentTaskList.from_set(state['completedTasks']))}"
-
-	# TODO: Add history of function calls
-
-	tree_str = ""
 	
+	tree_str = ""
+
+	# TODO: Refactor duplicated code?
 	if not state["blockTree"].is_empty():
 		tree_mapping = client.index.to_int(state["blockTree"].get_all_nodes())
 
@@ -69,34 +55,41 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
 		log.knowledge("\n\nVisited blocks:\n", tree_str)
 
-		tree_str = f"Tree of blocks visited so far:" + '\n' + tree_str
+		tree_str = f"Tree of blocks visited:" + '\n' + tree_str
+	else:
+		log.error("Block tree is empty")
+	
+	visitedBlocks = f"All visited blocks (id : content):\n" + '\n'.join([f"{key} : {value}" for (key, value) in state["visitedBlocks"]])
 
-	state = trim_recent_results(state, 2000)
-	recent_calls = "Recent results of tool calls:\n"
-	recent_calls += "\n\n".join([str(result.content) for result in state["recentResults"]])
-
-	# Only append them once for this call, do not permanently add them to message history
+	# TODO: Possibly reorder  visitedBlocks according to the block tree
 
 	if state["actions"]:
 		actions_str = "Actions taken:\n" + AgentActionListUtils.actions_to_string(state["actions"])
 
-	# FIXME: Messages are multiplicated over iterations
 	messages_with_context = [message for message in state["messages"]]
-	if state['unsolvedTasks']:
+
+	if state["unsolvedTasks"]:
 		messages_with_context.append(AIMessage(content=remaining_tasks))
-	if state['completedTasks']:
+	if state["completedTasks"]:
 		messages_with_context.append(AIMessage(content=completed_tasks))
+	if state["visitedBlocks"]:
+		messages_with_context.append(AIMessage(content=visitedBlocks))
+	else:
+		raise ValueError("No block info in context")
 	if not state["blockTree"].is_empty():
 		messages_with_context.append(AIMessage(content=tree_str))
 	if state["actions"]:
 		messages_with_context.append(AIMessage(content=actions_str))
+
+	"""
+	TODO: The only action writer can take is to complete the task, what are other possible scenarios?
 	if state["recentResults"]:
 		messages_with_context.append(AIMessage(content=recent_calls))
+	"""
 
-	response = notion_agent_runnable.invoke({"messages": messages_with_context})
+	response = writer_agent_runnable.invoke({"messages": messages_with_context})
 
 	state["messages"].append(response)
-	log.debug(f"Length of messages: {len(state['messages'])}")
 
 	return {
 		"messages": state["messages"],
@@ -105,14 +98,16 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 	}
 
 
-def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
+def check_and_call_tools_wrapper(state: WriterAgentState) -> WriterAgentState:
 	return check_and_call_tools(state, tool_executor)
 
 
-def response_check(state: AgentState) -> str:
+def response_check(state: WriterAgentState) -> str:
 
 	log.knowledge(f"Unsolved tasks:", "\n".join([str(task) for task in state['unsolvedTasks']]))
 	log.knowledge(f"Completed tasks:", "\n".join([str(task) for task in state['completedTasks']]))
+
+	# FIXME: Task not found in unsolved tasks: 1
 
 	if len(state["unsolvedTasks"]) == 0:
 		for task in state["completedTasks"]:
@@ -122,50 +117,39 @@ def response_check(state: AgentState) -> str:
 
 		log.flow(f"All tasks completed")
 		return "completed"
-
-	# TODO: handle human feedback tool
-	# TODO: Handle agent question tool
 	else:
 		return "continue"
-	
-	# FIXME: Response is not returned, graph keeps loping
-	
 
-def clean_output(state: AgentState):
 
-	# This is an extra node from which we can exit the graph and return the result
+def clean_output(state: WriterAgentState):
 
 	for msg in state["messages"]:
 		msg.content = client.url_index.replace_placeholders(msg.content)
 
-	#client.save_now()
-
 	return {"messages": state["messages"]}
 
 
-graph = StateGraph(NotionAgentState)
+graph = StateGraph(WriterAgentState)
 
-graph.set_entry_point("notionAgentStart")
+graph.set_entry_point("writerStart")
 
-graph.add_node("notionAgentStart", start)
-graph.add_node("callNotionAgent", call_notion_agent)
-graph.add_node("checkNotionTools", check_and_call_tools_wrapper)
-graph.add_node("notionResponseCheck", clean_output)
+graph.add_node("writerStart", start)
+graph.add_node("callWriterAgent", call_writer_agent)
+graph.add_node("checkWriterTools", check_and_call_tools_wrapper)
+graph.add_node("writerResponseCheck", clean_output)
 
-graph.add_edge("notionAgentStart", "callNotionAgent")
-graph.add_edge("callNotionAgent", "checkNotionTools")
-graph.add_edge("checkNotionTools", "notionResponseCheck")
+graph.add_edge("writerStart", "callWriterAgent")
+graph.add_edge("callWriterAgent", "checkWriterTools")
+graph.add_edge("checkWriterTools", "writerResponseCheck")
 
 graph.add_conditional_edges(
-	"notionResponseCheck",
+	"writerResponseCheck",
 	response_check,
 	{
 		"completed": END,
 		"failed": END,
-		"human_feedback_needed": END,
-		"agent_question": END,
-		"continue": "callNotionAgent"
+		"continue": "callWriterAgent"
 	}
 )
 
-notion_agent = graph.compile()
+writer_agent = graph.compile()
