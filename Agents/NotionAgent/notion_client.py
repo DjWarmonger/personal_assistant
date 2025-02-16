@@ -199,8 +199,6 @@ class NotionClient:
 			
 			# TODO: Increase visit count
 
-			# FIXME: No key 'results' in response
-
 			if "results" not in data:
 				log.error(f"No key 'results' when retrieving children for block {uuid}")
 			else:
@@ -219,7 +217,6 @@ class NotionClient:
 
 				# TODO: Make sure this enum works for db and page
 
-				# FIXME: Do this also for recursive children
 				self.cache.add_parent_children_relationships(
 					cache_key,
 					children_uuids,
@@ -264,7 +261,7 @@ class NotionClient:
 		# Get immediate children
 		immediate_children = await self.get_block_children(block_identifier, block_tree)
 
-		# FIXME: What if there are no children?
+		# FIXME: What if there are no children but blockTree is not None?
 		if immediate_children:
 
 			child_uuids = [self.index.to_uuid(child_id) for child_id in list(immediate_children.keys())]
@@ -566,12 +563,6 @@ class NotionClient:
 		if isinstance(uuid, int):
 			uuid = self.index.get_uuid(uuid)
 		return self.index.converter.to_formatted_uuid(uuid)
-
-
-	def save_now(self):
-		#  TODO: Move both to one class that manages storage?
-		self.index.save_now()
-		self.cache.save_now()
 
 
 

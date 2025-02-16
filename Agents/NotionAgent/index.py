@@ -119,7 +119,7 @@ class Index(TimedStorage):
 
 	def get_favourites_with_names(self, count: int = 10) -> List[str]:
 
-		# TODO: Add visit count?
+		# TODO: Display visit count?
 
 		with self.db_lock:
 			self.cursor.execute('''

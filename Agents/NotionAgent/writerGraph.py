@@ -81,12 +81,6 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 	if state["actions"]:
 		messages_with_context.append(AIMessage(content=actions_str))
 
-	"""
-	TODO: The only action writer can take is to complete the task, what are other possible scenarios?
-	if state["recentResults"]:
-		messages_with_context.append(AIMessage(content=recent_calls))
-	"""
-
 	response = writer_agent_runnable.invoke({"messages": messages_with_context})
 
 	state["messages"].append(response)

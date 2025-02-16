@@ -66,20 +66,13 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 
 	log.flow(f"Entered call_agents")
 
-	#log.debug(f"Planner agent state type:", type(state))
-
-
-	# TODO: Why it is not a dict?
-	#log.debug(f"State before call_agents:", "\n".join([f"{k}: {v}" for k, v in state.items()]))
-
 	if "unsolvedTasks" not in state:
 		log.error(f"No unsolved tasks found")
 		return state
 	
 	# TODO: Update user query after chat reply
 
-	# TODO: Pass main requets to notion agent?
-
+	# TODO: Pass main request to notion agent?
 	# TODO: Pass messages list (?) to notion agent
 
 	unsolvedTasksNotion = set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "NOTION" and task.is_todo()])
@@ -97,14 +90,8 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 		"visitedBlocks": []
 	}
 
-	log.debug("State before notion agent:", {
-		k: type(v) for k, v in notion_agent_state.items()
-	})
-
-	notion_agent_response = notion_agent.invoke(notion_agent_state)#, config={"callbacks": [langfuse_handler]})
-
+	notion_agent_response = notion_agent.invoke(notion_agent_state)
 	log.debug(f"Notion agent response:", notion_agent_response)
-
 
 	# TODO: Read remaining tasks back from notion agent
 
@@ -141,13 +128,8 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 
 	log.debug(f"Writer agent response:", writer_agent_response)
 
-
 	# TODO: Read final response from writer agent
-	"""
-	# TODO: pass main requets to writer agent?
-
-	# TODO: Actually return final response
-	"""
+	# FIXME: Result of writer task is not copied to main task
 
 	# TODO: Remember visited blocks for subsequent calls?
 
@@ -162,13 +144,10 @@ def check_tasks(state: PlannerAgentState) -> str:
 	#return "completed"
 	# TODO: Define it as an enum somehwere
 
-	# TODO: Only check status of user task
 	if "unsolvedTasks" not in state:
 		log.error(f"No unsolved tasks found")
 		return "failed"
 	
-	final_answer = ""
-
 	if len(state["unsolvedTasks"]) == 0:
 		for task in state["completedTasks"]:
 
@@ -191,20 +170,9 @@ def check_tasks(state: PlannerAgentState) -> str:
 
 def handle_output(state: PlannerAgentState):
 
-	# FIXME: Result of writer task is not copied to main task
-
 	log.knowledge(f"Current task list:", sorted(list(set(state['unsolvedTasks']) | set(state['completedTasks']))))
 
-	completed_task = None
-	for task in state["completedTasks"]:
-		if task.role == TaskRole.USER:
-			completed_task = task
-			break
-
-	if not completed_task:
-		raise ValueError("No user task found in completed tasks")
-
-	return {"messages": state["messages"] + [AIMessage(content=completed_task.data_output)]}
+	return {"messages": state["messages"]}
 
 
 planner_graph = StateGraph(PlannerAgentState)

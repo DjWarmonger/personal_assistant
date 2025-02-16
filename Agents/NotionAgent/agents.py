@@ -15,10 +15,6 @@ load_dotenv()
 
 # TODO: List other agents, their purpose and ids
 
-# FIXME: Model calls tools other that TaskListTool
-
-# TODO: Make agent set goals for writer agent
-
 # TODO: Rewrite this for reasoning model
 
 planner_agent_prompt = """
@@ -57,7 +53,7 @@ planner_agent_ask_prompt = """
 - If the request is ambiguous, begin your response with a clarifying question prefixed by "AGENT_QUESTION" before listing any tasks.
 """ if os.getenv("CAN_ASK_QUESTIONS") == "true" else ""
 
-# TODO: Create different agent ids when there are multiple agents
+# TODO: Automagically reate different agent ids when there are multiple agents
 
 taskListParser = JsonOutputParser(pydantic_object=AgentTaskList)
 
@@ -69,8 +65,6 @@ planner_prompt = ChatPromptTemplate.from_messages(
 )
 
 # TODO: How to exit the graph in case of unrecoverable error?
-
-# TODO: How to mark task as failed?
 
 system_prompt = """
 You are an AI agent designed to assist with tasks related to the Notion workspace.
@@ -88,9 +82,6 @@ If a message indicates that a page or block was visited, consider it as visited.
 Use complete_task tool to indicate that given task is finished. Finishing all tasks will be considered as completing the assignment.
 </instructions>
 """
-
-# TODO: Use CompleteTask instead of this promp
-
 
 # TODO: Add (optional) tools for asking questions and calling human
 

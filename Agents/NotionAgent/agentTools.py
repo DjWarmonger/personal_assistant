@@ -116,8 +116,6 @@ class NotionGetBlockContentTool(ContextAwareTool):
 		visited_dict[index] = result
 		context["visitedBlocks"] = list(visited_dict.items())
 
-		# TODO: return ids of all retrievedchildren
-
 		return context, json_converter.remove_spaces(result)
 
 
@@ -202,6 +200,8 @@ def request_human_feedback():
 # Set up the tools to execute them from the graph
 from langgraph.prebuilt import ToolExecutor
 
+# TODO: Move "change favourites" to planner only?
+
 agent_tools = [
 	NotionSearchTool(),
 	NotionPageDetailsTool(),
@@ -212,6 +212,8 @@ agent_tools = [
 	CompleteTaskTool()
 	]
 planner_tools = [AddTaskTool()] + agent_tools
+
+# TODO: Allow writer to give feedback or request clarification
 writer_tools = [CompleteTaskTool()]
 
 
@@ -222,7 +224,7 @@ writer_tool_executor = ToolExecutor(writer_tools)
 import json
 import langchain_core.utils.function_calling
 # Monkey patch to use our custom convert_to_openai_function
-# FIXME: Very ugly, but works
+# FIXME: Try to remove it once graph works
 langchain_core.utils.function_calling.convert_to_openai_function = lambda tool: tool.convert_to_openai_function()
 
 """

@@ -30,25 +30,17 @@ def chat(loop = True, user_prompt = "") -> str:
 
 		history.add_user_message(user_input)
 
-		# TODO: Call planner agent instead
-
-		#response = notion_agent.invoke({"messages": history.messages}, config={"callbacks": [langfuse_handler]})
-
-
 		# FIXME: Langfuse cannot handle dicts
 
 		response = planner_runnable.invoke(
 			{
 				"messages": history.messages,
 				"actions": [],
-				#"unsolvedTasks": set(),
-				#"completedTasks": set()
 			},
 			config={"callbacks": [langfuse_handler]}
 		)
 
 		log.ai("Assistant: \n", response["messages"][-1].content)
-
 
 		# FIXME: Render \n as actual new lines
 		# FIXME: Render \t
