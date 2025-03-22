@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from pathlib import Path
 
 # Enable relative imports when running as a script
@@ -16,6 +17,7 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from tz_common.logs import log
 # Import directly from Agent package
 from Agent.graph import json_agent, langfuse_handler
+from .commandHandler import JsonAgentCommandHandler
 
 
 def chat(loop = True,
@@ -24,12 +26,13 @@ def chat(loop = True,
 	console_prompt = "You: "
 	history = ChatMessageHistory()
 	
-	# TODO: Type "save" to save the current JSON document to a file
-	# TODO: Agent should know that user has to do it manually
+	# Create command handler for JSON Agent
+	cmd_handler = JsonAgentCommandHandler()
 	
 	user_input = ""
 	
 	print("Hello! I'm your JSON Agent chatbot. Type 'quit' to exit.")
+	print("Type 'help' or '?' for available commands.")
 	while True:
 		if user_prompt and not user_input:
 			# Only at first run
@@ -37,10 +40,14 @@ def chat(loop = True,
 		else:
 			user_input = input(console_prompt)
 			log.user_silent(user_input)
-	
-		if user_input.lower() == 'quit':
+			
+		# Handle commands
+		command_result = cmd_handler.handle_command(user_input, agent=json_agent)
+		if command_result == 'quit':
 			break
-
+		elif command_result:
+			continue
+			
 		if not user_input:
 			continue
 

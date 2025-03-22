@@ -30,21 +30,42 @@ class RespondTool(ContextAwareTool):
 		return context, ret
 """
 
+def get_json_doc(context: AgentState, doc_type: JsonDocumentType) -> Dict[str, Any]:
+	"""Get JSON document based on the specified type."""
+	doc_type_str = doc_type.name if hasattr(doc_type, 'name') else str(doc_type).upper()
+	
+	if doc_type_str == JsonDocumentType.INITIAL.name:
+		return context["initial_json_doc"]
+	elif doc_type_str == JsonDocumentType.CURRENT.name:
+		return context["json_doc"]
+	elif doc_type_str == JsonDocumentType.FINAL.name:
+		return context["final_json_doc"]
+	else:
+		raise ValueError(f"Invalid JSON document type: {doc_type}")
+
 
 class JsonSearchTool(ContextAwareTool):
 	name: str = "JsonSearch"
-	description: str = "Search for values in a JSON document using path expressions with wildcard support"
+	description: str = "Search for values in a JSON document using path expressions with wildcard support. Path always starts at root level, and is equal to root if empty."
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		json_doc: Dict[str, Any] = Field(..., description="JSON document to search in")
+		# FIXME: Should be document id, or default document?
+		doc_type: JsonDocumentType = Field(
+			default=JsonDocumentType.CURRENT,
+			description=f"Type of JSON document to search, one of ({', '.join([e.name for e in JsonDocumentType])})"
+		)
 		path: str = Field(..., description="Path to search for, supporting wildcards (e.g., 'users.*.name')")
 
 
-	async def _run(self, context: AgentState, json_doc: Dict[str, Any], path: str, **kwargs: Any) -> tuple[AgentState, str]:
-		log.flow(f"Searching JSON document with path: {path}")
+	async def _run(self, context: AgentState, path: str = "", doc_type: JsonDocumentType = JsonDocumentType.CURRENT, **kwargs: Any) -> tuple[AgentState, str]:
+
+		log.flow(f"Searching JSON document {doc_type.value if hasattr(doc_type, 'value') else doc_type} with path: {path}")
+		json_doc = get_json_doc(context, doc_type)
 		result = json_crud.search(json_doc, path)
 		
 		# Store the result in context for future reference
+		# TODO: Use this result directly if it's very big
+		# TODO: Maybe pass only a chunk of result to agent?
 		context["last_search_result"] = result
 		
 		return context, json_converter.remove_spaces(result)
@@ -52,16 +73,17 @@ class JsonSearchTool(ContextAwareTool):
 
 class JsonModifyTool(ContextAwareTool):
 	name: str = "JsonModify"
-	description: str = f"Modify a value at a specific path in a JSON document."
+	description: str = f"Modify a value at a specific path in a current JSON document."
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		json_doc: Dict[str, Any] = Field(..., description="JSON document to modify")
 		path: str = Field(..., description="Path to the value to modify (e.g., 'settings.theme')")
 		value: Any = Field(..., description="New value to set at the specified path")
 
 
 	async def _run(self, context: AgentState, json_doc: Dict[str, Any], path: str, value: Any, **kwargs: Any) -> tuple[AgentState, str]:
 		log.flow(f"Modifying JSON document at path: {path}")
+
+		json_doc = get_json_doc(context, JsonDocumentType.CURRENT)
 		result = json_crud.modify(json_doc, path, value)
 		
 		# Store the modified document in context
@@ -155,31 +177,16 @@ class JsonInfoTool(ContextAwareTool):
 	description: str = "Get information about an object or array at a specific path in a JSON document"
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		path: str = Field(default="", description=f"Path to the object or array to get info about.")
+		path: str = Field(default="", description=f"Path to the object or array to get info about, starting from root.")
 		doc_type: JsonDocumentType = Field(
 			default=JsonDocumentType.CURRENT,
 			description=f"Type of JSON document to get info from ({', '.join([e.name for e in JsonDocumentType])})"
 		)
 
-
-	def _get_json_doc(self, context: AgentState, doc_type: JsonDocumentType) -> Dict[str, Any]:
-		"""Get JSON document based on the specified type."""
-		doc_type_str = doc_type.name if hasattr(doc_type, 'name') else str(doc_type).upper()
-		
-		if doc_type_str == JsonDocumentType.INITIAL.name:
-			return context["initial_json_doc"]
-		elif doc_type_str == JsonDocumentType.CURRENT.name:
-			return context["json_doc"]
-		elif doc_type_str == JsonDocumentType.FINAL.name:
-			return context["final_json_doc"]
-		else:
-			raise ValueError(f"Invalid JSON document type: {doc_type}")
-
-
 	async def _run(self, context: AgentState, path: str = "", doc_type: JsonDocumentType = JsonDocumentType.CURRENT, **kwargs: Any) -> tuple[AgentState, str]:
 		log.flow(f"Getting info from {doc_type.value if hasattr(doc_type, 'value') else doc_type} JSON document at path: {path}")
 		
-		json_doc = self._get_json_doc(context, doc_type)
+		json_doc = get_json_doc(context, doc_type)
 		log.debug(f"Retrieved JSON document of type {doc_type.value if hasattr(doc_type, 'value') else doc_type}")
 		result = get_json_info(json_doc, path)
 		

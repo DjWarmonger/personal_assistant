@@ -44,6 +44,12 @@ def main():
 		default="Describe the structure of this JSON document",
 		help="Initial prompt to send to the agent"
 	)
+
+	parser.add_argument(
+		"--interactive", "-I",
+		action="store_true",
+		help="Run in interactive mode with looping"
+	)
 	
 	args = parser.parse_args()
 	
@@ -68,9 +74,9 @@ def main():
 			log.error(f"Error processing input: {str(e)}")
 			sys.exit(1)
 	
-	# Call the chat function with the JSON document and without looping
+	# Call the chat function with the JSON document and set loop based on --interactive flag
 	response = chat(
-		loop=False,
+		loop=args.interactive,
 		user_prompt=args.prompt,
 		initial_json=input_json
 	)
