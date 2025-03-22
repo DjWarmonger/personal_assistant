@@ -1,0 +1,10 @@
+---
+description: 
+globs: *.cpp,*.py,*.h,*.js
+alwaysApply: false
+---
+# Handling commented-out code
+
+* Only handle TODO and FIXME tasks if they are related to task at hand
+* Only delete existing comments if they are invalidated by curent changes
+* Do not delete commented-out code unless it's completely invalidated by new change
