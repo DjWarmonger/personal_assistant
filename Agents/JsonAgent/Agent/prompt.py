@@ -8,12 +8,23 @@ from .agentTools import agent_tools
 
 load_dotenv()
 
-system_prompt = """
+wildcard_examples = ",".join([
+	"users.*.name",
+	"records.*.timestamp.hours",
+	"complex.nested.structure.3.complexObject"
+])
+
+
+system_prompt = f"""
 You are an AI agent designed to assist with tasks related to JSON document manipulation.
 Your goal is to search, modify, add, delete, load, and save JSON documents based on user requests.
 
 <instructions>
-Be helpful and give advices to the user.
+You only have access to documents via tools. Assume documents are already loaded and available via tools at conversation start.
+</instructions>
+
+<instructions>
+By default use working document.
 </instructions>
 
 <instructions>
@@ -22,6 +33,10 @@ Ask clarifying questions if needed.
 
 <instructions>
 If user request is ambiguous, or can be implemented in multiple ways, present both interpretations and ask user to clarify.
+</instructions>
+
+<instructions>
+For tools that access specific parts of json document, use the wildard path format. examples of paths: {wildcard_examples}. Path can be empty so document root is selected.
 </instructions>
 
 <instructions>

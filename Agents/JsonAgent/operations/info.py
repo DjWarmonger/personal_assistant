@@ -15,25 +15,36 @@ def get_json_info(json_doc: Dict[str, Any], path: str) -> str:
 		
 	Returns:
 		String describing the object's keys or array's size
-	"""
-	# Parse the path
-	path_segments = _parse_path(path)
 	
-	# Navigate to the target location
-	current = json_doc
-	for segment in path_segments:
-		if isinstance(current, dict):
-			if segment in current:
-				current = current[segment]
+	Raises:
+		KeyError: If a path segment is not found in the JSON document
+		IndexError: If an array index is out of range
+		TypeError: If trying to navigate through a primitive value or get info on a primitive value
+	"""
+	# Handle empty path - return info about the entire document
+	if not path:
+		current = json_doc
+	else:
+		# Parse the path
+		path_segments = _parse_path(path)
+		
+		# Navigate to the target location
+		current = json_doc
+		for segment in path_segments:
+			if segment == '':  # Skip empty segments
+				continue
+			if isinstance(current, dict):
+				if segment in current:
+					current = current[segment]
+				else:
+					raise KeyError(f"Path segment '{segment}' not found in JSON document")
+			elif isinstance(current, list):
+				if segment.isdigit() and int(segment) < len(current):
+					current = current[int(segment)]
+				else:
+					raise IndexError(f"Index '{segment}' out of range or not a valid index")
 			else:
-				raise KeyError(f"Path segment '{segment}' not found in JSON document")
-		elif isinstance(current, list):
-			if segment.isdigit() and int(segment) < len(current):
-				current = current[int(segment)]
-			else:
-				raise IndexError(f"Index '{segment}' out of range or not a valid index")
-		else:
-			raise TypeError(f"Cannot navigate to path segment '{segment}': parent is not a dict or list")
+				raise TypeError(f"Cannot navigate to path segment '{segment}': parent is not a dict or list")
 	
 	# Get info based on the type
 	if isinstance(current, dict):
@@ -45,4 +56,4 @@ def get_json_info(json_doc: Dict[str, Any], path: str) -> str:
 			return "Array: EMPTY"
 		return f"Array with size: {len(current)}"
 	else:
-		raise TypeError(f"Path '{path}' points to a primitive value, not an object or array")
+		return f"Primitive value: {current}"

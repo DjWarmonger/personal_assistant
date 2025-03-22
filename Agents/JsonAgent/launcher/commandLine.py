@@ -15,7 +15,8 @@ if __name__ == "__main__":
 	# Set the package name for relative imports
 	__package__ = "launcher"
 
-from tz_common.logs import log
+#from tz_common.logs import log
+from tz_common import log
 from .chat import chat
 
 
@@ -40,7 +41,7 @@ def main():
 	parser.add_argument(
 		"--prompt", "-p",
 		type=str,
-		default="Process this JSON document",
+		default="Describe the structure of this JSON document",
 		help="Initial prompt to send to the agent"
 	)
 	
@@ -55,11 +56,11 @@ def main():
 			if input_path.exists() and input_path.is_file():
 				with open(input_path, 'r', encoding='utf-8') as f:
 					input_json = json.load(f)
-					log.info(f"Loaded JSON from file: {input_path}")
+					log.flow(f"Loaded JSON from file: {input_path}")
 			else:
 				# Try to parse as JSON string
 				input_json = json.loads(args.input)
-				log.info("Parsed JSON from command line argument")
+				log.flow("Parsed JSON from command line argument")
 		except json.JSONDecodeError:
 			log.error(f"Failed to parse JSON from: {args.input}")
 			sys.exit(1)
@@ -74,6 +75,9 @@ def main():
 		initial_json=input_json
 	)
 	
+    # FIXME: WTF did Cursor do here?
+
+"""
 	# Get final JSON from JsonAgent
 	from ..Agent.graph import json_agent
 	
@@ -101,6 +105,7 @@ def main():
 		# Print the final JSON if no output file specified
 		print("\nFinal JSON:")
 		print(json.dumps(final_json, indent=2))
+"""
 
 
 if __name__ == "__main__":

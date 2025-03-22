@@ -21,11 +21,18 @@ def start(state: JsonAgentState) -> JsonAgentState:
 	"""Initialize the JsonAgent state."""
 	log.flow(f"Json Agent: Entered start")
 
-	log.debug(f"AgentState:", state)
+	#log.debug(f"AgentState:", state)
+
+	# TODO: json_doc and final_json_doc should be initialized from initial_json_doc
+	if not state.get("json_doc"):
+		state["json_doc"] = state["initial_json_doc"]
+	if not state.get("final_json_doc"):
+		state["final_json_doc"] = state["initial_json_doc"]
 
 	return {
 		"messages": state["messages"],
 		"actions": [],
+		"toolResults": [],
 		"recentResults": [],
 		"initial_json_doc": state.get("initial_json_doc", {}),
 		"json_doc": state.get("json_doc", {}),
@@ -47,6 +54,7 @@ def call_json_agent(state: JsonAgentState) -> JsonAgentState:
 	completed_tasks = f"Completed tasks:\n{str(AgentTaskList.from_set(state['completedTasks']))}"
 	"""
 
+
 	# Trim recent results to prevent context window overflow
 	state = trim_recent_results(state, 2000)
 	recent_calls = "Recent results of tool calls:\n"
@@ -60,11 +68,26 @@ def call_json_agent(state: JsonAgentState) -> JsonAgentState:
 	if state['completedTasks']:
 		messages_with_context.append(AIMessage(content=completed_tasks))
 	"""
+
+	document_state_str = f"""
+	Documents loaded:
+	Initial document:
+	{f"Loaded, length: {len(state['initial_json_doc'])}" if state['initial_json_doc'] else "EMPTY"}
+	Working document:
+	{f"Loaded, length: {len(state['json_doc'])}" if state['json_doc'] else "EMPTY"}
+	Final document:
+	{f"Loaded, length: {len(state['final_json_doc'])}" if state['final_json_doc'] else "EMPTY"}
+	"""
+
+	messages_with_context.append(AIMessage(content=document_state_str))
+
 	if state["actions"]:
 		actions_str = "Actions taken:\n" + AgentActionListUtils.actions_to_string(state["actions"])
 		messages_with_context.append(AIMessage(content=actions_str))
 	if state["recentResults"]:
 		messages_with_context.append(AIMessage(content=recent_calls))
+
+	# TODO: Tell agent what documents are loaded in a memory
 
 	# Invoke the agent with the context
 	response = json_agent_runnable.invoke({"messages": messages_with_context})
@@ -83,6 +106,12 @@ def call_json_agent(state: JsonAgentState) -> JsonAgentState:
 def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
 	"""Wrapper for checking and calling tools."""
 	return check_and_call_tools(state, tool_executor)
+
+"""
+FIXME:
+input_args:{'path': '', 'doc_type': 'CURRENT'}
+Error: (AgentAction(id='bU4BbEjJeA0fWtu1ikyTzOOV', task_id='default_task', agent_id='', description="JsonInfo (bU4BbEjJeA0fWtu1ikyTzOOV) with args: {'path': '', 'doc_type': 'CURRENT'}", related_messages=[], related_documents=[], status=<ActionStatus.IN_PROGRESS: 1>, resolution=None), "'str' object has no attribute 'value'")
+"""
 
 
 def response_check(state: AgentState) -> str:

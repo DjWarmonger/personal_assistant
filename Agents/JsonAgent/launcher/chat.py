@@ -18,16 +18,21 @@ from tz_common.logs import log
 from Agent.graph import json_agent, langfuse_handler
 
 
-def chat(loop = True, user_prompt = "", initial_json = None) -> str:
+def chat(loop = True,
+		 user_prompt = "",
+		 initial_json = None) -> str:
 	console_prompt = "You: "
 	history = ChatMessageHistory()
 	
 	# TODO: Type "save" to save the current JSON document to a file
 	# TODO: Agent should know that user has to do it manually
 	
+	user_input = ""
+	
 	print("Hello! I'm your JSON Agent chatbot. Type 'quit' to exit.")
 	while True:
-		if user_prompt:
+		if user_prompt and not user_input:
+			# Only at first run
 			user_input = user_prompt
 		else:
 			user_input = input(console_prompt)

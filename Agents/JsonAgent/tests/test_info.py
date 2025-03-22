@@ -79,6 +79,6 @@ def test_info_errors():
 	with pytest.raises(IndexError):
 		get_json_info(json_doc, "users.1")
 	
-	# Test primitive value
-	with pytest.raises(TypeError):
-		get_json_info(json_doc, "settings.theme") 
+	# Test primitive value - should return a string description, not raise an error
+	result = get_json_info(json_doc, "settings.theme")
+	assert "Primitive value" in result 

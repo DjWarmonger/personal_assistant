@@ -31,7 +31,6 @@ class RespondTool(ContextAwareTool):
 """
 
 
-
 class JsonSearchTool(ContextAwareTool):
 	name: str = "JsonSearch"
 	description: str = "Search for values in a JSON document using path expressions with wildcard support"
@@ -53,7 +52,7 @@ class JsonSearchTool(ContextAwareTool):
 
 class JsonModifyTool(ContextAwareTool):
 	name: str = "JsonModify"
-	description: str = "Modify a value at a specific path in a JSON document"
+	description: str = f"Modify a value at a specific path in a JSON document."
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		json_doc: Dict[str, Any] = Field(..., description="JSON document to modify")
@@ -156,34 +155,41 @@ class JsonInfoTool(ContextAwareTool):
 	description: str = "Get information about an object or array at a specific path in a JSON document"
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		path: str = Field(..., description="Path to the object or array to get info about")
+		path: str = Field(default="", description=f"Path to the object or array to get info about.")
 		doc_type: JsonDocumentType = Field(
 			default=JsonDocumentType.CURRENT,
-			description="Type of JSON document to get info from (INITIAL, CURRENT, or FINAL)"
+			description=f"Type of JSON document to get info from ({', '.join([e.name for e in JsonDocumentType])})"
 		)
 
 
 	def _get_json_doc(self, context: AgentState, doc_type: JsonDocumentType) -> Dict[str, Any]:
 		"""Get JSON document based on the specified type."""
-		if doc_type == JsonDocumentType.INITIAL:
-			return context.initial_json_doc
-		elif doc_type == JsonDocumentType.CURRENT:
-			return context.json_doc
-		elif doc_type == JsonDocumentType.FINAL:
-			return context.final_json_doc
+		doc_type_str = doc_type.name if hasattr(doc_type, 'name') else str(doc_type).upper()
+		
+		if doc_type_str == JsonDocumentType.INITIAL.name:
+			return context["initial_json_doc"]
+		elif doc_type_str == JsonDocumentType.CURRENT.name:
+			return context["json_doc"]
+		elif doc_type_str == JsonDocumentType.FINAL.name:
+			return context["final_json_doc"]
 		else:
 			raise ValueError(f"Invalid JSON document type: {doc_type}")
 
-	async def _run(self, context: AgentState, path: str, doc_type: JsonDocumentType = JsonDocumentType.CURRENT, **kwargs: Any) -> tuple[AgentState, str]:
-		log.flow(f"Getting info from {doc_type.value} JSON document at path: {path}")
+
+	async def _run(self, context: AgentState, path: str = "", doc_type: JsonDocumentType = JsonDocumentType.CURRENT, **kwargs: Any) -> tuple[AgentState, str]:
+		log.flow(f"Getting info from {doc_type.value if hasattr(doc_type, 'value') else doc_type} JSON document at path: {path}")
 		
 		json_doc = self._get_json_doc(context, doc_type)
+		log.debug(f"Retrieved JSON document of type {doc_type.value if hasattr(doc_type, 'value') else doc_type}")
 		result = get_json_info(json_doc, path)
 		
 		# Store the result in context for future reference
-		context["last_info_result"] = result
+		#context["last_info_result"] = result
+		# TODO: Actually present that result to agent
+
+		message = f"Info from {doc_type.value if hasattr(doc_type, 'value') else doc_type} JSON document at path: {path}\n{result}"
 		
-		return context, result
+		return context, message
 
 
 # Set up the tools to execute them from the graph
