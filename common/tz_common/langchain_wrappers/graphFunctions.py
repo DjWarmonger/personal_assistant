@@ -49,6 +49,7 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 				#log.debug(f"state:", state)
 				tasks.append(get_tool_result(tool, action, state, input_args))
 
+
 	async def call_tools():
 		# Dispatch tool calls asynchronously
 		try:
@@ -57,7 +58,7 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 			for result in results:
 				if isinstance(result, Exception):
 					error_message = str(result)
-					log.error(f"Error: {error_message}")
+					log.error(f"Call tool failed: {error_message}")
 					# Get the action from the task that failed
 					failed_action = result.__context__.args[0]  # Access the action from the task
 					failed_action.fail(error_message)
