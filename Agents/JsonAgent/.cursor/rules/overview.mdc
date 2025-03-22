@@ -1,0 +1,71 @@
+---
+description: Project overwiew and goals
+globs: ./**/*.py
+alwaysApply: false
+---
+# Project overview
+
+Json Agent is LLM-powered agent that edits json documents.
+Agent manipulates json document in-memory and returns edited document as a final outcome
+Agent does **not** store entire json in its context window
+
+# Project goals
+
+## MVP
+
+* Allow user to determine requested edits in a chat-based interaction, using natural language
+* Decompose complex json manipulations into simple steps
+
+* Handle large documents that would otherwise be not feasible for LLM context window
+* Handle json manipulation programatically to save tokens, and thus time and money
+* Search large json objects for given keys or patterns
+* Mass-edit or replace inner json objects
+** All CRUD operations
+* Use pagination to fit processed content within context window, also to let human user understand the content clearly
+* Verify syntax of json document after edit
+
+## Optional
+
+* Generate json schema based on input document
+* Validate json document based on input schema
+
+# Project Scope
+
+Handling file open / close is NOT within the scope of the project
+* Input json may come from user, another agent, client call or file upload.
+* Edited json file is returned the same way.
+
+## Not in scope
+
+Ay kind of GUI is out of the scope
+Undo or edit history is out of the scope
+
+## Users
+
+* User can be human or another agent
+** External agent can communicate with Json Agent via REST or MCP Client
+* User can communicate through dedicated chat interface or terminal chat
+
+## Features
+
+### Json CRUD
+
+* Find objects by key (any level)
+* Find objects by path, including wildcards (asterix)
+* Find objects by path, including regex
+* Return list of found objects (paginated)
+* Replace object under path
+* Delete object under path
+* Add new object under path
+
+### User experience
+
+* Assist user
+* Explain available features
+* Discuss and clarify requested operations
+* Confirm any edit with user
+* Explain failures or errors, or impossible requests made by user
+
+## Architecture and libraries
+
+Project is based on custom AI agent framework named "tz_common"
