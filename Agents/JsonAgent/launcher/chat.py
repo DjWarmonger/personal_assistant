@@ -31,6 +31,9 @@ def chat(loop = True,
 	
 	user_input = ""
 	
+	# Initialize current_state as empty dict
+	current_state = {}
+	
 	print("Hello! I'm your JSON Agent chatbot. Type 'quit' to exit.")
 	print("Type 'help' or '?' for available commands.")
 	while True:
@@ -40,12 +43,16 @@ def chat(loop = True,
 		else:
 			user_input = input(console_prompt)
 			log.user_silent(user_input)
-			
-		# Handle commands
-		command_result = cmd_handler.handle_command(user_input, agent=json_agent)
+		
+		# Handle commands by passing the full current_state
+		command_result = cmd_handler.handle_command(user_input, current_state=current_state)
 		if command_result == 'quit':
 			break
-		elif command_result:
+		elif command_result is True:
+			continue
+		elif isinstance(command_result, dict):
+			# Update our current_state with the result from the command
+			current_state = command_result
 			continue
 			
 		if not user_input:
@@ -59,17 +66,17 @@ def chat(loop = True,
 			"actions": [],
 		}
 		
-		# Add JSON document to initial state if provided
+		# Add JSON document to initial state if providedn
 		if initial_json is not None:
 			initial_state["initial_json_doc"] = initial_json
 			initial_state["json_doc"] = initial_json
 
 		response = json_agent.invoke(
-			initial_state,
+			current_state if current_state else initial_state,
 			config={"callbacks": [langfuse_handler]}
 		)
 
-		# Store all fields from AgentState and JsonAgentState
+		# Update current_state from response
 		current_state = {
 			# Common AgentState fields
 			"messages": response.get("messages", []),

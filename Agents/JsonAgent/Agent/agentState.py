@@ -10,7 +10,7 @@ JsonDocument = Dict[str, Any]
 
 
 class JsonDocumentType(Enum):
-	INITIAL = "initial"  # Initial JSON document that can be restored
+	INITIAL = "initial"  # Initial JSON document that can be restored by clear command. Should never be modified by agent.
 	CURRENT = "current"  # Current working JSON document
 	FINAL = "final"      # Final JSON document to be saved
 

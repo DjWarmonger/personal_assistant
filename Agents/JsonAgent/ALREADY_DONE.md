@@ -42,6 +42,14 @@ Implement basic CRUD operations in a JSON document
   - If path points to object, list all keys of the object. If it's empty, return "EMPTY" ✅
   - If path points to array, return size of the array. If it's empty, return "EMPTY" ✅
 
+## CLI Interface Implementation
+
+* Implement CLI commands for direct JSON manipulation ✅
+  - Load JSON from file command ✅
+  - Save JSON to file command ✅
+  - Show help command ✅
+  - Quit command ✅
+
 ## Pretty JSON Summary Feature Documentation
 ### Overview
 

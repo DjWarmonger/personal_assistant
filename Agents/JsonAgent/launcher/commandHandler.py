@@ -46,18 +46,19 @@ class CommandHandler:
 		"""Default quit command implementation"""
 		return "quit"
 	
-	def handle_command(self, user_input: str, agent=None, **kwargs) -> Union[bool, str]:
+	def handle_command(self, user_input: str, current_state={}, **kwargs) -> Union[bool, str, dict]:
 		"""
 		Process a user command if it matches registered commands
 		
 		Args:
 			user_input: The user's input text
-			agent: The LangGraph agent instance (optional)
+			current_state: The current agent state dictionary (defaults to empty dict)
 			**kwargs: Additional context passed to command handlers
 			
 		Returns:
 			- True if command was handled
 			- "quit" if application should exit
+			- dict with updated state if state was modified
 			- False if input wasn't a command
 		"""
 		if not user_input:
@@ -67,12 +68,12 @@ class CommandHandler:
 		
 		# Check if it's a registered command
 		if user_input in self.commands:
-			return self.commands[user_input](agent=agent, **kwargs)
+			return self.commands[user_input](current_state=current_state, **kwargs)
 		
 		# Check for aliases
 		if user_input in self.command_aliases:
 			command_name = self.command_aliases[user_input]
-			return self.commands[command_name](agent=agent, **kwargs)
+			return self.commands[command_name](current_state=current_state, **kwargs)
 			
 		return False
 
@@ -113,12 +114,8 @@ Example queries:
 	clear       - Clear the current JSON document
 	"""
 
-	def _cmd_load(self, agent=None, **kwargs):
+	def _cmd_load(self, current_state={}, **kwargs):
 		"""Load a JSON document from a file"""
-		if not agent:
-			print("Error: Agent not available")
-			return True
-			
 		file_path = input("Enter JSON file path to load: ")
 		try:
 			file_path = Path(file_path)
@@ -129,69 +126,61 @@ Example queries:
 			with open(file_path, 'r', encoding='utf-8') as f:
 				loaded_json = json.load(f)
 			
-			# Update the agent's state with new JSON
-			current_state = agent.get_state()
-			current_state["initial_json_doc"] = loaded_json
+			# Update the JSON document in the state
 			current_state["json_doc"] = loaded_json
+			current_state["initial_json_doc"] = loaded_json
 			
 			print(f"JSON loaded from: {file_path}")
+			return current_state  # Return the modified state
 		except json.JSONDecodeError:
 			print(f"Invalid JSON format in file: {file_path}")
 		except Exception as e:
 			print(f"Error loading file: {str(e)}")
 		return True
 	
-	def _cmd_save(self, agent=None, **kwargs):
+	def _cmd_save(self, current_state={}, **kwargs):
 		"""Save the current JSON document to a file"""
-		if not agent:
-			print("Error: Agent not available")
-			return True
-			
-		current_state = agent.get_state()
-		current_json = current_state.get("json_doc", {})
-		
-		if not current_json:
+		if "json_doc" not in current_state or not current_state["json_doc"]:
 			print("No JSON document to save.")
 			return True
 			
+		json_doc = current_state["json_doc"]
+		
 		save_path = input("Enter filepath to save JSON: ")
 		try:
 			save_path = Path(save_path)
 			save_path.parent.mkdir(parents=True, exist_ok=True)
 			
 			with open(save_path, 'w', encoding='utf-8') as f:
-				json.dump(current_json, f, indent=2)
+				json.dump(json_doc, f, indent=2)
 				print(f"JSON saved to: {save_path}")
+				
+			# Optionally track that document was saved (if needed)
+			current_state["saved_json_doc"] = json_doc
+			return current_state
 		except Exception as e:
 			print(f"Error saving file: {str(e)}")
 		return True
-	
-	def _cmd_show(self, agent=None, **kwargs):
+
+	def _cmd_show(self, current_state={}, **kwargs):
 		"""Display the current JSON document"""
-		if not agent:
-			print("Error: Agent not available")
-			return True
-			
-		current_state = agent.get_state()
-		current_json = current_state.get("json_doc", {})
-		
-		if not current_json:
+		if "json_doc" not in current_state or not current_state["json_doc"]:
 			print("No JSON document available to display.")
 		else:
 			print("\nCurrent JSON document:")
-			print(json.dumps(current_json, indent=2))
+			print(json.dumps(current_state["json_doc"], indent=2))
 		return True
 	
-	def _cmd_clear(self, agent=None, **kwargs):
+	def _cmd_clear(self, current_state={}, **kwargs):
 		"""Clear the current JSON document"""
-		if not agent:
-			print("Error: Agent not available")
+		if "json_doc" not in current_state or not current_state["json_doc"]:
+			print("No JSON document to clear.")
 			return True
 			
-		confirm = input("Are you sure you want to clear the current JSON document? (y/n): ")
+		confirm = input("Are you sure you want to clear the current JSON document, reverting it to initial state? (y/n): ")
 		if confirm.lower() in ['y', 'yes']:
-			current_state = agent.get_state()
-			current_state["initial_json_doc"] = {}
-			current_state["json_doc"] = {}
+			# Modify the state to clear the JSON document
+			current_state["json_doc"] = current_state["initial_json_doc"]
 			print("JSON document cleared.")
+			return current_state
 		return True 
