@@ -4,6 +4,7 @@ Main JsonCrud class for handling JSON document operations.
 from typing import Dict, Any, Optional, Union
 import json
 from .search import search_json
+from .search_global import search_global
 from .modify import modify_json
 from .add import add_to_json
 from .delete import delete_from_json
@@ -31,6 +32,24 @@ class JsonCrud:
 			json_doc = json.loads(json_doc)
 			
 		return search_json(json_doc, path)
+	
+	def search_global(self, json_doc: Union[Dict[str, Any], str], pattern: str, 
+					 case_sensitive: bool = False) -> Dict[str, Any]:
+		"""
+		Search for keys and values in a JSON document that match a regex pattern.
+		
+		Args:
+			json_doc: JSON document as dict or string
+			pattern: Regular expression pattern to match
+			case_sensitive: Whether the search should be case-sensitive
+			
+		Returns:
+			Dictionary with full paths as keys and matching objects as values
+		"""
+		if isinstance(json_doc, str):
+			json_doc = json.loads(json_doc)
+			
+		return search_global(json_doc, pattern, case_sensitive)
 	
 	def modify(self, json_doc: Union[Dict[str, Any], str], path: str, value: Any) -> Dict[str, Any]:
 		"""

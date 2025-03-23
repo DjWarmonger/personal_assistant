@@ -35,7 +35,7 @@ Implement basic CRUD operations in a JSON document
   - JsonDeleteTool ✅
   - JsonLoadTool ✅
   - JsonSaveTool ✅
-  - Search via regex key at arbitrary level, case-insinsitive. Return all matches.
+  - Search via regex key at arbitrary level, case-insinsitive. Return all matches. ✅
 
 - Create method and agent tool that allows agent to get info about current json document ✅
   - Take json path as an argument ✅

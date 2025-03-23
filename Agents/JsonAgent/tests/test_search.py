@@ -107,3 +107,58 @@ def test_search_complex_path():
 	# Path not found
 	result = search_json(json_doc, "data.users.1")
 	assert result == {} 
+
+
+def test_search_repeated_names():
+
+	json_doc = {
+		"zdec1001" : {
+			"name" : "Rune Stone",
+			"handler" :"generic",
+			"types" : {
+				"zdec1001" : {
+					"templates" : {
+						"zdec1001" : {
+							"animation" : "objects/zdec1001.def",
+							"mask" : [ "VV", "VB" ]
+						}
+					}
+				}
+			}
+		},
+		"zdec0005" : {
+			"name" : "Rune Stone",
+			"handler" :"generic",
+			"types" : {
+				"zdec0005" : {
+					"templates" : {
+						"zdec0005" : {
+							"animation" : "objects/zdec0005.def",
+							"mask" : [ "VV", "VB" ]
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	# Also test the top-level name fields which should all be "Rune Stone"
+	result = search_json(json_doc, "*.name")
+	assert len(result) == 2  # There are 5 rune stones in the file
+	
+	for key, value in result.items():
+		assert value == "Rune Stone"
+	
+	# Testing specifically for expected structures
+	stone_ids = [ "zdec1001", "zdec0005"]
+	
+	for stone_id in stone_ids:
+		assert f"{stone_id}.name" in result
+		
+	long_path_result = search_json(json_doc, "*.types.*.templates.*.animation")
+	assert len(long_path_result) == 2
+	assert "objects/zdec1001.def" in long_path_result.values()
+	assert "objects/zdec0005.def" in long_path_result.values()
+	
+	
+

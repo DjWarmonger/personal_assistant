@@ -44,4 +44,4 @@ async def test_json_info_tool_document_selection():
 	
 	# Test invalid document type
 	with pytest.raises(ValueError):
-		tool._get_json_doc(state, "invalid") 
+		await tool._run(state, "arr", "invalid")

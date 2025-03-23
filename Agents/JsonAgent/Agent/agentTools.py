@@ -8,27 +8,11 @@ from tz_common.langchain_wrappers import ContextAwareTool, AgentState, AddTaskTo
 
 from operations.json_crud import JsonCrud
 from operations.info import get_json_info
+from operations.search_global import search_global
 from .agentState import JsonDocumentType
 
 json_crud = JsonCrud()
 json_converter = JsonConverter()
-
-"""
-class RespondTool(ContextAwareTool):
-	# TODO: Move to common
-	name: str = "Respond"
-	description: str = "Respond to the user with a message"
-
-	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		message: str = Field(..., description="Message to respond with")
-		# TODO: Return any artifacts?
-
-	async def _run(self, context: AgentState, message: str, **kwargs: Any) -> tuple[AgentState, str]:
-		ret = (f"Responding to the user with message: {message}")
-		# TODO: Actually save the response somewhere and check for it in the graph
-		context["user_response"] = message
-		return context, ret
-"""
 
 def get_json_doc(context: AgentState, doc_type: JsonDocumentType) -> Dict[str, Any]:
 	"""Get JSON document based on the specified type."""
@@ -59,7 +43,7 @@ class JsonSearchTool(ContextAwareTool):
 
 	async def _run(self, context: AgentState, path: str = "", doc_type: JsonDocumentType = JsonDocumentType.CURRENT, **kwargs: Any) -> tuple[AgentState, str]:
 
-		log.flow(f"Searching JSON document {doc_type.value if hasattr(doc_type, 'value') else doc_type} with path: {path}")
+		log.flow(f"Searching JSON document {doc_type.value if hasattr(doc_type, 'value') else doc_type} with path: '{path}'")
 		json_doc = get_json_doc(context, doc_type)
 		result = json_crud.search(json_doc, path)
 		
@@ -69,6 +53,40 @@ class JsonSearchTool(ContextAwareTool):
 		context["last_search_result"] = result
 		
 		return context, json_converter.remove_spaces(result)
+
+
+class JsonSearchGlobalTool(ContextAwareTool):
+	name: str = "JsonSearchGlobal"
+	description: str = "Search for keys and values in a JSON document that match a regex pattern. Returns full paths to all matching elements."
+
+	class ArgsSchema(ContextAwareTool.ArgsSchema):
+		doc_type: JsonDocumentType = Field(
+			default=JsonDocumentType.CURRENT,
+			description=f"Type of JSON document to search, one of ({', '.join([e.name for e in JsonDocumentType])})"
+		)
+		pattern: str = Field(..., description="Regular expression pattern to match against keys and values (e.g., 'user.*')")
+		case_sensitive: bool = Field(
+			default=False,
+			description="Whether the search should be case-sensitive"
+		)
+
+	async def _run(self, context: AgentState, pattern: str, doc_type: JsonDocumentType = JsonDocumentType.CURRENT, 
+				  case_sensitive: bool = False, **kwargs: Any) -> tuple[AgentState, str]:
+		log.flow(f"Searching globally in JSON document {doc_type.value if hasattr(doc_type, 'value') else doc_type} with pattern: '{pattern}'")
+		
+		json_doc = get_json_doc(context, doc_type)
+		
+		try:
+			result = search_global(json_doc, pattern, case_sensitive)
+			
+			# Store the result in context for future reference
+			# TODO: Use this result directly if it's very big
+			# TODO: Maybe pass only a chunk of result to agent?
+			context["last_global_search_result"] = result
+			
+			return context, json_converter.remove_spaces(result)
+		except ValueError as e:
+			return context, f"Error: {str(e)}"
 
 
 class JsonModifyTool(ContextAwareTool):
@@ -81,7 +99,7 @@ class JsonModifyTool(ContextAwareTool):
 
 
 	async def _run(self, context: AgentState, json_doc: Dict[str, Any], path: str, value: Any, **kwargs: Any) -> tuple[AgentState, str]:
-		log.flow(f"Modifying JSON document at path: {path}")
+		log.flow(f"Modifying JSON document at path: '{path}'")
 
 		json_doc = get_json_doc(context, JsonDocumentType.CURRENT)
 		result = json_crud.modify(json_doc, path, value)
@@ -194,7 +212,7 @@ class JsonInfoTool(ContextAwareTool):
 		#context["last_info_result"] = result
 		# TODO: Actually present that result to agent
 
-		message = f"Info from {doc_type.value if hasattr(doc_type, 'value') else doc_type} JSON document at path: {path}\n{result}"
+		message = f"Info from {doc_type.value if hasattr(doc_type, 'value') else doc_type} JSON document at path: '{path}'\n{result}"
 		
 		return context, message
 
@@ -205,13 +223,13 @@ from langgraph.prebuilt import ToolExecutor
 # TODO: Implement task planning
 agent_tools = [
 	JsonSearchTool(),
+	JsonSearchGlobalTool(),
 	JsonModifyTool(),
 	JsonAddTool(),
 	JsonDeleteTool(),
 	JsonLoadTool(),
 	JsonSaveTool(),
 	JsonInfoTool(),
-	#RespondTool(),
 	#CompleteTaskTool()
 ]
 
