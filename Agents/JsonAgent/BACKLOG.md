@@ -4,6 +4,8 @@
 * Support pagination
 * Find some smart way to minimize view on nested objects, ie. only top-level keys
 
+
+
 # More agent tools
 
 - Add tool to reset JSON document to initial state
