@@ -1,13 +1,5 @@
 # Json Agent implementation
 
-Implement basic CRUD operations in a JSON document
-
-## Agent implementation
-
-* Agent prompt✅
-* Launch as chat✅
-* Read response from agent and save its state. Use this state to continue the chat.
-
 ## CLI
 
 * Launch from CLI✅
@@ -16,6 +8,15 @@ Implement basic CRUD operations in a JSON document
 
 # Tests
 
+## Manual tests
+
+* Test add
+* Test modify
+* Test clear
+* Test load
+* Test show
+
+## Automated tests
 * Create example usage scenarios
 
 

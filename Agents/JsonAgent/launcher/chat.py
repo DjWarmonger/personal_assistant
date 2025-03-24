@@ -61,18 +61,22 @@ def chat(loop = True,
 		history.add_user_message(user_input)
 
 		# Prepare initial state with JSON document if provided
-		initial_state = {
-			"messages": history.messages,
-			"actions": [],
-		}
-		
+		if not current_state:
+			current_state = {
+				"messages": history.messages,
+				"actions": [],
+			}
+		else:
+			current_state["messages"].append(history.messages[-1])
 		# Add JSON document to initial state if providedn
 		if initial_json is not None:
-			initial_state["initial_json_doc"] = initial_json
-			initial_state["json_doc"] = initial_json
+			if "initial_json_doc" not in current_state or not current_state["initial_json_doc"]:
+				current_state["initial_json_doc"] = initial_json
+			if "json_doc" not in current_state or not current_state["json_doc"]:
+				current_state["json_doc"] = initial_json
 
 		response = json_agent.invoke(
-			current_state if current_state else initial_state,
+			current_state,
 			config={"callbacks": [langfuse_handler]}
 		)
 
@@ -92,6 +96,8 @@ def chat(loop = True,
 			"json_doc": response.get("json_doc", {}),
 			"final_json_doc": response.get("final_json_doc", {})
 		}
+
+		log.common(f"Current document: {current_state['json_doc']}")
 		
 		# Get the assistant's response
 		assistant_response = response["messages"][-1].content

@@ -115,17 +115,18 @@ class JsonAddTool(ContextAwareTool):
 	description: str = "Add a new value at a specific path in a JSON document"
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		json_doc: Dict[str, Any] = Field(..., description="JSON document to add to")
 		path: str = Field(..., description="Path where to add the value (e.g., 'settings.notifications')")
 		value: Any = Field(..., description="Value to add at the specified path")
 
 
-	async def _run(self, context: AgentState, json_doc: Dict[str, Any], path: str, value: Any, **kwargs: Any) -> tuple[AgentState, str]:
+	async def _run(self, context: AgentState, path: str, value: Any, **kwargs: Any) -> tuple[AgentState, str]:
 		log.flow(f"Adding to JSON document at path: {path}")
+		json_doc = get_json_doc(context, JsonDocumentType.CURRENT)
 		result = json_crud.add(json_doc, path, value)
 		
 		# Store the modified document in context
-		context["last_added_doc"] = result
+		#context["last_added_doc"] = result
+		context["json_doc"] = result
 		
 		return context, json_converter.remove_spaces(result)
 
@@ -135,16 +136,17 @@ class JsonDeleteTool(ContextAwareTool):
 	description: str = "Delete a value at a specific path in a JSON document"
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		json_doc: Dict[str, Any] = Field(..., description="JSON document to delete from")
 		path: str = Field(..., description="Path to the value to delete (e.g., 'users.0')")
 
 
-	async def _run(self, context: AgentState, json_doc: Dict[str, Any], path: str, **kwargs: Any) -> tuple[AgentState, str]:
+	async def _run(self, context: AgentState, path: str, **kwargs: Any) -> tuple[AgentState, str]:
 		log.flow(f"Deleting from JSON document at path: {path}")
+		json_doc = get_json_doc(context, JsonDocumentType.CURRENT)
 		result = json_crud.delete(json_doc, path)
 		
 		# Store the modified document in context
-		context["last_deleted_doc"] = result
+		#context["last_deleted_doc"] = result
+		context["json_doc"] = result
 		
 		return context, json_converter.remove_spaces(result)
 

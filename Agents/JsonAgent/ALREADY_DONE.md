@@ -94,3 +94,9 @@ The pretty output is especially valuable when presenting JSON summaries in docum
 * Allow Agent to call any number of tools in loops ✅
 * Allow Agent to return response directly to user OR continue operation ✅
 * Store list of performed Actions and show it to Agent✅
+
+## Agent implementation
+
+* Agent prompt✅
+* Launch as chat✅
+* Read response from agent and save its state. Use this state to continue the chat. ✅

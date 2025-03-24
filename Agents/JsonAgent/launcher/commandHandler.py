@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Dict, Callable, Any, Optional, Union
+from tz_common.logs import log
 
 # TODO: Move to common?
 
@@ -37,9 +38,9 @@ class CommandHandler:
 	def _cmd_help(self, *args, **kwargs):
 		"""Default help command implementation"""
 		if self.help_text:
-			print(self.help_text)
+			log.common(self.help_text)
 		else:
-			print("No help text available. Use register_command() to add commands.")
+			log.flow("No help text available. Use register_command() to add commands.")
 		return True
 	
 	def _cmd_quit(self, *args, **kwargs):
@@ -120,7 +121,7 @@ Example queries:
 		try:
 			file_path = Path(file_path)
 			if not file_path.exists():
-				print(f"File not found: {file_path}")
+				log.error(f"File not found: {file_path}")
 				return True
 				
 			with open(file_path, 'r', encoding='utf-8') as f:
@@ -130,21 +131,22 @@ Example queries:
 			current_state["json_doc"] = loaded_json
 			current_state["initial_json_doc"] = loaded_json
 			
-			print(f"JSON loaded from: {file_path}")
+			log.flow(f"JSON loaded from: {file_path}")
 			return current_state  # Return the modified state
 		except json.JSONDecodeError:
-			print(f"Invalid JSON format in file: {file_path}")
+			log.error(f"Invalid JSON format in file: {file_path}")
 		except Exception as e:
-			print(f"Error loading file: {str(e)}")
+			log.error(f"Error loading file: {str(e)}")
 		return True
 	
 	def _cmd_save(self, current_state={}, **kwargs):
 		"""Save the current JSON document to a file"""
 		if "json_doc" not in current_state or not current_state["json_doc"]:
-			print("No JSON document to save.")
+			log.flow("No JSON document to save.")
 			return True
 			
 		json_doc = current_state["json_doc"]
+		current_state["saved_json_doc"] = json_doc
 		
 		save_path = input("Enter filepath to save JSON: ")
 		try:
@@ -153,34 +155,31 @@ Example queries:
 			
 			with open(save_path, 'w', encoding='utf-8') as f:
 				json.dump(json_doc, f, indent=2)
-				print(f"JSON saved to: {save_path}")
+				log.flow(f"JSON saved to: {save_path}")
 				
-			# Optionally track that document was saved (if needed)
-			current_state["saved_json_doc"] = json_doc
 			return current_state
 		except Exception as e:
-			print(f"Error saving file: {str(e)}")
+			log.error(f"Error saving file: {str(e)}")
 		return True
 
 	def _cmd_show(self, current_state={}, **kwargs):
 		"""Display the current JSON document"""
 		if "json_doc" not in current_state or not current_state["json_doc"]:
-			print("No JSON document available to display.")
+			log.flow("No JSON document available to display.")
 		else:
-			print("\nCurrent JSON document:")
-			print(json.dumps(current_state["json_doc"], indent=2))
+			log.flow("\nCurrent JSON document:")
+			log.common(json.dumps(current_state["json_doc"], indent=2))
 		return True
 	
 	def _cmd_clear(self, current_state={}, **kwargs):
 		"""Clear the current JSON document"""
 		if "json_doc" not in current_state or not current_state["json_doc"]:
-			print("No JSON document to clear.")
+			log.flow("No JSON document to clear.")
 			return True
 			
 		confirm = input("Are you sure you want to clear the current JSON document, reverting it to initial state? (y/n): ")
 		if confirm.lower() in ['y', 'yes']:
-			# Modify the state to clear the JSON document
 			current_state["json_doc"] = current_state["initial_json_doc"]
-			print("JSON document cleared.")
+			log.flow("JSON document cleared.")
 			return current_state
 		return True 
