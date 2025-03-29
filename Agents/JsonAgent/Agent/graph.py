@@ -52,6 +52,7 @@ def call_json_agent(state: JsonAgentState) -> JsonAgentState:
 	completed_tasks = f"Completed tasks:\n{str(AgentTaskList.from_set(state['completedTasks']))}"
 	"""
 
+	# TODO: Consider sorting messages, actions and recent results by timestamp
 
 	# Trim recent results to prevent context window overflow
 	state = trim_recent_results(state, 2000)
@@ -67,30 +68,17 @@ def call_json_agent(state: JsonAgentState) -> JsonAgentState:
 		messages_with_context.append(AIMessage(content=completed_tasks))
 	"""
 
-	# FIXME: This shows firts-level size (dict or list)
 	small_size = 200
 	target_size = 2000
-	# TODO: Do not show full initial or final if it's identical to working
+	# TODO: Do not show full initial if it's identical to working
 	document_state_str = f"""
-Documents loaded:
+Outline of loaded documents:
 * Initial document:
-{f"Loaded: {truncated_json_format(state['initial_json_doc'], max_depth=4, max_array_items=3, max_object_props=5)}" if state['initial_json_doc'] else "EMPTY"}
+{f"Loaded: {truncated_json_format(state['initial_json_doc'], max_depth=4, max_array_items=3, max_object_props=5, format_output=False)}" if state['initial_json_doc'] else "EMPTY"}
 * Working document:
-{f"Loaded: {truncated_json_format(state['json_doc'], max_depth=4, max_array_items=3, max_object_props=10)}" if state['json_doc'] else "EMPTY"}
+{f"Loaded: {truncated_json_format(state['json_doc'], max_depth=4, max_array_items=3, max_object_props=10, format_output=False)}" if state['json_doc'] else "EMPTY"}
 * Final document:
-{f"Loaded: {truncated_json_format(state['final_json_doc'], max_depth=4, max_array_items=3, max_object_props=5)}" if state['final_json_doc'] else "EMPTY"}
-	"""
-	
-	"""
-	# TODO: Let agent know what types of documents are available - but only in interactive mode
-
-	Available commands for the user:
-	- help, ? : Show help message with available commands
-	- quit : Exit the chat
-	- save : Save the current JSON document to a file
-	- load : Load a JSON document from a file
-	- show : Display the current JSON document
-	- clear : Clear the current JSON document
+{f"Loaded: {truncated_json_format(state['final_json_doc'], max_depth=4, max_array_items=3, max_object_props=5, format_output=False)}" if state['final_json_doc'] else "EMPTY"}
 	"""
 
 	messages_with_context.append(AIMessage(content=document_state_str))
@@ -102,7 +90,7 @@ Documents loaded:
 	if state["recentResults"]:
 		messages_with_context.append(AIMessage(content=recent_calls))
 
-	# TODO: Tell agent what documents are loaded in a memory
+	# TODO: Tell agent names of documents loaded in a memory
 
 	context = '\n'.join([f"{'user' if isinstance(message, HumanMessage) else 'assistant'}: {message.content}" for message in messages_with_context])
 	log.knowledge("Messages with context:\n", context)

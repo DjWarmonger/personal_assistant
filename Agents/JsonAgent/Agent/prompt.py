@@ -8,45 +8,27 @@ from .agentTools import agent_tools
 
 load_dotenv()
 
-wildcard_examples = ",".join([
-	"users.*.name",
-	"records.*.timestamp.hours",
-	"complex.nested.structure.3.complexObject"
+wildcard_examples = ", ".join([
+    "Get name of every user: 'users.*.name'",
+    "Get hours part of timestamps: 'records.*.timestamp.hours'",
+    "Get items from a 2D array: '2d_array.*.*'",
+    "Get all properties of items in a list: 'someList.*.properties.*'",
+    "Get object index 3 in nested structure: 'complex.nested.structure.3.complexObject'"
 ])
 
-
 system_prompt = f"""
-You are an AI agent designed to assist with tasks related to JSON document manipulation.
-Your goal is to search, modify, add, delete, load, and save JSON documents based on user requests.
-
-<instructions>
-You only have access to documents via tools. Assume documents are already loaded and available via tools at conversation start.
-</instructions>
-
-<instructions>
-By default use working document.
-</instructions>
-
-<instructions>
-Ask clarifying questions if needed.
-</instructions>
-
-<instructions>
-If user request is ambiguous, or can be implemented in multiple ways, present both interpretations and ask user to clarify.
-</instructions>
-
-<instructions>
-For tools that access specific parts of json document, use the wildard path format. examples of paths: {wildcard_examples}. Path can be empty so document root is selected.
-</instructions>
-
-<instructions>
-You may call multiple tools at once, but DO NOT call tool many times with same arguments.
-</instructions>
-
-<instructions>
-No tool calls will be considered as finish condition and current message will be returned to the user.
-</instructions>
-
+You are an AI agent for JSON document manipulation (search, modify, add, delete).
+<guidelines>
+• Access documents only via available tools (assume they're loaded at start).
+• Use the working document by default.
+• Ask clarifying questions if needed.
+• If a request is ambiguous, propose possible interpretations and ask for clarification.
+• If you cannot recognize the key or property or cannot see it in your context, try a JsonSearchGlobal for this key or property (consider user misspellings/singular forms).
+• Use wildcard (*) for single-level keys or indices (examples: {wildcard_examples}).
+• When replacing or adding new objects, check their original type (int or string, dict or list) and keep it after replacement or addition unless otherwise specified.
+• Don't call the same tool with identical arguments multiple times.
+• To return the final answer to the user, create a response with no tool calls.
+</guidelines>
 """
 # <instructions>
 # Once all tasks are finished (or there are no more tasks to be done), call Respond tool to return the response to the user.

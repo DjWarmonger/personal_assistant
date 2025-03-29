@@ -92,7 +92,7 @@ class JsonSearchTool(ContextAwareTool):
 			default=JsonDocumentType.CURRENT,
 			description=f"Type of JSON document to search, one of ({', '.join([e.name for e in JsonDocumentType])})"
 		)
-		path: str = Field(..., description="Path to search for, supporting wildcards (e.g., 'users.*.name')")
+		path: str = Field(..., description="Path to search for, supporting wildcards")
 		start_index: int = Field(
 			default=0,
 			description="Starting index for pagination (default: 0)"
@@ -113,7 +113,7 @@ class JsonSearchTool(ContextAwareTool):
 
 class JsonSearchGlobalTool(ContextAwareTool):
 	name: str = "JsonSearchGlobal"
-	description: str = "Search for keys and values in a JSON document that match a regex pattern. Does only match key or value at a single level of depth, will not match across nested paths. Returns full paths to all matching elements."
+	description: str = "Search for keys and values in a JSON document that match a regex pattern. Regex can only match within a key or value string, will NOT match across nested path consisting of multiple keys or indexes. Returns full paths to all matching elements."
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		doc_type: JsonDocumentType = Field(
@@ -123,10 +123,10 @@ class JsonSearchGlobalTool(ContextAwareTool):
 		pattern: str = Field(..., description="""Regular expression pattern to match against keys and values (e.g., 'user.*')
 		<example>
 		user.* - matches all keys and values starting with 'user'
-		<example>
+		</example>
 					   
 		<example>
-		zone.*property will match keys and values starting with 'zone' followed by 'property', but NOT match path 'zone.property', as 'zone' and 'property' belong to different levels of depth
+		zone.*property will match keys and values starting with 'zone' followed by 'property', but NOT match path 'zone.property' or 'zone.3.property', as 'zone' and 'property' belong to different levels of depth
 		</example>
 					   """)
 		case_sensitive: bool = Field(
@@ -200,18 +200,19 @@ class JsonModifyMultipleTool(ContextAwareTool):
 	2. A JSON string that will be parsed (e.g. "[1, 2, 3]" or "{"key": "value"}")
 	3. A function string that will be evaluated for each match (e.g. "lambda x: x * 2" or "lambda x: x.title()")
 	The function string must be a valid Python lambda expression using only basic operations (arithmetic, string methods, etc.)."""
+	
+	# FIXME: Suggets to use lambda x: int(x) to enforce integer values
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		path: str = Field(..., description="Path to search for, supporting wildcards (e.g., 'products.*.price')")
+		path: str = Field(..., description="Path to search for, supporting wildcards")
 		replacement: Any | Callable[[Dict[str, Any]], Dict[str, Any]] = Field(
 			..., 
 			description="""Replacement value or function string to apply to each matched object.
 			If providing a function, it must be a valid Python lambda expression using only basic operations.
 			Examples:
-			- Direct value: Set all prices to 9.99: "products.*.price" with value 9.99
-			- Direct value: Set all limits to "1": "zones.*.zoneLimit" with value "1"
 			- Direct value: Set categories: "products.*.categories" with ["electronics", "computers"]
 			- Direct value: Set metadata: "products.*.metadata" with {"source": "import", "batch": 123}
+			- Numeric value: Enforce integer conversion for items.*.count with "lambda x: int(x)"
 			- Function: Apply 20% discount: "products.*.price" with "lambda x: round(x * 0.8, 2)"
 			- Function: Format text: "products.*.name" with "lambda x: x.title()"
 			- Function: Convert to string: "products.*.id" with "lambda x: str(x).zfill(3)"
@@ -261,14 +262,20 @@ class JsonModifyMultipleTool(ContextAwareTool):
 		evaluated_replacement = self._evaluate_replacement(replacement)
 
 		matches = json_crud.search(json_doc, path)
+
+		modified_count = 0
 		for path, old_value in matches.items():
 			try:
 				new_value = evaluated_replacement(old_value) if callable(evaluated_replacement) else evaluated_replacement
 				json_doc = json_crud.modify(json_doc, path, new_value)
+				if new_value != old_value:
+					modified_count += 1
 			except Exception as e:
 				raise ValueError(f"Failed to apply replacement to value '{old_value}': {str(e)}")
 			
-		message = f"Modified {len(matches)} JSON document at path: '{path}'"
+		message = f"Modified {modified_count} of {len(matches)} in JSON document at path: '{path}'"
+		# FIXME: Incorrect message
+		# Modified 126 JSON document at path: 'One Minute Madness.zones.3.customObjects.commonObjects.13.rmg.zoneLimit'
 
 		context["json_doc"] = json_doc
 		return context, message
@@ -391,12 +398,12 @@ from langgraph.prebuilt import ToolExecutor
 agent_tools = [
 	JsonSearchTool(),
 	JsonSearchGlobalTool(),
-	JsonModifyTool(),
+	#JsonModifyTool(),
 	JsonModifyMultipleTool(),
 	JsonAddTool(),
 	JsonDeleteTool(),
-	JsonLoadTool(),
-	JsonSaveTool(),
+	#JsonLoadTool(),
+	#JsonSaveTool(),
 	JsonInfoTool(),
 	#CompleteTaskTool()
 ]
