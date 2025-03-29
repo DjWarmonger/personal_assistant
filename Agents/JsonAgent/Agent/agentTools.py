@@ -9,6 +9,7 @@ from tz_common.langchain_wrappers import ContextAwareTool, AgentState, AddTaskTo
 from operations.json_crud import JsonCrud
 from operations.info import get_json_info
 from operations.search_global import search_global
+from operations.summarize_json import truncated_json_format
 from .agentState import JsonDocumentType
 
 json_crud = JsonCrud()
@@ -78,13 +79,27 @@ class JsonSearchGlobalTool(ContextAwareTool):
 		
 		try:
 			result = search_global(json_doc, pattern, case_sensitive)
-			
+
+			# TODO: Implement pagination
+			# TODO: Automatically stop output when size of printed result is too big
+			for key, value in result.items():
+				result[key] = truncated_json_format(value, max_depth=3, max_array_items=3, max_object_props=5)
+
+			final_output = {}
+
+			total_length = 0
+			for key, value in result.items():
+				total_length += len(value)
+				final_output[key] = value
+
+				if total_length > 10000:
+					break
+
+
 			# Store the result in context for future reference
-			# TODO: Use this result directly if it's very big
-			# TODO: Maybe pass only a chunk of result to agent?
-			context["last_global_search_result"] = result
+			context["last_global_search_result"] = final_output
 			
-			return context, json_converter.remove_spaces(result)
+			return context, json_converter.remove_spaces(final_output)
 		except ValueError as e:
 			return context, f"Error: {str(e)}"
 
@@ -209,6 +224,7 @@ class JsonInfoTool(ContextAwareTool):
 		json_doc = get_json_doc(context, doc_type)
 		log.debug(f"Retrieved JSON document of type {doc_type.value if hasattr(doc_type, 'value') else doc_type}")
 		result = get_json_info(json_doc, path)
+		result = truncated_json_format(result, max_depth=4, max_array_items=3, max_object_props=10)
 		
 		# Store the result in context for future reference
 		#context["last_info_result"] = result

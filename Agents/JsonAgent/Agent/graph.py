@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from langchain_core.messages import BaseMessage, AIMessage
+from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
 from langfuse.decorators import observe
 
 from tz_common.logs import log, LogLevel
@@ -11,7 +11,7 @@ from tz_common.actions import AgentActionListUtils
 from .prompt import json_agent_runnable
 from .agentTools import tool_executor
 from .agentState import JsonAgentState
-
+from operations.summarize_json import truncated_json_format
 # Create langfuse handler for logging
 langfuse_handler = create_langfuse_handler(user_id="Json Agent")
 log.set_log_level(LogLevel.FLOW)
@@ -69,25 +69,45 @@ def call_json_agent(state: JsonAgentState) -> JsonAgentState:
 		messages_with_context.append(AIMessage(content=completed_tasks))
 	"""
 
+	# FIXME: This shows firts-level size (dict or list)
+	small_size = 200
+	target_size = 2000
+	# TODO: Do not show full initial or final if it's identical to working
 	document_state_str = f"""
-	Documents loaded:
-	Initial document:
-	{f"Loaded, length: {len(state['initial_json_doc'])}" if state['initial_json_doc'] else "EMPTY"}
-	Working document:
-	{f"Loaded, length: {len(state['json_doc'])}" if state['json_doc'] else "EMPTY"}
-	Final document:
-	{f"Loaded, length: {len(state['final_json_doc'])}" if state['final_json_doc'] else "EMPTY"}
+Documents loaded:
+* Initial document:
+{f"Loaded: {truncated_json_format(state['initial_json_doc'], max_depth=4, max_array_items=3, max_object_props=5)}" if state['initial_json_doc'] else "EMPTY"}
+* Working document:
+{f"Loaded: {truncated_json_format(state['json_doc'], max_depth=4, max_array_items=3, max_object_props=10)}" if state['json_doc'] else "EMPTY"}
+* Final document:
+{f"Loaded: {truncated_json_format(state['final_json_doc'], max_depth=4, max_array_items=3, max_object_props=5)}" if state['final_json_doc'] else "EMPTY"}
+	"""
+	
+	"""
+	# TODO: Let agent know what types of documents are available - but only in interactive mode
+
+	Available commands for the user:
+	- help, ? : Show help message with available commands
+	- quit : Exit the chat
+	- save : Save the current JSON document to a file
+	- load : Load a JSON document from a file
+	- show : Display the current JSON document
+	- clear : Clear the current JSON document
 	"""
 
 	messages_with_context.append(AIMessage(content=document_state_str))
 
 	if state["actions"]:
+		# TODO: Mark all actions as completed ny default, or failed
 		actions_str = "Actions taken:\n" + AgentActionListUtils.actions_to_string(state["actions"])
 		messages_with_context.append(AIMessage(content=actions_str))
 	if state["recentResults"]:
 		messages_with_context.append(AIMessage(content=recent_calls))
 
 	# TODO: Tell agent what documents are loaded in a memory
+
+	context = '\n'.join([f"{'user' if isinstance(message, HumanMessage) else 'assistant'}: {message.content}" for message in messages_with_context])
+	log.knowledge("Messages with context:\n", context)
 
 	# Invoke the agent with the context
 	response = json_agent_runnable.invoke({"messages": messages_with_context})
@@ -106,12 +126,6 @@ def call_json_agent(state: JsonAgentState) -> JsonAgentState:
 def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
 	"""Wrapper for checking and calling tools."""
 	return check_and_call_tools(state, tool_executor)
-
-"""
-FIXME:
-input_args:{'path': '', 'doc_type': 'CURRENT'}
-Error: (AgentAction(id='bU4BbEjJeA0fWtu1ikyTzOOV', task_id='default_task', agent_id='', description="JsonInfo (bU4BbEjJeA0fWtu1ikyTzOOV) with args: {'path': '', 'doc_type': 'CURRENT'}", related_messages=[], related_documents=[], status=<ActionStatus.IN_PROGRESS: 1>, resolution=None), "'str' object has no attribute 'value'")
-"""
 
 
 def response_check(state: AgentState) -> str:
