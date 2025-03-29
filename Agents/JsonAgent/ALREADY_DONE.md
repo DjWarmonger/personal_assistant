@@ -49,6 +49,8 @@ Implement basic CRUD operations in a JSON document
   - Save JSON to file command ✅
   - Show help command ✅
   - Quit command ✅
+  - Provide file path as a default argument✅
+  - Provide separate argument for input and output file paths✅
 
 ## Pretty JSON Summary Feature Documentation
 ### Overview

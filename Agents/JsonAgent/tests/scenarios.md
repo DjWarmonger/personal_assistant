@@ -19,3 +19,10 @@ Result: Failed to find anything for path `zones.*.size`
    - Size: 9
 
 ...
+
+# Replace objects based on formula, save to file at given path
+
+clear && python commandLine.py -i ../Agent/testFiles/1mm.json -I -p "Find all rmg objecs and change their zoneLimit to 1" -o ../Agent/launcher/1mm_output.json
+
+# FIXME: Agent set to "1" as a string, but the value is an int
+# FIXME: Agent handles only a handful of paths, while there are 111 in total
