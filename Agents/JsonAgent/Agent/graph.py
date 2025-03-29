@@ -26,8 +26,6 @@ def start(state: JsonAgentState) -> JsonAgentState:
 	# TODO: json_doc and final_json_doc should be initialized from initial_json_doc
 	if not state.get("json_doc"):
 		state["json_doc"] = state["initial_json_doc"]
-	if not state.get("final_json_doc"):
-		state["final_json_doc"] = state["initial_json_doc"]
 
 	return {
 		"messages": state["messages"],
