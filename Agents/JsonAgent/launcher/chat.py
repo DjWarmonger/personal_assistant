@@ -20,7 +20,8 @@ from Agent.graph import json_agent, langfuse_handler
 from .commandHandler import JsonAgentCommandHandler
 
 
-def chat(loop = True,
+def chat(args,
+		 loop = True,
 		 user_prompt = "",
 		 initial_json = None) -> str:
 	console_prompt = "You: "
@@ -45,7 +46,7 @@ def chat(loop = True,
 			log.user_silent(user_input)
 		
 		# Handle commands by passing the full current_state
-		command_result = cmd_handler.handle_command(user_input, current_state=current_state)
+		command_result = cmd_handler.handle_command(user_input, args=args, current_state=current_state)
 		if command_result == 'quit':
 			break
 		elif command_result is True:
@@ -97,7 +98,7 @@ def chat(loop = True,
 			"final_json_doc": response.get("final_json_doc", {})
 		}
 
-		log.common(f"Current document: {current_state['json_doc']}")
+		#log.common(f"Current document: {current_state['json_doc']}")
 		
 		# Get the assistant's response
 		assistant_response = response["messages"][-1].content

@@ -47,7 +47,7 @@ class CommandHandler:
 		"""Default quit command implementation"""
 		return "quit"
 	
-	def handle_command(self, user_input: str, current_state={}, **kwargs) -> Union[bool, str, dict]:
+	def handle_command(self, user_input: str, args, current_state={}, **kwargs) -> Union[bool, str, dict]:
 		"""
 		Process a user command if it matches registered commands
 		
@@ -69,12 +69,12 @@ class CommandHandler:
 		
 		# Check if it's a registered command
 		if user_input in self.commands:
-			return self.commands[user_input](current_state=current_state, **kwargs)
+			return self.commands[user_input](args=args, current_state=current_state, **kwargs)
 		
 		# Check for aliases
 		if user_input in self.command_aliases:
 			command_name = self.command_aliases[user_input]
-			return self.commands[command_name](current_state=current_state, **kwargs)
+			return self.commands[command_name](args=args, current_state=current_state, **kwargs)
 			
 		return False
 
@@ -115,7 +115,7 @@ Example queries:
 	clear       - Clear the current JSON document
 	"""
 
-	def _cmd_load(self, current_state={}, **kwargs):
+	def _cmd_load(self, args, current_state={}, **kwargs):
 		"""Load a JSON document from a file"""
 		file_path = input("Enter JSON file path to load: ")
 		try:
@@ -139,7 +139,7 @@ Example queries:
 			log.error(f"Error loading file: {str(e)}")
 		return True
 	
-	def _cmd_save(self, current_state={}, **kwargs):
+	def _cmd_save(self, args, current_state={}, **kwargs):
 		"""Save the current JSON document to a file"""
 		if "json_doc" not in current_state or not current_state["json_doc"]:
 			log.flow("No JSON document to save.")
@@ -147,8 +147,12 @@ Example queries:
 			
 		json_doc = current_state["json_doc"]
 		current_state["saved_json_doc"] = json_doc
-		
-		save_path = input("Enter filepath to save JSON: ")
+
+		if args.output:
+			save_path = args.output
+		else:
+			save_path = input("Enter filepath to save JSON: ")
+
 		try:
 			save_path = Path(save_path)
 			save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -162,7 +166,7 @@ Example queries:
 			log.error(f"Error saving file: {str(e)}")
 		return True
 
-	def _cmd_show(self, current_state={}, **kwargs):
+	def _cmd_show(self, args, current_state={}, **kwargs):
 		"""Display the current JSON document"""
 		if "json_doc" not in current_state or not current_state["json_doc"]:
 			log.flow("No JSON document available to display.")
@@ -171,7 +175,7 @@ Example queries:
 			log.common(json.dumps(current_state["json_doc"], indent=2))
 		return True
 	
-	def _cmd_clear(self, current_state={}, **kwargs):
+	def _cmd_clear(self, args, current_state={}, **kwargs):
 		"""Clear the current JSON document"""
 		if "json_doc" not in current_state or not current_state["json_doc"]:
 			log.flow("No JSON document to clear.")
