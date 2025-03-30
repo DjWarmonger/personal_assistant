@@ -15,10 +15,11 @@ if __name__ == "__main__":
 from langchain_community.chat_message_histories import ChatMessageHistory
 
 from tz_common.logs import log
+from tz_common.langchain_wrappers import add_timestamp
+
 # Import directly from Agent package
 from Agent.graph import json_agent, langfuse_handler
 from .commandHandler import JsonAgentCommandHandler
-
 
 def chat(args,
 		 loop = True,
@@ -60,6 +61,7 @@ def chat(args,
 			continue
 
 		history.add_user_message(user_input)
+		add_timestamp(history.messages[-1])
 
 		# Prepare initial state with JSON document if provided
 		if not current_state:

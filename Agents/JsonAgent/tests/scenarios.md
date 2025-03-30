@@ -25,7 +25,6 @@ Result: Failed to find anything for path `zones.*.size`
 clear && python commandLine.py -i ../Agent/testFiles/1mm.json -I -p "Find all rmg objecs and change their zoneLimit to 1" -o 1mm_output.json
 
 * FIXME: Agent set to "1" as a string, but the value is an int
-* FIXME: Agent handles only a handful of paths, while there are 126 in total
 
 * FIXME: Agent provides invalid wildcard paths:
 input_args:{'path': 'zones.*.zoneLimit', 'replacement': '1'}

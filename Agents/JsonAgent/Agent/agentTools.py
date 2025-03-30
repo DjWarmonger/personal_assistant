@@ -95,7 +95,7 @@ class JsonSearchTool(ContextAwareTool):
 		path: str = Field(..., description="Path to search for, supporting wildcards")
 		start_index: int = Field(
 			default=0,
-			description="Starting index for pagination (default: 0)"
+			description="Starting index for pagination"
 		)
 
 	async def _run(self, context: AgentState, path: str = "", doc_type: JsonDocumentType = JsonDocumentType.CURRENT, 
@@ -135,7 +135,7 @@ class JsonSearchGlobalTool(ContextAwareTool):
 		)
 		start_index: int = Field(
 			default=0,
-			description="Starting index for pagination (default: 0)"
+			description="Starting index for pagination"
 		)
 
 	async def _run(self, context: AgentState, pattern: str, doc_type: JsonDocumentType = JsonDocumentType.CURRENT, 
@@ -195,14 +195,13 @@ class JsonModifyTool(ContextAwareTool):
 class JsonModifyMultipleTool(ContextAwareTool):
 	name: str = "JsonModifyMultiple"
 	description: str = """Modify multiple values in a JSON document at once, matching wildcard paths.
-	For the replacement parameter, you can provide either:
+	Replacement value can be:
 	1. A direct value (e.g. string, number, boolean, list, or object)
 	2. A JSON string that will be parsed (e.g. "[1, 2, 3]" or "{"key": "value"}")
 	3. A function string that will be evaluated for each match (e.g. "lambda x: x * 2" or "lambda x: x.title()")
+	4. Integer values must be enforced with "lambda x: int(x)"
 	The function string must be a valid Python lambda expression using only basic operations (arithmetic, string methods, etc.)."""
 	
-	# FIXME: Suggets to use lambda x: int(x) to enforce integer values
-
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		path: str = Field(..., description="Path to search for, supporting wildcards")
 		replacement: Any | Callable[[Dict[str, Any]], Dict[str, Any]] = Field(
@@ -212,7 +211,7 @@ class JsonModifyMultipleTool(ContextAwareTool):
 			Examples:
 			- Direct value: Set categories: "products.*.categories" with ["electronics", "computers"]
 			- Direct value: Set metadata: "products.*.metadata" with {"source": "import", "batch": 123}
-			- Numeric value: Enforce integer conversion for items.*.count with "lambda x: int(x)"
+			- Numeric value: Assure integer conversion for items.*.count with "lambda x: int(x)"
 			- Function: Apply 20% discount: "products.*.price" with "lambda x: round(x * 0.8, 2)"
 			- Function: Format text: "products.*.name" with "lambda x: x.title()"
 			- Function: Convert to string: "products.*.id" with "lambda x: str(x).zfill(3)"
@@ -264,18 +263,19 @@ class JsonModifyMultipleTool(ContextAwareTool):
 		matches = json_crud.search(json_doc, path)
 
 		modified_count = 0
-		for path, old_value in matches.items():
+		for found_path, old_value in matches.items():
 			try:
 				new_value = evaluated_replacement(old_value) if callable(evaluated_replacement) else evaluated_replacement
-				json_doc = json_crud.modify(json_doc, path, new_value)
+				json_doc = json_crud.modify(json_doc, found_path, new_value)
 				if new_value != old_value:
 					modified_count += 1
 			except Exception as e:
 				raise ValueError(f"Failed to apply replacement to value '{old_value}': {str(e)}")
 			
+		if not modified_count:
+			return context, "No changes were made to the JSON document, check correct path and replacement value"
+			
 		message = f"Modified {modified_count} of {len(matches)} in JSON document at path: '{path}'"
-		# FIXME: Incorrect message
-		# Modified 126 JSON document at path: 'One Minute Madness.zones.3.customObjects.commonObjects.13.rmg.zoneLimit'
 
 		context["json_doc"] = json_doc
 		return context, message
@@ -303,6 +303,7 @@ class JsonAddTool(ContextAwareTool):
 
 
 class JsonDeleteTool(ContextAwareTool):
+	# TODO: Allow wildcards?
 	name: str = "JsonDelete"
 	description: str = "Delete a value at a specific path in a JSON document"
 
