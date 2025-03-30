@@ -4,9 +4,9 @@ from langfuse.decorators import observe
 
 from tz_common.logs import log, LogLevel
 from tz_common import create_langfuse_handler
-from tz_common.langchain_wrappers import AgentState, trim_recent_results, check_and_call_tools
+from tz_common.langchain_wrappers import AgentState, trim_recent_results, check_and_call_tools, add_timestamp
 from tz_common.tasks import AgentTaskList
-from tz_common.actions import AgentActionListUtils
+from tz_common.actions import AgentActionListUtils, ActionStatus
 
 from .prompt import json_agent_runnable
 from .agentTools import tool_executor
@@ -46,31 +46,41 @@ def call_json_agent(state: JsonAgentState) -> JsonAgentState:
 	# Filter out messages with tool calls
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 
-	# Format tasks information
-	"""
-	remaining_tasks = f"Remaining tasks:\n{str(AgentTaskList.from_set(state['unsolvedTasks']))}"
-	completed_tasks = f"Completed tasks:\n{str(AgentTaskList.from_set(state['completedTasks']))}"
-	"""
+	# Create a list of tuples (timestamp, content, type) for both messages and actions
+	timeline = []
+	
+	# Add messages to timeline
+	for msg in state["messages"]:
+		timestamp = msg.response_metadata.get("timestamp")
+		timeline.append((timestamp, msg, "message"))
+		log.debug(f"Message timestamp: {timestamp}")
 
-	# TODO: Consider sorting messages, actions and recent results by timestamp
+	# Add actions to timeline
+	if state["actions"]:
+		for action in state["actions"]:
+			timestamp = action.get_timestamp()
+			timeline.append((timestamp, action, "action"))
+			log.debug(f"Action timestamp: {action.get_timestamp_str()}")
+
+	# Sort timeline by timestamp
+	timeline.sort(key=lambda x: x[0])
+
+	# Build context with temporary messages (not persisted to history)
+	messages_with_context = []
+	
+	# Add messages and actions in chronological order
+	for _, item, item_type in timeline:
+		if item_type == "message":
+			messages_with_context.append(item)
+		elif item_type == "action":
+			messages_with_context.append(AIMessage(content=f"Action taken: {str(item)}"))
 
 	# Trim recent results to prevent context window overflow
 	state = trim_recent_results(state, 2000)
 	recent_calls = "Recent results of tool calls:\n"
 	recent_calls += "\n\n".join([str(result.content) for result in state["recentResults"]])
 
-	# Build context with temporary messages (not persisted to history)
-	messages_with_context = [message for message in state["messages"]]
-	"""
-	if state['unsolvedTasks']:
-		messages_with_context.append(AIMessage(content=remaining_tasks))
-	if state['completedTasks']:
-		messages_with_context.append(AIMessage(content=completed_tasks))
-	"""
-
-	small_size = 200
-	target_size = 2000
-	# TODO: Do not show full initial if it's identical to working
+	# Add document state
 	document_state_str = f"""
 Outline of loaded documents:
 * Initial document:
@@ -83,10 +93,6 @@ Outline of loaded documents:
 
 	messages_with_context.append(AIMessage(content=document_state_str))
 
-	if state["actions"]:
-		# TODO: Mark all actions as completed ny default, or failed
-		actions_str = "Actions taken:\n" + AgentActionListUtils.actions_to_string(state["actions"])
-		messages_with_context.append(AIMessage(content=actions_str))
 	if state["recentResults"]:
 		messages_with_context.append(AIMessage(content=recent_calls))
 
@@ -99,6 +105,8 @@ Outline of loaded documents:
 	response = json_agent_runnable.invoke({"messages": messages_with_context})
 
 	# Add response to messages
+	add_timestamp(response)
+
 	state["messages"].append(response)
 	log.debug(f"Length of messages: {len(state['messages'])}")
 
@@ -111,7 +119,16 @@ Outline of loaded documents:
 
 def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
 	"""Wrapper for checking and calling tools."""
-	return check_and_call_tools(state, tool_executor)
+	state = check_and_call_tools(state, tool_executor)
+
+	if "actions" in state:
+		for i, action in enumerate(state["actions"]):
+			if action.status == ActionStatus.IN_PROGRESS:
+				# FIXME: Should set message for this completion, which is tool result
+			# TODO: Find message in recentResults by action id?
+				action.complete("Finished")
+
+	return state
 
 
 def response_check(state: AgentState) -> str:

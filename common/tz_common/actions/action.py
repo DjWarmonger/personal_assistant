@@ -1,9 +1,10 @@
 from enum import Enum
 import uuid
 from typing import List, Optional, Any, Iterator
-from pydantic.v1 import BaseModel, Field
 from collections.abc import Sequence
+from datetime import datetime, timezone
 
+from pydantic.v1 import BaseModel, Field
 
 class ActionStatus(Enum):
 	NOT_STARTED = 0
@@ -17,6 +18,7 @@ class AgentAction(BaseModel):
 	"""Represents a single attempt to handle a task, like calling a tool or answering the question directly. If action fails, it is gone forever. Further attempts will need to spawn new action."""
 
 	id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+	created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp when this action was created")
 
 	# TODO: Think about how to automagically set task_id and agent_id
 	task_id: str = Field(description="Task that this action is trying to solve")
@@ -27,6 +29,7 @@ class AgentAction(BaseModel):
 	related_documents: List[str] = Field(default_factory=list, description="Document may be related to URL, access it indirectly")
 	status: ActionStatus = Field(default=ActionStatus.NOT_STARTED)
 	resolution: Optional[str] = Field(default=None, description="What happened with this task - it was completed in a specific way, or expired, or nothing had to be done")
+	# TODO: Add timestamp
 
 
 	@classmethod
@@ -57,6 +60,7 @@ class AgentAction(BaseModel):
 
 
 	def complete(self, resolution: str):
+		# TODO: Set separate timestamp for completion for statistics?
 		self.status = ActionStatus.COMPLETED
 		self.resolution = resolution
 
@@ -64,6 +68,14 @@ class AgentAction(BaseModel):
 	def fail(self, resolution: str):
 		self.status = ActionStatus.FAILED
 		self.resolution = resolution
+
+
+	def get_timestamp(self) -> datetime:
+		return self.created_at
+
+
+	def get_timestamp_str(self) -> str:
+		return self.created_at.strftime("%Y-%m-%d %H:%M:%S")
 
 
 	def __str__(self) -> str:

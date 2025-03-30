@@ -6,6 +6,7 @@ from langchain_core.messages import BaseMessage, AIMessage
 from langgraph.prebuilt import ToolExecutor
 
 from tz_common import log
+from .message import add_timestamp
 from .agentState import AgentState
 from tz_common.actions import AgentAction, AgentActionListUtils, ActionStatus
 
@@ -83,6 +84,7 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 	for key, (action, message) in processed_results.items():
 		log.debug(f"Result of tool {key}:", message)
 		ai_message = AIMessage(content=message)
+		add_timestamp(ai_message)
 		state["recentResults"].append(ai_message)
 		state["toolResults"].append(ai_message)
 
@@ -92,6 +94,8 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 		elif action.status == ActionStatus.FAILED:
 			log.debug(f"Tool call failed: {action.id}")
 			#AgentActionListUtils.complete_action(state["actions"], action.id, "Tool call failed")
+
+		# TODO: Handle IN_PROGRESS actions
 
 	log.flow(f"Actions after tool calls: {len(state['actions'])}")
 
