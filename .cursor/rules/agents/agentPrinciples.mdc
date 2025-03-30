@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# TODO
+
+Assume agents are smart enough to understand and handle exceptions raised by failed code executions. Do not try to pematurely handle every case imaginable, as agent will directly receive full exception message, if any.

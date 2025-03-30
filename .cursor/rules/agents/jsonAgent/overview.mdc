@@ -1,0 +1,6 @@
+---
+description: 
+globs: Agents/JsonAgent/**/*.py
+alwaysApply: false
+---
+Refer to [overview.mdc](mdc:Agents/JsonAgent/.cursor/rules/overview.mdc)

@@ -1,0 +1,102 @@
+---
+description: 
+globs: **/tests/**/*.py
+alwaysApply: false
+---
+# Async/Await Guidelines
+
+## Testing Async Code
+
+### 1. Test Function Declaration
+- Always mark async test functions with `@pytest.mark.asyncio` decorator
+- Make test functions `async` when testing async code:
+```python
+@pytest.mark.asyncio
+async def test_async_function():
+    result = await my_async_function()
+```
+
+### 2. Tool Implementation
+- All tool `_run` methods should be async:
+```python
+async def _run(self, context: AgentState, **kwargs) -> tuple[AgentState, str]:
+    # Implementation
+```
+
+### 3. Common Pitfalls to Avoid
+- Don't call async functions without `await`:
+```python
+# WRONG
+state, result = tool._run(state, "path")  # Returns coroutine object
+
+# CORRECT
+state, result = await tool._run(state, "path")
+```
+
+- Don't mix sync and async code in tests without proper handling
+- Remember to await all async operations, including cleanup and setup
+
+### 4. Testing Exceptions with Async Code
+```python
+# WRONG
+with pytest.raises(ValueError):
+    tool._run(state, "invalid")  # Won't catch the exception properly
+
+# CORRECT
+with pytest.raises(ValueError):
+    await tool._run(state, "invalid")
+```
+
+## Project Structure
+
+### 1. Tool Implementation
+- All tools extending `ContextAwareTool` must implement async `_run` method
+- Return type should be `tuple[AgentState, str]`
+- Use type hints for better error detection
+
+### 2. Dependencies
+- Add `pytest-asyncio` to test dependencies
+- Consider adding async linting tools to catch common mistakes
+
+## Best Practices
+
+1. **Consistent Async Pattern**
+   - If a class has any async methods, consider making all methods async
+   - Keep sync and async code separated when possible
+
+2. **Error Handling**
+   - Use try/except blocks with async code
+   - Remember that exceptions in async code must be awaited to be caught
+
+3. **Testing**
+   - Group async tests in separate files or classes
+   - Use pytest fixtures for common async setup/teardown
+
+4. **Documentation**
+   - Clearly mark async functions in docstrings
+   - Document any special async handling requirements
+
+## Example Implementation
+
+```python
+from typing import Any
+import pytest
+from your_module import AsyncTool
+
+class YourAsyncTool(AsyncTool):
+    async def _run(self, context: Any, **kwargs) -> tuple[Any, str]:
+        # Implementation
+        return context, "result"
+
+@pytest.mark.asyncio
+async def test_your_async_tool():
+    tool = YourAsyncTool()
+    context = {}
+    
+    # Happy path
+    context, result = await tool._run(context, param="value")
+    assert result == "expected"
+    
+    # Exception handling
+    with pytest.raises(ValueError):
+        await tool._run(context, param="invalid") 
