@@ -113,7 +113,7 @@ class JsonSearchTool(ContextAwareTool):
 
 class JsonSearchGlobalTool(ContextAwareTool):
 	name: str = "JsonSearchGlobal"
-	description: str = "Search for keys and values in a JSON document that match a regex pattern. Regex can only match within a key or value string, will NOT match across nested path consisting of multiple keys or indexes. Returns full paths to all matching elements."
+	description: str = "Search for keys and values in a JSON document that match a regex pattern. Regex must be fully contained (begining and end) within a single key or value string, it CANNOT match across nested path consisting of multiple keys or indexes. Returns full paths to all matching elements."
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		doc_type: JsonDocumentType = Field(
@@ -192,6 +192,7 @@ class JsonModifyTool(ContextAwareTool):
 		
 		return context, message
 	
+	#4. Integer values must be enforced with "lambda x: int(x)"
 class JsonModifyMultipleTool(ContextAwareTool):
 	name: str = "JsonModifyMultiple"
 	description: str = """Modify multiple values in a JSON document at once, matching wildcard paths.
@@ -199,7 +200,6 @@ class JsonModifyMultipleTool(ContextAwareTool):
 	1. A direct value (e.g. string, number, boolean, list, or object)
 	2. A JSON string that will be parsed (e.g. "[1, 2, 3]" or "{"key": "value"}")
 	3. A function string that will be evaluated for each match (e.g. "lambda x: x * 2" or "lambda x: x.title()")
-	4. Integer values must be enforced with "lambda x: int(x)"
 	The function string must be a valid Python lambda expression using only basic operations (arithmetic, string methods, etc.)."""
 	
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
@@ -208,10 +208,15 @@ class JsonModifyMultipleTool(ContextAwareTool):
 			..., 
 			description="""Replacement value or function string to apply to each matched object.
 			If providing a function, it must be a valid Python lambda expression using only basic operations.
+			Important type handling notes:
+			- String inputs will stay as strings (e.g., "123" remains a string, not converted to a number)
+			- For numbers, pass them directly without quotes (e.g., 42 not "42")
+			- To convert string to integer, use the lambda: "lambda x: int(x)"
+			- To convert number to string, use the lambda: "lambda x: str(x)"
+			
 			Examples:
 			- Direct value: Set categories: "products.*.categories" with ["electronics", "computers"]
 			- Direct value: Set metadata: "products.*.metadata" with {"source": "import", "batch": 123}
-			- Numeric value: Assure integer conversion for items.*.count with "lambda x: int(x)"
 			- Function: Apply 20% discount: "products.*.price" with "lambda x: round(x * 0.8, 2)"
 			- Function: Format text: "products.*.name" with "lambda x: x.title()"
 			- Function: Convert to string: "products.*.id" with "lambda x: str(x).zfill(3)"
@@ -249,7 +254,7 @@ class JsonModifyMultipleTool(ContextAwareTool):
 			except json.JSONDecodeError:
 				return replacement
 
-		# Return as plain string
+		# Return as plain string - do not convert numeric strings
 		return replacement
 
 	async def _run(self, context: AgentState, path: str, replacement: Any | Callable[[Dict[str, Any]], Dict[str, Any]], **kwargs: Any) -> tuple[AgentState, str]:
@@ -267,15 +272,16 @@ class JsonModifyMultipleTool(ContextAwareTool):
 			try:
 				new_value = evaluated_replacement(old_value) if callable(evaluated_replacement) else evaluated_replacement
 				json_doc = json_crud.modify(json_doc, found_path, new_value)
+				# Only count as modified if the value actually changed
 				if new_value != old_value:
 					modified_count += 1
 			except Exception as e:
 				raise ValueError(f"Failed to apply replacement to value '{old_value}': {str(e)}")
 			
-		if not modified_count:
+		if modified_count == 0:
 			return context, "No changes were made to the JSON document, check correct path and replacement value"
 			
-		message = f"Modified {modified_count} of {len(matches)} in JSON document at path: '{path}'"
+		message = f"Modified {modified_count} of {len(matches)} matches in JSON document at path: '{path}'"
 
 		context["json_doc"] = json_doc
 		return context, message

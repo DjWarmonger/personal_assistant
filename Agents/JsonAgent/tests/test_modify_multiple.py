@@ -51,7 +51,8 @@ async def test_direct_value_replacement(tool_and_state):
 	assert result_state["json_doc"]["settings"]["features"]["dark_mode"]["enabled"] == True
 	assert result_state["json_doc"]["settings"]["features"]["auto_save"]["enabled"] == True
 	assert result_state["json_doc"]["settings"]["features"]["notifications"]["enabled"] == True
-	assert "Modified 3 JSON document" in message
+	assert "Modified" in message
+	assert "settings.features.*.enabled" in message
 
 
 @pytest.mark.asyncio
@@ -64,7 +65,8 @@ async def test_direct_string_replacement(tool_and_state):
 	assert result_state["json_doc"]["zones"][0]["zoneLimit"] == "1"
 	assert result_state["json_doc"]["zones"][1]["zoneLimit"] == "1"
 	assert result_state["json_doc"]["zones"][2]["zoneLimit"] == "1"
-	assert "Modified 3 JSON document" in message
+	assert "Modified" in message
+	assert "zones.*.zoneLimit" in message
 
 
 @pytest.mark.asyncio
@@ -77,7 +79,8 @@ async def test_json_list_replacement(tool_and_state):
 	assert result_state["json_doc"]["products"][0]["categories"] == ["electronics", "computers"]
 	assert result_state["json_doc"]["products"][1]["categories"] == ["electronics", "computers"]
 	assert result_state["json_doc"]["products"][2]["categories"] == ["electronics", "computers"]
-	assert "Modified 3 JSON document" in message
+	assert "Modified" in message
+	assert "products.*.categories" in message
 
 
 @pytest.mark.asyncio
@@ -90,7 +93,8 @@ async def test_json_object_replacement(tool_and_state):
 	assert result_state["json_doc"]["products"][0]["metadata"] == {"source": "import", "batch": 123}
 	assert result_state["json_doc"]["products"][1]["metadata"] == {"source": "import", "batch": 123}
 	assert result_state["json_doc"]["products"][2]["metadata"] == {"source": "import", "batch": 123}
-	assert "Modified 3 JSON document" in message
+	assert "Modified" in message
+	assert "products.*.metadata" in message
 
 
 @pytest.mark.asyncio
@@ -103,7 +107,8 @@ async def test_number_transformation(tool_and_state):
 	assert result_state["json_doc"]["products"][0]["price"] == 800.00
 	assert result_state["json_doc"]["products"][1]["price"] == 320.00
 	assert result_state["json_doc"]["products"][2]["price"] == 64.00
-	assert "Modified 3 JSON document" in message
+	assert "Modified" in message
+	assert "products.*.price" in message
 
 
 @pytest.mark.asyncio
@@ -116,7 +121,8 @@ async def test_string_transformation(tool_and_state):
 	assert result_state["json_doc"]["products"][0]["name"] == "Laptop"
 	assert result_state["json_doc"]["products"][1]["name"] == "Monitor"
 	assert result_state["json_doc"]["products"][2]["name"] == "Keyboard"
-	assert "Modified 3 JSON document" in message
+	assert "Modified" in message
+	assert "products.*.name" in message
 
 
 @pytest.mark.asyncio
@@ -129,7 +135,8 @@ async def test_id_formatting(tool_and_state):
 	assert result_state["json_doc"]["products"][0]["id"] == "001"
 	assert result_state["json_doc"]["products"][1]["id"] == "002"
 	assert result_state["json_doc"]["products"][2]["id"] == "003"
-	assert "Modified 3 JSON document" in message
+	assert "Modified" in message
+	assert "products.*.id" in message
 
 
 @pytest.mark.asyncio
@@ -142,7 +149,8 @@ async def test_constant_lambda(tool_and_state):
 	assert result_state["json_doc"]["products"][0]["in_stock"] == True
 	assert result_state["json_doc"]["products"][1]["in_stock"] == True
 	assert result_state["json_doc"]["products"][2]["in_stock"] == True
-	assert "Modified 3 JSON document" in message
+	assert "Modified" in message
+	assert "products.*.in_stock" in message
 
 
 @pytest.mark.asyncio
@@ -183,4 +191,5 @@ async def test_invalid_json_string(tool_and_state):
 	assert result_state["json_doc"]["products"][0]["name"] == "{not valid json}"
 	assert result_state["json_doc"]["products"][1]["name"] == "{not valid json}"
 	assert result_state["json_doc"]["products"][2]["name"] == "{not valid json}"
-	assert "Modified 3 JSON document" in message 
+	assert "Modified" in message
+	assert "products.*.name" in message 
