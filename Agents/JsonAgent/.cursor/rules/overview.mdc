@@ -1,6 +1,6 @@
 ---
 description: Project overwiew and goals
-globs: ./**/*.py
+globs: **/*.py
 alwaysApply: false
 ---
 # Project overview
