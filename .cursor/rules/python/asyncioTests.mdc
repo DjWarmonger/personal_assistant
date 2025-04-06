@@ -7,6 +7,13 @@ alwaysApply: false
 
 ## Testing Async Code
 
+### Basic Guidelines
+
+- Use `@pytest.mark.asyncio` decorator for async tests
+- Always await async operations properly
+- Test both success and error cases
+- Test default parameter values
+
 ### 1. Test Function Declaration
 - Always mark async test functions with `@pytest.mark.asyncio` decorator
 - Make test functions `async` when testing async code:

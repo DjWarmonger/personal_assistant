@@ -13,3 +13,124 @@ Reorder imported modules as follows:
 - Import local project files
 
 Do not add multiple empty lines if some of these categories are missing.
+
+# Python Import and Path Resolution Guidelines
+
+## Handling common issues
+
+### 1. ModuleNotFoundError
+When encountering `ModuleNotFoundError`, this usually indicates one of these issues:
+- Running script from wrong directory
+- Missing PYTHONPATH configuration
+- Incorrect relative imports
+
+### 2. Project Structure Dependencies
+Many Python projects require running from specific directories:
+- Project root (for accessing shared modules)
+- Subproject directories (for specific agent functionality)
+- Test directories (for test-specific imports)
+
+## Detection and Resolution Steps
+
+### 1. Analyze Import Statements
+Look for these patterns:
+```python
+from tz_common import ...  # Requires project root in PYTHONPATH
+from .module import ...    # Requires running from package directory
+from ..package import ... # Requires correct package hierarchy
+```
+
+### 2. Check Project Structure
+Verify the project follows standard layout:
+```
+project_root/
+├── common/
+│   └── tz_common/
+├── Agents/
+│   ├── AgentName/
+│   │   ├── launch/
+│   │   │   └── commandLine.py
+│   │   └── Agent/
+└── docs/
+```
+
+### 3. Determine Correct Launch Directory
+
+#### For Scripts Using Project-Wide Modules
+- Must be run from project root
+- Example: `python Agents/JsonAgent/launcher/commandLine.py`
+
+#### For Agent-Specific Scripts
+- Must be run from agent directory
+- Example: `cd Agents/JsonAgent && python launcher/commandLine.py`
+
+### 4. Common Solutions
+
+1. **Add Parent Directory to PYTHONPATH**:
+```python
+import sys
+from pathlib import Path
+project_root = Path(__file__).parent.parent.absolute()
+sys.path.insert(0, str(project_root))
+```
+
+2. **Use Launch Rules**:
+```python
+if __name__ == "__main__":
+    if not Path("common").exists():
+        print("Error: Must run from project root")
+        sys.exit(1)
+```
+
+3. **Document Launch Requirements**:
+```bash
+# Add to script header or README:
+"""
+This script must be run from the project root directory:
+$ python Agents/JsonAgent/launcher/commandLine.py
+"""
+```
+
+## Best Practices for AI Assistant
+
+1. When encountering import errors:
+   - Check file location in project structure
+   - Identify required import paths
+   - Determine correct launch directory
+
+2. When suggesting commands:
+   - Always use absolute paths for clarity
+   - Include directory change if needed
+   - Explain why a specific directory is required
+
+3. When creating new scripts:
+   - Add directory validation
+   - Document launch requirements
+   - Follow project's import conventions
+
+4. Error Messages:
+   - Provide clear error messages about launch directory
+   - Include example commands in error output
+   - Reference documentation for detailed instructions
+
+## Example Error Handling
+
+```python
+def validate_launch_directory():
+    """Ensure script is run from correct directory."""
+    if __name__ == "__main__":
+        current_dir = Path(__file__).parent.absolute()
+        
+        # Check if running from project root
+        if not (current_dir / "common").exists():
+            print("Error: Script must be run from project root")
+            print("Current directory:", current_dir)
+            print("Example usage:")
+            print("  cd /path/to/project/root")
+            print("  python Agents/JsonAgent/launcher/commandLine.py")
+            sys.exit(1)
+```
+
+## References
+
+- Project-specific launch rules @python/launch.md
