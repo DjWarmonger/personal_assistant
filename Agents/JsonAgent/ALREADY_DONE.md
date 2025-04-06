@@ -49,8 +49,6 @@ Implement basic CRUD operations in a JSON document
   - Save JSON to file command ✅
   - Show help command ✅
   - Quit command ✅
-  - Provide file path as a default argument✅
-  - Provide separate argument for input and output file paths✅
 
 ## Pretty JSON Summary Feature Documentation
 ### Overview
@@ -102,3 +100,8 @@ The pretty output is especially valuable when presenting JSON summaries in docum
 * Agent prompt✅
 * Launch as chat✅
 * Read response from agent and save its state. Use this state to continue the chat. ✅
+
+# Optimization
+
+* For search, do not output very large objects directly. ✅
+* Find some smart way to minimize view on nested objects, ie. only top-level keys ✅

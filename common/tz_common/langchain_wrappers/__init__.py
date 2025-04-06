@@ -10,5 +10,6 @@ __all__ = [
 	'ContextAwareTool',
 	'AddTaskTool',
 	'CompleteTaskTool',
-	'check_and_call_tools'
+	'check_and_call_tools',
+	'add_timestamp'
 ]
