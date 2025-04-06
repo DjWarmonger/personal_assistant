@@ -55,11 +55,7 @@ Every AI agent may support any of current or future large language models. These
 
 ### TODO: Build and deploy all the agents at once.
 
-# TODO: Project structure
-
-# TODO: Used libraries
-
-## Patterns and preferences
+## Architectural principles
 
 ### Knowledge hiding
 
@@ -69,7 +65,7 @@ Each individual agent should cotain all the knowledge it needs to perform its ta
 
 ### Async and multithreading
 
-- When calling async tasks, return s a tuple of (key, value) from each task so that each result can be assigned to related input.
+- When calling async tasks, return s a tuple of (key, value) from each task so that each result can be matched to related input.
 
 ### Security
 

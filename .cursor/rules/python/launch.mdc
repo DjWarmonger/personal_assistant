@@ -2,6 +2,8 @@
 description: 
 globs: restore-terminals.json,chat.py,__init__.py
 alwaysApply: false
----
-* All agents and tools are supposed to be launched from their main directory (containing chat.py or main.py), not the project root.
-* All other scripts or builds, like Docker build are also supposed to be run from a corresponding subproject folder containing them, not the project root.
+
+
+* All agents and tools should be launched from their main directory (containing chat.py or main.py), not the project root.
+* All other scripts or builds, like Docker build should also be launched from a corresponding subproject folder containing them, not the project root.
+
