@@ -17,7 +17,7 @@ from blockTree import BlockTree
 langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
 
 
-def start(state: NotionAgentState) -> NotionAgentState:
+def notion_start(state: NotionAgentState) -> NotionAgentState:
 
 	log.flow(f"Notion Agent: Entered start")
 
@@ -138,7 +138,7 @@ graph = StateGraph(NotionAgentState)
 
 graph.set_entry_point("notionAgentStart")
 
-graph.add_node("notionAgentStart", start)
+graph.add_node("notionAgentStart", notion_start)
 graph.add_node("callNotionAgent", call_notion_agent)
 graph.add_node("checkNotionTools", check_and_call_tools_wrapper)
 graph.add_node("notionResponseCheck", clean_output)
