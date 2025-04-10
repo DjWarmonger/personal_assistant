@@ -13,7 +13,7 @@ from graph import notion_agent
 from writerGraph import writer_agent
 
 
-def start(state: PlannerAgentState) -> PlannerAgentState:
+def planner_start(state: PlannerAgentState) -> PlannerAgentState:
 
 	log.flow(f"Entered start")
 
@@ -166,7 +166,7 @@ planner_graph = StateGraph(PlannerAgentState)
 
 planner_graph.set_entry_point("plannerStart")
 
-planner_graph.add_node("plannerStart", start)
+planner_graph.add_node("plannerStart", planner_start)
 planner_graph.add_node("planning", planning)
 planner_graph.add_node("checkPlannerTools", check_and_call_tools_wrapper)
 planner_graph.add_node("callAgents", call_agents)

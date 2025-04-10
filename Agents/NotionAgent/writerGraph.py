@@ -13,7 +13,7 @@ from agentTools import tool_executor, client
 from agentState import WriterAgentState
 from blockTree import BlockTree
 
-def start(state: WriterAgentState) -> WriterAgentState:
+def writer_start(state: WriterAgentState) -> WriterAgentState:
 
 	log.flow(f"Entered start")
 
@@ -127,7 +127,7 @@ graph = StateGraph(WriterAgentState)
 
 graph.set_entry_point("writerStart")
 
-graph.add_node("writerStart", start)
+graph.add_node("writerStart", writer_start)
 graph.add_node("callWriterAgent", call_writer_agent)
 graph.add_node("checkWriterTools", check_and_call_tools_wrapper)
 graph.add_node("writerResponseCheck", clean_output)
