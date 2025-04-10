@@ -2,7 +2,7 @@
 
 ## Writer agent
 
-* FIXME: Results are scrambled, probably block tree is not ordered?
+#### FIXME: Results are scrambled, probably block tree is not ordered?
 
 > ### Moja integracja
 > #### Zalety
@@ -39,4 +39,12 @@
 > - Jak przygotować się na wypadek dodania webhooków w przyszłości?
 > - Autoryzacja dostępu publicznego
 > - Ostatecznie chcę, aby wszystkie powiadomienia trafiały do mojego klienta.
+
+# Bugs
+
+#### Error messages
+> KNOWLEDGE:langfuse:Failed to process event in IngestionConsumer, skipping
+> Traceback (most recent call last):
+> (...)
+> TypeError: unhashable type: 'dict'
 
