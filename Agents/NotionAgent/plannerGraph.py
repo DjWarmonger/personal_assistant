@@ -72,9 +72,6 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 	
 	# TODO: Update user query after chat reply
 
-	# TODO: Pass main request to notion agent?
-	# TODO: Pass messages list (?) to notion agent
-
 	unsolvedTasksNotion = set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "NOTION" and task.is_todo()])
 
 
@@ -120,16 +117,7 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 		"recentResults": []
 	}
 
-	log.debug(f"Writer agent state:", writer_agent_state)
-
-	#return writer_agent_state
-
 	writer_agent_response = writer_agent.invoke(writer_agent_state)
-
-	log.debug(f"Writer agent response:", writer_agent_response)
-
-	# TODO: Read final response from writer agent
-	# FIXME: Result of writer task is not copied to main task
 
 	# TODO: Remember visited blocks for subsequent calls?
 
@@ -141,7 +129,6 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 def check_tasks(state: PlannerAgentState) -> str:
 
 	log.flow(f"Entered check_tasks")
-	#return "completed"
 	# TODO: Define it as an enum somehwere
 
 	if "unsolvedTasks" not in state:

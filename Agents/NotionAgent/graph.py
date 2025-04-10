@@ -20,8 +20,6 @@ langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
 def start(state: NotionAgentState) -> NotionAgentState:
 
 	log.flow(f"Notion Agent: Entered start")
-	#log.debug(f"State type: {type(state)}")
-	#log.debug(f"State methods: {dir(state)}")
 
 	log.debug(f"AgentState:", state)
 
@@ -46,8 +44,6 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
 	remaining_tasks = f"Remaining tasks:\n{str(AgentTaskList.from_set(state['unsolvedTasks']))}"
 	completed_tasks = f"Completed tasks:\n{str(AgentTaskList.from_set(state['completedTasks']))}"
-
-	# TODO: Add history of function calls
 
 	tree_str = ""
 	
@@ -80,7 +76,6 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 	if state["actions"]:
 		actions_str = "Actions taken:\n" + AgentActionListUtils.actions_to_string(state["actions"])
 
-	# FIXME: Messages are multiplicated over iterations
 	messages_with_context = [message for message in state["messages"]]
 	if state['unsolvedTasks']:
 		messages_with_context.append(AIMessage(content=remaining_tasks))
@@ -128,8 +123,6 @@ def response_check(state: AgentState) -> str:
 	else:
 		return "continue"
 	
-	# FIXME: Response is not returned, graph keeps loping
-	
 
 def clean_output(state: AgentState):
 
@@ -137,8 +130,6 @@ def clean_output(state: AgentState):
 
 	for msg in state["messages"]:
 		msg.content = client.url_index.replace_placeholders(msg.content)
-
-	#client.save_now()
 
 	return {"messages": state["messages"]}
 

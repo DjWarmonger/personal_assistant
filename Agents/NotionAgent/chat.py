@@ -44,7 +44,6 @@ def chat(loop = True, user_prompt = "") -> str:
 		response_message = response["messages"][-1].content
 
 		completed_tasks = response["completedTasks"]
-		log.debug(f"Number of completed tasks: {len(completed_tasks)}")
 		for task in completed_tasks:
 			# This is main task and final answer of the agent
 			if task.role_id.upper() == "USER":
@@ -56,7 +55,6 @@ def chat(loop = True, user_prompt = "") -> str:
 
 		# FIXME: Render \n as actual new lines
 		# FIXME: Render \t
-		#log.ai("Assistant: \n", response["messages"][-1].content)
 		
 		history = ChatMessageHistory()
 		for message in response["messages"]:
