@@ -3,6 +3,61 @@ description:
 globs: 
 alwaysApply: false
 ---
-# TODO
 
-Assume agents are smart enough to understand and handle exceptions raised by failed code executions. Do not try to pematurely handle every case imaginable, as agent will directly receive full exception message, if any.
+## Core Principles
+
+1. **State vs Logic Separation**
+   - State objects (like `JsonAgentState`) should be pure data containers
+   - No methods in state classes - they should be typed dicts only
+   - Logic should reside in tool classes or standalone functions
+   - State objects should use `Field` from pydantic for proper typing
+
+2. **Tool Architecture**
+   - Tools inherit from `ContextAwareTool`
+   - All tool operations must be async (`async def _run`)
+   - Tools should use descriptive names and clear docstrings
+   - Return type must be `tuple[AgentState, str]`
+
+3. **Code Organization**
+   - Operations (core logic) in separate modules
+   - Agent tools in dedicated agent directory
+   - Tests mirror the source structure
+   - Clear separation between CRUD operations and agent tools
+
+## Common Anti-patterns to Avoid
+
+1. **State Management**
+   ❌ Don't add methods to state classes
+   ❌ Don't modify state directly, use tools
+   ✅ Use typed dicts for state
+   ✅ Keep state classes simple
+
+2. **Tool Implementation**
+   ❌ Don't mix sync and async code
+   ❌ Don't return raw data without context
+   ✅ Always use async/await
+   ✅ Return both state and result
+
+3. **Code Organization**
+   ❌ Don't put logic in state classes
+   ❌ Don't mix concerns in single files
+   ✅ Separate operations from tools
+   ✅ Keep related code together
+
+# Agent Design
+
+## Tool Return Types
+
+When creating tools, assume agent is smart enough to understand and handle exceptions raised by failed code executions. Do not try to prematurely handle rare and unlikely cases. Assume that in case of failure, agent will directly receive full exception message, if any.
+
+- Returned state will replace existing state of Agent. Use it to store information between subsequent Agent operations.
+- Returned str or exception message will be presented to calling Agent automatically. The message should help Agent understand the result or problem, and rectify it or abandon the task. Message must be clear and unambiguous to prevent Agent from repeating unsuccessful tasks over and over. Try to cover all possible outcomes in returned message, but keep it short and concise. Do not append long strings or structures to returned message.
+
+# Testing Guidelines
+
+**Test Organization**
+
+- Group related tests together
+- Use descriptive test names
+- Test state through tools, not directly
+- Include edge cases and error conditions
