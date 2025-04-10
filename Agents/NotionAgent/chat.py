@@ -40,7 +40,19 @@ def chat(loop = True, user_prompt = "") -> str:
 			config={"callbacks": [langfuse_handler]}
 		)
 
-		log.ai("Assistant: \n", response["messages"][-1].content)
+		# This is badic chat message in interactive mode
+		response_message = response["messages"][-1].content
+
+		completed_tasks = response["completedTasks"]
+		log.debug(f"Number of completed tasks: {len(completed_tasks)}")
+		for task in completed_tasks:
+			# This is main task and final answer of the agent
+			if task.role_id.upper() == "USER":
+				log.debug(f"Found completed main task")
+				response_message = task.data_output
+				break
+
+		log.ai("Assistant: \n", response_message)
 
 		# FIXME: Render \n as actual new lines
 		# FIXME: Render \t
