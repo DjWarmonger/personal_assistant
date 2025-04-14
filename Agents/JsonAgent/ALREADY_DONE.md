@@ -42,6 +42,15 @@ Implement basic CRUD operations in a JSON document
   - If path points to object, list all keys of the object. If it's empty, return "EMPTY" ✅
   - If path points to array, return size of the array. If it's empty, return "EMPTY" ✅
 
+## Agent graph
+
+### Sort all messages added to context by timestamp ✅
+
+* Add timestamp to AI messages ✅
+* Add timestamp to human messages ✅
+* Add timestamp to tool calls ✅
+* Add timestamp to actions ✅
+
 ## CLI Interface Implementation
 
 * Implement CLI commands for direct JSON manipulation ✅

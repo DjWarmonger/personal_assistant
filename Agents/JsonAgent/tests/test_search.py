@@ -79,6 +79,38 @@ def test_search_wildcard():
 	assert result["settings.notifications"] is True
 
 
+def test_search_wildcard_first_level():
+	"""Test search with wildcard at the first level of nesting."""
+	json_doc = {
+		"user1": {"name": "Alice", "role": "admin"},
+		"user2": {"name": "Bob", "role": "user"},
+		"user3": {"name": "Charlie", "role": "user"},
+		"config": {"version": "1.0", "enabled": True}
+	}
+	
+	# Wildcard at first level
+	result = search_json(json_doc, "*")
+	assert len(result) == 4
+	assert "user1" in result
+	assert "user2" in result
+	assert "user3" in result
+	assert "config" in result
+	
+	# Wildcard at first level with specific property
+	result = search_json(json_doc, "*.name")
+	assert len(result) == 3  # Only user objects have 'name' property
+	assert result["user1.name"] == "Alice"
+	assert result["user2.name"] == "Bob"
+	assert result["user3.name"] == "Charlie"
+	assert "config.name" not in result
+	
+	# Wildcard at first level with different specific property
+	result = search_json(json_doc, "*.version")
+	assert len(result) == 1  # Only config has 'version' property
+	assert result["config.version"] == "1.0"
+	assert "user1.version" not in result
+
+
 def test_search_complex_path():
 	"""Test search with complex paths."""
 	json_doc = {
