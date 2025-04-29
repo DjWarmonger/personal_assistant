@@ -53,6 +53,9 @@ def paginate_results(result: Any, start_index: int = 0, max_chars: int = 2000) -
 	sorted_result = convert_to_sorted_list(result)
 	total_items = len(sorted_result)
 	
+	if total_items == 0:
+		return "No results found for the given path.", None
+	
 	if start_index >= total_items:
 		return f"Index out of bounds, {total_items} items available", None
 	
@@ -210,7 +213,7 @@ class JsonModifyMultipleTool(ContextAwareTool):
 			If providing a function, it must be a valid Python lambda expression using only basic operations.
 			Important type handling notes:
 			- String inputs will stay as strings (e.g., "123" remains a string, not converted to a number)
-			- For numbers, pass them directly without quotes (e.g., 42 not "42")
+			- For numbers, pass them directly without quotes (e.g. 42 not "42")
 			- To convert string to integer, use the lambda: "lambda x: int(x)"
 			- To convert number to string, use the lambda: "lambda x: str(x)"
 			
