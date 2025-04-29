@@ -11,7 +11,7 @@ from tz_common.actions import AgentActionListUtils, ActionStatus
 from .prompt import json_agent_runnable
 from .agentTools import tool_executor
 from .agentState import JsonAgentState
-from operations.summarize_json import truncated_json_format
+from operations.summarize_json import summarize_json_first_item
 # Create langfuse handler for logging
 langfuse_handler = create_langfuse_handler(user_id="Json Agent")
 log.set_log_level(LogLevel.FLOW)
@@ -84,11 +84,11 @@ def call_json_agent(state: JsonAgentState) -> JsonAgentState:
 	document_state_str = f"""
 Outline of loaded documents:
 * Initial document:
-{f"Loaded: {truncated_json_format(state['initial_json_doc'], max_depth=4, max_array_items=3, max_object_props=5, format_output=False)}" if state['initial_json_doc'] else "EMPTY"}
+{f"Loaded: {summarize_json_first_item(state['initial_json_doc'], max_depth=4, max_object_props=5, format_output=False)}" if state['initial_json_doc'] else "EMPTY"}
 * Working document:
-{f"Loaded: {truncated_json_format(state['json_doc'], max_depth=4, max_array_items=3, max_object_props=10, format_output=False)}" if state['json_doc'] else "EMPTY"}
+{f"Loaded: {summarize_json_first_item(state['json_doc'], max_depth=4, max_object_props=10, format_output=False)}" if state['json_doc'] else "EMPTY"}
 * Final document:
-{f"Loaded: {truncated_json_format(state['final_json_doc'], max_depth=4, max_array_items=3, max_object_props=5, format_output=False)}" if state['final_json_doc'] else "EMPTY"}
+{f"Loaded: {summarize_json_first_item(state['final_json_doc'], max_depth=4, max_object_props=5, format_output=False)}" if state['final_json_doc'] else "EMPTY"}
 	"""
 
 	messages_with_context.append(AIMessage(content=document_state_str))
@@ -120,6 +120,8 @@ Outline of loaded documents:
 def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
 	"""Wrapper for checking and calling tools."""
 	state = check_and_call_tools(state, tool_executor)
+
+	# FIXME: Consider modify with 0 results as failed
 
 	if "actions" in state:
 		for i, action in enumerate(state["actions"]):

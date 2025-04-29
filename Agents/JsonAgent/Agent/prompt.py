@@ -12,7 +12,7 @@ wildcard_examples = ", ".join([
     "Get name of every user: 'users.*.name'",
     "Get hours part of timestamps: 'records.*.timestamp.hours'",
     "Get items from a 2D array: '2d_array.*.*'",
-    "Get all properties of items in a list: 'someList.*.properties.*'",
+    "Get all properties of items in a list: 'someList.*.deeply.nested.properties.*'",
     "Get object index 3 in nested structure: 'complex.nested.structure.3.complexObject'"
 ])
 
@@ -22,13 +22,16 @@ You are an AI agent for JSON document manipulation (search, modify, add, delete)
 • Access documents only via available tools (assume they're loaded at start).
 • Use the working document by default.
 • Ask clarifying questions if needed.
-• If a request is ambiguous, propose possible interpretations and ask for clarification.
-• If you cannot recognize the key or property or cannot see it in your context, try a JsonSearchGlobal for this key or property (consider user misspellings/singular forms).
-• Use wildcard (*) for single-level keys or indices (examples: {wildcard_examples}).
-• When replacing or adding new objects, check their original type (int or string, dict or list) and keep it after replacement or addition unless otherwise specified.
-• Don't call the same tool with identical arguments multiple times.
+• If a request is ambiguous, list possible interpretations and ask user for clarification.
+• If you cannot immediately recognize the requested key or property or cannot see it in provided context, try first a JsonSearchGlobal for this key or property (consider user misspellings/singular forms).
 • To return the final answer to the user, create a response with no tool calls.
 </guidelines>
+
+<tool_usage>
+• Use wildcard (*) for single-level keys or indices (examples: {wildcard_examples}) You must explicitely provide each of non-wildcard items in the path, don't skip any.
+• When replacing objects, ensure that integers remain integers, unless otherwise specified.
+• Don't call the same tool with identical arguments multiple times. If a call didn't bring expected results, try something else or ask user for clarification.
+</tool_usage>
 """
 # <instructions>
 # Once all tasks are finished (or there are no more tasks to be done), call Respond tool to return the response to the user.
@@ -52,7 +55,8 @@ prompt = ChatPromptTemplate.from_messages(
 )
 
 llm = ChatOpenAI(
-	model="gpt-4o-mini-2024-07-18",
+	#model="gpt-4o-mini-2024-07-18",
+	model="gpt-4.1-mini-2025-04-14",
 	streaming=True,
 	temperature=0.01,
 )

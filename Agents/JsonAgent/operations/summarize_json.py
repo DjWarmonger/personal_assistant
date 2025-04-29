@@ -2,55 +2,6 @@ import json
 
 # TODO: Add version of json which shows something like (...) or (123 more objects)
 
-def summarize_json(data, depth=0, max_depth=3):
-    """
-    Recursively summarize a JSON object up to max_depth.
-    Beyond max_depth, it returns a simple summary.
-    """
-    if depth >= max_depth:
-        if isinstance(data, dict):
-            return f"Object with {len(data)} keys"
-        elif isinstance(data, list):
-            return f"Array with {len(data)} items"
-        else:
-            return data
-
-    if isinstance(data, dict):
-        summary = {}
-        for key, value in data.items():
-            summary[key] = {
-                "type": type(value).__name__,
-                "summary": summarize_json(value, depth + 1, max_depth)
-            }
-        return summary
-    elif isinstance(data, list):
-        if not data:
-            return "Empty Array"
-        # If all items are primitives, show a count and a sample.
-        if all(not isinstance(item, (dict, list)) for item in data):
-            return f"Array of {len(data)} items, sample: {data[0]}"
-        else:
-            element_summary = summarize_json(data[0], depth + 1, max_depth)
-            return {"type": "array", "length": len(data), "element_summary": element_summary}
-    else:
-        return data
-
-def adaptive_summarize(data, target_size, min_depth=1, max_depth=10):
-    """
-    Adjusts the summarization depth so that the resulting JSON summary,
-    when converted to string, is at most target_size characters.
-    
-    It returns the summary and the depth used.
-    """
-    for d in range(max_depth, min_depth - 1, -1):
-        summary = summarize_json(data, max_depth=d)
-        summary_str = json.dumps(summary)
-        if len(summary_str) <= target_size:
-            return summary, d
-    # If even the shallowest summary is too large, return that.
-    return summarize_json(data, max_depth=min_depth), min_depth
-
-
 def summarize_json_text(data, current_depth=0, max_depth=3, indent=""):
     """
     Recursively creates a plain-text summary of a JSON-like structure.
@@ -301,6 +252,22 @@ def adaptive_truncated_json(data, target_size, min_depth=1, max_depth=10,
     )
     
     return formatted, min_depth
+
+
+def summarize_json_first_item(data, current_depth=0, max_depth=3, indent="", max_object_props=5, format_output=True):
+	"""
+	Creates a JSON-like summary with only the first item of any array shown (max_array_items=1).
+	Other arguments are the same as truncated_json_format, except max_array_items is always 1.
+	"""
+	return truncated_json_format(
+		data,
+		current_depth=current_depth,
+		max_depth=max_depth,
+		indent=indent,
+		max_array_items=1,
+		max_object_props=max_object_props,
+		format_output=format_output
+	)
 
 
 if __name__ == "__main__":

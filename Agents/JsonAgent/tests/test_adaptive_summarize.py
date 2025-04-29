@@ -7,11 +7,11 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from operations.summarize_json import (
-	adaptive_summarize,
 	adaptive_summarize_text,
 	format_summary_for_humans,
 	truncated_json_format,
-	adaptive_truncated_json
+	adaptive_truncated_json,
+	summarize_json_first_item
 )
 
 def load_test_json():
@@ -57,7 +57,7 @@ def load_test_json():
 
 def test_adaptive_summarization():
 	"""
-	Test the adaptive_summarize function with different target sizes.
+	Test the adaptive_summarize_text function with different target sizes.
 	"""
 	# Load the test data
 	data = load_test_json()
@@ -146,7 +146,44 @@ def test_truncated_json():
 	print(adaptive_json)
 	print(f"Actual size: {len(adaptive_json)} characters")
 
+def test_summarize_json_first_item_dict_with_array():
+	data = {"numbers": [1, 2, 3, 4], "letters": ["a", "b"]}
+	result = summarize_json_first_item(data, format_output=False)
+	assert result == '{"numbers":[1,(3 more items...)],"letters":["a",(1 more items...)]}'
+
+
+def test_summarize_json_first_item_nested_arrays():
+	data = {"matrix": [[1, 2], [3, 4], [5, 6]]}
+	result = summarize_json_first_item(data, format_output=False)
+	# The first element is [1, 2], but with max_array_items=1, it should be [1,(1 more items...)]
+	assert result == '{"matrix":[[1,(1 more items...)],(2 more items...)]}'
+
+
+def test_summarize_json_first_item_empty_array():
+	data = {"empty": []}
+	result = summarize_json_first_item(data, format_output=False)
+	assert result == '{"empty":[]}'
+
+
+def test_summarize_json_first_item_array_of_primitives():
+	data = [10, 20, 30]
+	result = summarize_json_first_item(data, format_output=False)
+	assert result == '[10,(2 more items...)]'
+
+
+def test_summarize_json_first_item_array_of_objects():
+	data = [{"x": 1}, {"x": 2}, {"x": 3}]
+	result = summarize_json_first_item(data, format_output=False)
+	assert result == '[{"x":1},(2 more items...)]'
+
+
+def test_summarize_json_first_item_dict_with_nested_array_of_objects():
+	data = {"users": [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]}
+	result = summarize_json_first_item(data, format_output=False)
+	assert result == '{"users":[{"name":"Alice","age":30},(1 more items...)]}'
+
 if __name__ == "__main__":
 	# Uncomment the test you want to run
 	# test_adaptive_summarization()
-	test_truncated_json() 
+	test_truncated_json()
+	# test_summarize_json_first_item()  # Now split into individual tests 

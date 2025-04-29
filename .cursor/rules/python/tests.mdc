@@ -1,0 +1,8 @@
+---
+description: 
+globs: **/tests/**/*.py
+alwaysApply: false
+---
+Different asertions should be placed in separate test cases.
+
+The only exception is when sequential assertions check state change over time, and subsequent checks require earlier checks to pass.
