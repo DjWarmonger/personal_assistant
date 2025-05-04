@@ -74,6 +74,8 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 
 	unsolvedTasksNotion = set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "NOTION" and task.is_todo()])
 
+	for task in unsolvedTasksNotion:
+		task.start()
 
 	notion_agent_state = {
 		"messages": state["messages"],

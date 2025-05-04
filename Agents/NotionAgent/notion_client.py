@@ -38,7 +38,9 @@ class NotionClient:
 		self.index = Index(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.cache = BlockCache(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.url_index = UrlIndex()
-		self.tree = BlockTree()
+
+		# FIXME: Modify to use blockTree from graph, or return as a part of agent state
+		#self.tree = BlockTree()
 
 		# TODO: Delete items from blockTree when cache is invalidated?
 
@@ -129,7 +131,7 @@ class NotionClient:
 		# TODO: Handle case where children are paginated
 
 		async def get_children(index) -> tuple[int, dict]:
-			children = await self.get_block_content(index, get_children=False)
+			children = await self.get_block_content(index, block_tree=block_tree, get_children=False)
 			return index, children
 
 		tasks = {index: get_children(index) for index in indexes}
@@ -148,6 +150,13 @@ class NotionClient:
 							 get_children = False,
 							 start_cursor=None,
 							 block_tree: Optional[BlockTree] = None):
+		
+		if block_tree is None:
+			log.error("block_tree is None in get_block_content")
+
+		if isinstance(block_id, int):
+			converted = self.index.get_uuid(block_id)
+			block_id = converted
 
 		uuid = self.index.to_uuid(block_id)
 		if uuid is None:
