@@ -1,16 +1,24 @@
-## Style Guidelines
+---
+description: 
+globs: **/*.py
+alwaysApply: false
+---
+# Style Guidelines
 
-1. **Python Formatting**
+## Python Formatting
    - Use tabs for indentation
    - Opening curly bracket only at the beginning of line
    - Follow flake8 formatting
+   - After every class or method definition leave 2 empty lines
 
-2. **Type Hints**
+## Type Hints
    - Always use proper type hints
+   - At the beginning of each method check if type hints conditions are met.
    - Use pydantic v1 for models
    - Define custom types for clarity (e.g., `JsonDocument = Dict[str, Any]`)
 
-3. **Enums and Constants**
+## Enums and Constants
    - Use enums for fixed sets of values. Avoid magic numbers or free-form strings.
    - Document enum values with comments
    - Declare enums early in file before any function declarations, or within a class before any method
+
