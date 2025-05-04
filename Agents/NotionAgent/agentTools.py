@@ -68,7 +68,7 @@ class NotionGetChildrenTool(ContextAwareTool):
 		cursor_info = f" start cursor: {start_cursor}" if start_cursor is not None else ""
 		log.flow(f"Retrieving children of Notion block... {index}{cursor_info}")
 
-		result = await client.get_block_content(block_id=index, start_cursor=start_cursor, get_children=True, block_tree=context.get("block_tree"))
+		result = await client.get_block_content(block_id=index, start_cursor=start_cursor, get_children=True, block_tree=context.get("blockTree"))
 
 		visited_dict = dict(context["visitedBlocks"])
 
@@ -102,7 +102,7 @@ class NotionGetBlockContentTool(ContextAwareTool):
 		result = await client.get_block_content(get_children=False,
 							block_id=index,
 							start_cursor=start_cursor,
-							block_tree=context.get("block_tree"))
+							block_tree=context.get("blockTree"))
 		
 		if isinstance(index, str):
 			try:
