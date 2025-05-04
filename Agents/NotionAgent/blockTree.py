@@ -43,6 +43,8 @@ class BlockTree(BaseModel):
 		if child_uuid not in self.children[parent_uuid]:
 			self.children[parent_uuid].append(child_uuid)
 
+		log.debug(f"Added relationship to tree: {parent_uuid} -> {child_uuid}")
+
 
 	def add_relationships(self, parent_uuid: str, child_uuids: List[str]) -> None:
 		"""Add multiple children to a parent"""
@@ -56,6 +58,8 @@ class BlockTree(BaseModel):
 
 		if parent_uuid not in self.children:
 			self.children[parent_uuid] = []
+
+		log.debug(f"Added parent to tree: {parent_uuid}")
 
 		# FIXME: What is this "parent is not actually a root"?
 
@@ -74,7 +78,7 @@ class BlockTree(BaseModel):
 
 	def get_roots(self) -> List[str]:
 		"""Get all root nodes (blocks with no parents)"""
-		all_nodes = self.get_all_nodes() #set(self.children.keys()) | set(self.parents.keys())
+		all_nodes = self.get_all_nodes()
 		return [uuid for uuid in all_nodes if uuid not in self.parents]
 	
 
@@ -154,6 +158,7 @@ class BlockTree(BaseModel):
 			if not self.children[parent_uuid]:
 				del self.children[parent_uuid]
 
+		#log.debug(f"Removed relationship from tree: {parent_uuid} -> {child_uuid}")
 
 	def remove_subtree(self, root_uuid: str) -> None:
 		"""Remove a node and all its descendants"""
@@ -178,6 +183,7 @@ class BlockTree(BaseModel):
 				for child in self.children[uuid][:]:  # Copy list since we're modifying it
 					self.remove_relationship(uuid, child)
 
+		#log.debug(f"Removed subtree from tree: {root_uuid}")
 
 	def is_empty(self):
 		return not self.parents and not self.children

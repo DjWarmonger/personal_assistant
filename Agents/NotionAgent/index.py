@@ -375,6 +375,7 @@ class Index(TimedStorage):
 
 
 	def get_names(self, int_ids: list[int]) -> dict[int, str]:
+		#log.debug(f"Getting names for {int_ids}")
 		with self.db_lock:
 			placeholders = ','.join('?' for _ in int_ids)
 			query = f"SELECT int_id, name FROM index_data WHERE int_id IN ({placeholders})"

@@ -50,14 +50,13 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 	if not state["blockTree"].is_empty():
 		tree_mapping = client.index.to_int(state["blockTree"].get_all_nodes())
 
-		#log.debug(f"Tree ids:", tree_mapping.values())
-		tree_names = client.index.get_names(list(tree_mapping.keys()))
+		tree_names = client.index.get_names(list(tree_mapping.values()))
 
-		log.debug(f"Tree names:", {uuid: name for uuid, name in tree_names.items() if name != ""})
+		log.debug(f"Tree names:", {id: name for id, name in tree_names.items() if name != ""})
 
 		for uuid, index in tree_mapping.items():
 			if index in tree_names and tree_names[index] != "":
-				tree_mapping[uuid] = f"{index}:{tree_names[index]}"
+				tree_mapping[uuid] = f"{index} : {tree_names[index]}"
 			else:
 				tree_mapping[uuid] = f"{index}"
 
