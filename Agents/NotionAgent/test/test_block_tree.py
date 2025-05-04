@@ -135,5 +135,32 @@ class TestBlockTree(unittest.TestCase):
 		self.tree.remove_subtree("nonexistent")
 
 
+	def test_serialization_round_trip(self):
+		self.tree.add_relationship("parent1", "child1")
+		self.tree.add_relationship("parent1", "child2")
+		d = self.tree.to_dict()
+		tree2 = BlockTree.from_dict(d)
+		self.assertEqual(self.tree, tree2)
+		self.assertEqual(tree2.get_parent("child1"), "parent1")
+		self.assertEqual(set(tree2.get_children("parent1")), {"child1", "child2"})
+
+
+	def test_to_dict_structure(self):
+		self.tree.add_relationship("a", "b")
+		d = self.tree.to_dict()
+		self.assertIn("parents", d)
+		self.assertIn("children", d)
+		self.assertEqual(d["parents"], {"b": "a"})
+		self.assertEqual(d["children"], {"a": ["b"]})
+
+
+	def test_from_dict_empty(self):
+		d = {"parents": {}, "children": {}}
+		tree = BlockTree.from_dict(d)
+		self.assertTrue(tree.is_empty())
+		self.assertEqual(tree.parents, {})
+		self.assertEqual(tree.children, {})
+
+
 if __name__ == '__main__':
 	unittest.main()

@@ -1,10 +1,14 @@
 from typing import Dict, List, Optional, Set
 from uuid_converter import UUIDConverter
+from pydantic.v1 import BaseModel, Field, PrivateAttr
 
 from tz_common.logs import log
 
-class BlockTree:
-	
+class BlockTree(BaseModel):
+	parents: Dict[str, str] = Field(default_factory=dict)
+	children: Dict[str, List[str]] = Field(default_factory=dict)
+	_converter: UUIDConverter = PrivateAttr(default_factory=UUIDConverter)
+
 	"""
 	Example usage:
 
@@ -25,17 +29,10 @@ class BlockTree:
 	print(tree.get_tree_str(titles))
 	"""
 
-	def __init__(self):
-		self.converter = UUIDConverter()
-		# Store parent-child relationships
-		self.parents: Dict[str, str] = {}  # child_uuid -> parent_uuid
-		self.children: Dict[str, List[str]] = {}  # parent_uuid -> [child_uuids]
-		
-
 	def add_relationship(self, parent_uuid: str, child_uuid: str) -> None:
 		"""Add a parent-child relationship between blocks"""
-		parent_uuid = self.converter.clean_uuid(parent_uuid)
-		child_uuid = self.converter.clean_uuid(child_uuid)
+		parent_uuid = self._converter.clean_uuid(parent_uuid)
+		child_uuid = self._converter.clean_uuid(child_uuid)
 
 		# Add to parents dict
 		self.parents[child_uuid] = parent_uuid
@@ -55,7 +52,7 @@ class BlockTree:
 
 	def add_parent(self, parent_uuid: str) -> None:
 		"""Add a parent block, might be root with no children"""
-		parent_uuid = self.converter.clean_uuid(parent_uuid)
+		parent_uuid = self._converter.clean_uuid(parent_uuid)
 
 		if parent_uuid not in self.children:
 			self.children[parent_uuid] = []
@@ -65,13 +62,13 @@ class BlockTree:
 
 	def get_parent(self, uuid: str) -> Optional[str]:
 		"""Get parent UUID of a block"""
-		uuid = self.converter.clean_uuid(uuid)
+		uuid = self._converter.clean_uuid(uuid)
 		return self.parents.get(uuid)
 
 
 	def get_children(self, uuid: str) -> List[str]:
 		"""Get children UUIDs of a block"""
-		uuid = self.converter.clean_uuid(uuid)
+		uuid = self._converter.clean_uuid(uuid)
 		return self.children.get(uuid, [])
 
 
@@ -145,8 +142,8 @@ class BlockTree:
 
 	def remove_relationship(self, parent_uuid: str, child_uuid: str) -> None:
 		"""Remove a parent-child relationship"""
-		parent_uuid = self.converter.clean_uuid(parent_uuid)
-		child_uuid = self.converter.clean_uuid(child_uuid)
+		parent_uuid = self._converter.clean_uuid(parent_uuid)
+		child_uuid = self._converter.clean_uuid(child_uuid)
 
 		if child_uuid in self.parents:
 			del self.parents[child_uuid]
@@ -160,7 +157,7 @@ class BlockTree:
 
 	def remove_subtree(self, root_uuid: str) -> None:
 		"""Remove a node and all its descendants"""
-		root_uuid = self.converter.clean_uuid(root_uuid)
+		root_uuid = self._converter.clean_uuid(root_uuid)
 		
 		# First get all descendants
 		to_remove = set()
@@ -184,3 +181,38 @@ class BlockTree:
 
 	def is_empty(self):
 		return not self.parents and not self.children
+		
+	# New methods for serialization support
+	def to_dict(self) -> dict:
+		"""Convert the tree to a dictionary for serialization"""
+		return self.model_dump()
+	
+	@classmethod
+	def from_dict(cls, data: dict) -> 'BlockTree':
+		"""Create a BlockTree from serialized dictionary"""
+		if not isinstance(data, dict):
+			log.error(f"Expected dict, got {type(data)}")
+			return cls()
+			
+		if "parents" not in data or "children" not in data:
+			log.error(f"Invalid BlockTree data, missing parents or children")
+			return cls()
+			
+		return cls(parents=data.get("parents", {}), children=data.get("children", {}))
+	
+	def __eq__(self, other):
+		if not isinstance(other, BlockTree):
+			return False
+		return self.parents == other.parents and self.children == other.children
+	
+	def __hash__(self):
+		parents_fs = frozenset((k, v) for k, v in self.parents.items())
+		children_fs = frozenset((k, frozenset(v)) for k, v in self.children.items())
+		return hash((parents_fs, children_fs))
+
+	def model_dump(self, **kwargs):
+		"""Custom JSON serialization method to ensure proper serialization in state"""
+		return {
+			"parents": self.parents,
+			"children": self.children
+		}

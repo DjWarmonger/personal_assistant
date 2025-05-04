@@ -1,4 +1,5 @@
-from typing import Any
+from typing import Any, Dict, List, Tuple
+from typing_extensions import NotRequired
 
 from pydantic import Field
 
@@ -7,19 +8,18 @@ from blockTree import BlockTree
 
 
 class PlannerAgentState(AgentState):
-
-	def __init__(self, **data: Any):
-		# TODO: Remove, didn't help
-		super().__init__(**data)
+	blockTree: NotRequired[Any]  # BlockTree field for planner state
 
 
 class NotionAgentState(AgentState):
-		
 	visitedBlocks: list[tuple[int, str]] = Field(default_factory=list)
-	blockTree: BlockTree = BlockTree()
+	blockTree: NotRequired[Any]  # BlockTree field for notion agent state
+	
+	# No need for init comments since we now explicitly declare blockTree
 
 
 class WriterAgentState(AgentState):
-
 	visitedBlocks: list[tuple[int, str]] = Field(default_factory=list)
-	blockTree: BlockTree = BlockTree()
+	blockTree: NotRequired[Any]  # BlockTree field for writer agent state
+	
+	# No need for init comments since we now explicitly declare blockTree
