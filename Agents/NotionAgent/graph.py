@@ -3,7 +3,7 @@ from langchain_core.messages import BaseMessage, AIMessage
 
 from tz_common.logs import log
 from tz_common import create_langfuse_handler
-from tz_common.langchain_wrappers import AgentState, trim_recent_results, check_and_call_tools
+from tz_common.langchain_wrappers import trim_recent_results, check_and_call_tools
 from tz_common.tasks import AgentTaskList
 from tz_common.actions import AgentActionListUtils
 
@@ -21,7 +21,7 @@ def notion_start(state: NotionAgentState) -> NotionAgentState:
 
 	log.flow(f"Notion Agent: Entered start")
 
-	log.debug(f"AgentState:", state)
+	log.debug(f"NotionAgentState:", state)
 
 	# TODO: Add initial message to state?
 
@@ -100,11 +100,11 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 	}
 
 
-def check_and_call_tools_wrapper(state: AgentState) -> AgentState:
+def check_and_call_tools_wrapper(state: NotionAgentState) -> NotionAgentState:
 	return check_and_call_tools(state, tool_executor)
 
 
-def response_check(state: AgentState) -> str:
+def response_check(state: NotionAgentState) -> str:
 
 	log.knowledge(f"Unsolved tasks:", "\n".join([str(task) for task in state['unsolvedTasks']]))
 	log.knowledge(f"Completed tasks:", "\n".join([str(task) for task in state['completedTasks']]))
@@ -124,7 +124,7 @@ def response_check(state: AgentState) -> str:
 		return "continue"
 	
 
-def clean_output(state: AgentState):
+def clean_output(state: NotionAgentState):
 
 	# This is an extra node from which we can exit the graph and return the result
 
