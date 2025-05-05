@@ -1,0 +1,38 @@
+---
+description: 
+globs: *.md
+alwaysApply: false
+---
+This guide describes how coding agent should update docs and notes after completing the task
+
+# Update README, TODO, BACKLOG, ALREADY_DONE and setup.md
+
+* Top-level folder as well as project subfolders may have separate .md documentation. Update documentation according to scope of change.
+
+* After feature is implemented and confirmed to be working, update corresponding TODO, BACKLOG and ALREADY_DONE md files. Move features from TODO or BACKLOG to ALREADY_DONE when they are finished.
+
+* When required libraries, variables, scripts or external configuration change, update setup.md accordingly. Make sure these instructions allow new developer launch the project with no prior knowledge about it.
+
+* Ater scope of changes is changed and verified, document project goal, architecture, structure and other assumptions in README.md
+
+# Document problems inside .notes
+
+Notes are scratchpad for future guidelines optimized for AI coding agent.
+
+After a task has been completed or issue has been solved and confirmed to work, add new .md report to .notes folder. Write there notes regarding faced problems and technical issues that took multiple rounds and clarifications to resolve. Note user complaints and technical obstacles. Write down unforseen problems and inaccessible data or context unlikely to deduce by coding agent alone.
+Keep notes distinct and separate from each other to help splitting or reordering by human supervisor. Prefer concise form over excessive formatting.
+
+## Use this format
+
+`##` Issue title
+
+* Issue: Encountered error message if any, brief description of the problem.
+* Resolution: Applied solution. Use code quotation marks (`name`) for names of classes, variables, files or directories.
+* Prevention: How to avoid this issue in the future, for example but not limited to:
+- Clarify requirements
+- Clarify assumptions
+- Resolve ambiguity
+- Propose multiple alternatives to user
+- Use proven solutions
+- Check edge cases, anticipate incorrect inputs or states
+- Use standarized file structure, class structure or architectural patterns across the project

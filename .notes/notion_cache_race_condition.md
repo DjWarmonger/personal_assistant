@@ -1,0 +1,44 @@
+# Notion Cache Race Condition Issue
+
+## Problem
+
+Intermittent test failures in `test_page_deletion_with_nested_children` within `test_block_cache.py`. The test would sometimes pass and sometimes fail with:
+
+```
+AssertionError: 'page_content' is not None
+```
+
+## Root Cause
+
+The issue was due to a timestamp comparison problem in the cache invalidation code. When the test runs too quickly, the timestamp generated with `datetime.now()` immediately after adding blocks might be too close to the original page creation timestamp. 
+
+This causes the `check_if_expired` method to return `False` because the new timestamp isn't recognized as being newer than the stored one, leading to the page not being properly invalidated.
+
+## Failed Solution
+
+Modifying the `invalidate_page_if_expired` method to use direct SQL operations and adding a small delay after invalidation didn't reliably fix the issue.
+
+## Working Solution
+
+1. Add a 1-second delay between adding the blocks and calling `invalidate_page_if_expired`
+2. This ensures that when `datetime.now()` is called to generate the invalidation timestamp, it's substantially newer than the page creation timestamp
+
+```python
+# Add a page with nested children
+self.cache.add_page("page_uuid", "page_content")
+self.cache.add_block("child1_uuid", "child1_content", parent_uuid="page_uuid", parent_type=ObjectType.PAGE)
+self.cache.add_block("child2_uuid", "child2_content", parent_uuid="page_uuid", parent_type=ObjectType.PAGE)
+self.cache.add_block("grandchild_uuid", "grandchild_content", parent_uuid="child1_uuid", parent_type=ObjectType.BLOCK)
+
+# Add a delay to ensure timestamp difference
+time.sleep(1)
+
+# Invalidate the page with a timestamp that's definitely newer
+self.cache.invalidate_page_if_expired("page_uuid", datetime.now(timezone.utc).isoformat())
+```
+
+## Lessons Learned
+
+1. Timestamp-based invalidation is sensitive to timing issues in tests
+2. Adding appropriate delays before generating new timestamps can help prevent race conditions
+3. In real-world scenarios with distributed systems, always ensure proper timestamp handling to prevent similar issues 

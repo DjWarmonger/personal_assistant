@@ -1,27 +1,46 @@
-## Project Structure Example
+---
+description: Example folder structure of agent (Python)
+globs: 
+alwaysApply: false
+---
+# Example Agent Folder Structure
 
 ```
 Agents/JsonAgent/
-├── operations/         # Core logic
-│   ├── __init__.py
-│   └── json_crud.py
-├── Agent/              # Agent-specific code
-│   ├── __init__.py
-│   ├── agentState.py   # Pure state containers
-│   ├── agentTools.py   # Tool implementations
-│   ├── graph.py        # State graph handling main logic
-│   └── prompt.py       # Prompt for agent(s) plus initial setup
-├── launch/             # Various scripts to launch agent (cmd, server, docker etc.)
-│   ├── __init__.py
-│   └── __main__.py
-├── tests/              # Test mirror structure
-│   ├── __init__.py
-│   └── test_*.py
-└── docs/               # Documentation
-    ├── README.md
-    ├── TERMS.md        # Explanation of terms used in the project
-    ├── TODO.md
-    ├── ALREADY_DONE.md
-    ├── BACKLOG.md
-    └── *.md
-```
+├── Agent/                     # Core agent functionality
+│   ├── agentTools.py          # Tools for the agent to interact with JSON
+│   ├── graph.py               # Graph of state machine defining agent's behavior
+│   ├── prompt.py              # Prompt templates for the agent and agent instantiation
+│   ├── agentState.py          # Agent state management
+│   ├── __init__.py            # Package initialization
+│   └── testFiles/             # Test files for agent components
+│
+├── operations/                # Implementations of operations agent can perform
+│   ├── crudOperations.py     # Example of operations
+│   ├── __init__.py            # Package initialization
+│   └── README.md              # Operations documentation
+│
+├── launcher/                  # Agent launcher and interface
+│   ├── chat.py                # Chat interface
+│   ├── commandHandler.py      # Command handling logic
+│   ├── commandLine.py         # Command line interface
+│   ├── __main__.py            # Entry point
+│   ├── __init__.py            # Package initialization
+│   └── *.json                 # Sample/test JSON files
+│
+├── tests/                     # Test suite
+│   ├── test_*.py              # Various test modules for different functionalities
+│   ├── SCENARIOS.md           # Test scenarios documentation
+│   └── __init__.py            # Package initialization
+│
+├── logs/                      # Log files directory (empty)
+│
+├── resources/                 # Images and other resources
+│
+├── __init__.py                # Package initialization
+├── TODO.md                    # Todo list
+├── ALREADY_DONE.md            # Completed tasks
+├── SETUP.md                   # Setup instructions
+├── TERMS.md                   # Terminology definitions
+└── .cursorignore              # Cursor IDE ignore file
+``` 
