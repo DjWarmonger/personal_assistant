@@ -2,9 +2,10 @@ import unittest
 import sys
 import os
 
+# Update the import path to include the project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from blockTree import BlockTree
+from operations.blockTree import BlockTree
 
 class TestBlockTree(unittest.TestCase):
 	def setUp(self):

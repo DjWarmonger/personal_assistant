@@ -2,12 +2,14 @@ import unittest
 import time
 import sys
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
+# Update the import path to include the project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from blockCache import BlockCache, ObjectType
-from utils import Utils
+from operations.blockCache import BlockCache, ObjectType
+from operations.utils import Utils
+
 class TestBlockCache(unittest.TestCase):
 	def setUp(self):
 		self.cache = BlockCache(load_from_disk=False, run_on_start=False)
@@ -91,6 +93,9 @@ class TestBlockCache(unittest.TestCase):
 		self.cache.add_block("child1_uuid", "child1_content", parent_uuid="page_uuid", parent_type=ObjectType.PAGE)
 		self.cache.add_block("child2_uuid", "child2_content", parent_uuid="page_uuid", parent_type=ObjectType.PAGE)
 		self.cache.add_block("grandchild_uuid", "grandchild_content", parent_uuid="child1_uuid", parent_type=ObjectType.BLOCK)
+
+		# Ensure that time passes before datetime.now() is called
+		time.sleep(1)
 		
 		# Invalidate the page
 		self.cache.invalidate_page_if_expired("page_uuid", datetime.now(timezone.utc).isoformat())

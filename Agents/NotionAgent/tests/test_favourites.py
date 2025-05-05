@@ -2,9 +2,10 @@ import unittest
 import sys
 import os
 
+# Update the import path to include the project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from index import Index
+from operations.index import Index
 
 class TestFavourites(unittest.TestCase):
 

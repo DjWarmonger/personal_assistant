@@ -7,7 +7,7 @@ from langchain_core.output_parsers import JsonOutputParser
 
 from tz_common.tasks import AgentTaskList
 
-from agentTools import planner_tools, agent_tools, writer_tools
+from .agentTools import planner_tools, agent_tools, writer_tools
 
 load_dotenv()
 
@@ -75,11 +75,11 @@ You may call multiple tools at once, but DO NOT call tool many times with same a
 </instructions>
 
 <instructions>
-If a message indicates that a page or block was visited, consider it as visited. You will not get direct access to page content.
+If a message indicates that a page or block was visited, consider it as visited. You will not directly see the page or block content.
 </instructions>
 
 <instructions>
-Use complete_task tool to indicate that given task is finished. Finishing all tasks will be considered as completing the assignment.
+Use complete_task tool to indicate that given task got finished. Finishing all tasks will be considered as completing the assignment.
 </instructions>
 """
 
@@ -131,9 +131,10 @@ writer_prompt = ChatPromptTemplate.from_messages(
 
 planner_llm = ChatOpenAI(
 	#model="gpt-4o-mini", # Mini does not handle tools with multiple arguments
-	model="gpt-4o-2024-11-20",
+	#model="gpt-4o-2024-11-20",
+	model="gpt-4.1",
 	streaming=True,
-	#model="o3-mini",
+	#model="o4-mini",
 	# FIXME: LangChain in this version does not support reasoning_effort
 	#reasoning_effort="low",
 	temperature=0.01,
@@ -143,7 +144,8 @@ planner_llm = ChatOpenAI(
 llm = ChatOpenAI(
 	#model="gpt-4o",
 	#model="gpt-4o-mini", # Mini does not handle tools with multiple arguments
-	model="gpt-4o-mini-2024-07-18",
+	#model="gpt-4o-mini-2024-07-18",
+	model="gpt-4.1-mini",
 	streaming=True,
 	temperature=0.01,
 )

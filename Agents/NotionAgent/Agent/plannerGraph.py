@@ -47,6 +47,9 @@ def planning(state: PlannerAgentState) -> PlannerAgentState:
 
 	log.flow(f"Entered planning")
 
+	if "blockTree" not in state:
+		raise KeyError("blockTree missing in planner state at planning")
+
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 
 	response = planner_agent_runnable.invoke({"messages": state["messages"]})
@@ -59,12 +62,23 @@ def planning(state: PlannerAgentState) -> PlannerAgentState:
 
 
 def check_and_call_tools_wrapper(state: PlannerAgentState) -> PlannerAgentState:
+
+	if "blockTree" not in state:
+		raise KeyError("blockTree missing in planner state at call_and_check_tools")
+	
+	"""FIXME:
+	Call tool failed: (AgentAction(id='T3kO87ctoyrtbgz73yaUMoig', created_at=datetime.datetime(2025, 5, 4, 9, 56, 9, 990172, tzinfo=datetime.timezone.utc), task_id='default_task', agent_id='', description='complete_task (T3kO87ctoyrtbgz73yaUMoig) with args: {\'task_id\': \'b6cf4611-1340-4e87-ad59-7d8418b63d82\', \'status\': \'completed\', \'resolution\': "Retrieved all text content from the \'Integracja z Notion\' page."}', related_messages=[], related_documents=[], status=<ActionStatus.IN_PROGRESS: 1>, resolution=None), "CompleteTaskTool._run() missing 1 required positional argument: 'data_output'")
+	"""
+
 	return check_and_call_tools(state, planner_tool_executor)
 
 
 def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 
 	log.flow(f"Entered call_agents")
+
+	if "blockTree" not in state:
+		raise KeyError("blockTree missing in planner state at call_agents")
 
 	if "unsolvedTasks" not in state:
 		log.error(f"No unsolved tasks found")
@@ -92,22 +106,14 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 	notion_agent_response = notion_agent.invoke(notion_agent_state)
 	log.debug(f"Notion agent response:", notion_agent_response)
 
+	if "blockTree" not in notion_agent_response:
+		raise KeyError("blockTree missing in notion agent response at call_agents")
+	if notion_agent_response["blockTree"].is_empty():
+		log.error("blockTree is empty in notion agent response at call_agents")
+
 	# TODO: Read remaining tasks back from notion agent
 
 	unsolvedTasksWriter = set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "WRITER" and task.is_todo()])
-
-	"""
-	# FIXME: Automagically convert to dict
-	writer_agent_state = WriterAgentState(
-		messages=state["initialPrompt"],
-		unsolvedTasks=list(unsolvedTasksWriter),
-		completedTasks=notion_agent_response["completedTasks"],
-		visitedBlocks=notion_agent_response["visitedBlocks"],
-		blockTree=notion_agent_response["blockTree"],
-		toolResults=[],
-		recentResults=[]
-	)
-	"""
 
 	writer_agent_state = {
 		"messages": state["initialPrompt"],

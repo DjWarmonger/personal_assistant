@@ -2,9 +2,14 @@ import sys
 import os
 import pytest
 import pytest_asyncio
-from notion_client import NotionClient
 from dotenv import load_dotenv
-from asyncClientManager import AsyncClientManager
+
+# Update the import path to include the project root
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from operations.notion_client import NotionClient
+from operations.asyncClientManager import AsyncClientManager
+from operations.blockTree import BlockTree
 
 load_dotenv()
 
@@ -69,8 +74,9 @@ async def test_search_notion_with_filter(notion_client):
 @pytest.mark.asyncio
 async def test_get_children(notion_client):
 	block_id = "593cf337c82a47fd80a750671b2a1e43"
+	block_tree = BlockTree()
 
-	result = await notion_client.get_block_content(block_id=block_id)
+	result = await notion_client.get_block_content(block_id=block_id, block_tree=block_tree)
 
 	assert result["object"] == "list"
 	assert "results" in result
@@ -80,7 +86,7 @@ async def test_get_children(notion_client):
 	if result["has_more"] == True:
 		print(f"Has more: {result['has_more']}, starting cursor in children test: {result['next_cursor']}")
 		start_cursor=notion_client.index.to_uuid(result["next_cursor"])
-		result = await notion_client.get_block_content(block_id=block_id, start_cursor=start_cursor)
+		result = await notion_client.get_block_content(block_id=block_id, start_cursor=start_cursor, block_tree=block_tree)
 
 		assert result["object"] == "list"
 		assert "results" in result

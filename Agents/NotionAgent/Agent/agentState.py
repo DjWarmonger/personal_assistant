@@ -4,7 +4,7 @@ from typing_extensions import NotRequired
 from pydantic import Field
 
 from tz_common.langchain_wrappers import AgentState
-from blockTree import BlockTree
+from ..operations.blockTree import BlockTree
 
 
 class PlannerAgentState(AgentState):

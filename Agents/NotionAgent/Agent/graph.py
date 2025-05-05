@@ -7,11 +7,11 @@ from tz_common.langchain_wrappers import trim_recent_results, check_and_call_too
 from tz_common.tasks import AgentTaskList
 from tz_common.actions import AgentActionListUtils
 
-from agents import notion_agent_runnable
+from .agents import notion_agent_runnable
 from langfuse.decorators import observe
-from agentTools import tool_executor, client
-from agentState import NotionAgentState
-from blockTree import BlockTree
+from .agentTools import tool_executor, client
+from .agentState import NotionAgentState
+from ..operations.blockTree import BlockTree
 
 # TODO: Add to other agents?
 langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
@@ -25,8 +25,6 @@ def notion_start(state: NotionAgentState) -> NotionAgentState:
 
 	# TODO: Add initial message to state?
 
-	# TODO: Mark all tasks as "in progress"?
-
 	return {
 		"messages": state["messages"],
 		"actions": [],
@@ -39,6 +37,9 @@ def notion_start(state: NotionAgentState) -> NotionAgentState:
 def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
 	log.flow(f"Entered call_notion_agent")
+
+	if "blockTree" not in state:
+		raise KeyError("blockTree missing in notion state at call_notion_agent")
 
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 
@@ -100,10 +101,20 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
 
 def check_and_call_tools_wrapper(state: NotionAgentState) -> NotionAgentState:
+
+	if "blockTree" not in state:
+		raise KeyError("blockTree missing in notion state at check_and_call_tools_wrapper")
+
 	return check_and_call_tools(state, tool_executor)
 
 
 def response_check(state: NotionAgentState) -> str:
+
+	if "blockTree" not in state:
+		raise KeyError("blockTree missing in notion state at response_check")
+
+	if state["blockTree"].is_empty():
+		log.error("blockTree is empty in notion state at response_check")
 
 	log.knowledge(f"Unsolved tasks:", "\n".join([str(task) for task in state['unsolvedTasks']]))
 	log.knowledge(f"Completed tasks:", "\n".join([str(task) for task in state['completedTasks']]))

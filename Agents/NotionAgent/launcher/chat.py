@@ -1,8 +1,8 @@
 from langchain_community.chat_message_histories import ChatMessageHistory
 
 from tz_common.logs import log
-from plannerGraph import planner_runnable
-from graph import notion_agent, langfuse_handler
+from ..Agent.plannerGraph import planner_runnable
+from ..Agent.graph import notion_agent, langfuse_handler
 
 
 def chat(loop = True, user_prompt = "") -> str:

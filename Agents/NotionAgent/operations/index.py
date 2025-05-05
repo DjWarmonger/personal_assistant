@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from tz_common.logs import log
 from tz_common.timed_storage import TimedStorage
-from uuid_converter import UUIDConverter
+from .uuid_converter import UUIDConverter
 """
 TODO: Split class responsibilities:
 - Database management

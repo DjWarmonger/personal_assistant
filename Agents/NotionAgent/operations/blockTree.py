@@ -1,5 +1,5 @@
 from typing import Dict, List, Optional, Set
-from uuid_converter import UUIDConverter
+from .uuid_converter import UUIDConverter
 from pydantic.v1 import BaseModel, Field, PrivateAttr
 
 from tz_common.logs import log

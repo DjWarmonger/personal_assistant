@@ -9,8 +9,8 @@ from abc import ABC, abstractmethod
 from tz_common.logs import log
 from tz_common.timed_storage import TimedStorage
 
-from uuid_converter import UUIDConverter
-from utils import Utils
+from .uuid_converter import UUIDConverter
+from .utils import Utils
 
 # TODO: Split into cache key utils and db handler?
 
@@ -277,8 +277,16 @@ class BlockCache(TimedStorage):
 		if expired:
 			self._invalidate_block_recursive(cache_key)
 		
-		# TODO: Check TTL (time to live for all but page info)
-		self._invalidate_block_internal(cache_key, last_update_time)
+		# Use the internal method to directly invalidate the page itself
+		# This should happen unconditionally when timestamp is newer than stored
+		with self.lock:
+			if self.check_if_expired(cache_key, last_update_time):
+				self.cursor.execute('DELETE FROM block_cache WHERE cache_key = ?', (cache_key,))
+				self.cursor.execute('DELETE FROM block_relationships WHERE parent_key = ? OR child_key = ?', (cache_key, cache_key))
+				self.remove_children_fetched_for_block(cache_key)
+				self.conn.commit()
+				self.set_dirty()
+				log.debug(f"Invalidated page {cache_key} due to expiration")
 
 		if expired:
 			self._invalidate_parent_search_or_query(cache_key)
