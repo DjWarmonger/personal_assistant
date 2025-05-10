@@ -51,13 +51,16 @@ class CompleteTaskTool(ContextAwareTool):
 		task.complete(resolution, data_output)
 
 		if task in context["unsolvedTasks"]:
-			context["unsolvedTasks"].remove(task)
+			for i, unsolved_task in enumerate(context["unsolvedTasks"]):
+				if str(unsolved_task.id) == str(task_id):
+					del context["unsolvedTasks"][i]
+					break
 		else:
 			for solved_task in context["completedTasks"]:
 				if str(solved_task.id) == str(task_id):
 					raise ValueError(f"Task already completed: {task_id}")
 
-		context["completedTasks"].add(task)
+		context["completedTasks"].append(task)
 
 		return context, f"Completed task {task_id} with resolution: {resolution}, output: {data_output}"
 
@@ -83,7 +86,7 @@ class AddTaskTool(ContextAwareTool):
 		task = AgentTask(role=role, role_id=role_id, goal=goal)
 
 		log.flow(f"Adding task: {task.id}: {task.goal}")
-		context["unsolvedTasks"].add(task)
+		context["unsolvedTasks"].append(task)
 		return context, f"Added task {task.id} to the agent's task list"
 
 

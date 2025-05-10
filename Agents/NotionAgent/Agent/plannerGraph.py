@@ -86,16 +86,14 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 	
 	# TODO: Update user query after chat reply
 
-	unsolvedTasksNotion = set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "NOTION" and task.is_todo()])
+	unsolvedTasksNotion = list(set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "NOTION" and task.is_todo()]))
 
 	for task in unsolvedTasksNotion:
 		task.start()
 
 	notion_agent_state = {
 		"messages": state["messages"],
-		"unsolvedTasks": list(unsolvedTasksNotion),
-		#"unsolvedTasks": list(task for task in unsolvedTasksNotion),  # Convert set to list
-		#"completedTasks": list(state["completedTasks"]), # Convert set to list
+		"unsolvedTasks": unsolvedTasksNotion,
 		"completedTasks": state["completedTasks"],
 		"actions": [],
 		"toolResults": [],
@@ -113,7 +111,7 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 
 	# TODO: Read remaining tasks back from notion agent
 
-	unsolvedTasksWriter = set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "WRITER" and task.is_todo()])
+	unsolvedTasksWriter = list(set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "WRITER" and task.is_todo()]))
 
 	writer_agent_state = {
 		"messages": state["initialPrompt"],

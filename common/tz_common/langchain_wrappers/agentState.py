@@ -12,13 +12,28 @@ from tz_common.logs import log
 
 
 class AgentState(TypedDict):
+	
+	# TODO: Add agent name here? Or there's a better place?
+
 	messages: Sequence[BaseMessage]
 	initialPrompt: Sequence[BaseMessage]
-	unsolvedTasks: NotRequired[Set[AgentTask]]
-	completedTasks: NotRequired[Set[AgentTask]]
+	unsolvedTasks: Sequence[AgentTask]
+	completedTasks: Sequence[AgentTask]
 	actions: List[AgentAction]  # Changed to List for mutable operations
 	toolResults: Sequence[BaseMessage]
 	recentResults: Sequence[BaseMessage]
+
+# TODO: Migrate to Pydantic v2:
+"""
+class AgentState(BaseModel):
+    unsolvedTasks: Set[AgentTask] = set()
+    completedTasks: Set[AgentTask] = set()
+    # …
+
+    @field_serializer('unsolvedTasks', 'completedTasks')
+    def _set_to_list(self, v, _info):
+        return [t.dict(exclude_none=True) for t in v]
+"""
 
 
 def create_agent_state() -> AgentState:
@@ -26,8 +41,8 @@ def create_agent_state() -> AgentState:
 	return {
 		"messages": [],
 		"initialPrompt": [],
-		"unsolvedTasks": set(),
-		"completedTasks": set(),
+		"unsolvedTasks": [],
+		"completedTasks": [],
 		"actions": [],
 		"toolResults": [],
 		"recentResults": []
