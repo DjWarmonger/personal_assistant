@@ -4,10 +4,13 @@ from pydantic.v1 import BaseModel, Field, PrivateAttr
 
 from tz_common.logs import log
 
+# FIXME: Move conversion to dedicated UUID class, no need to create extra converter object
+
+converter = UUIDConverter()
+
 class BlockTree(BaseModel):
 	parents: Dict[str, str] = Field(default_factory=dict)
 	children: Dict[str, List[str]] = Field(default_factory=dict)
-	_converter: UUIDConverter = PrivateAttr(default_factory=UUIDConverter)
 
 	"""
 	Example usage:
@@ -31,8 +34,8 @@ class BlockTree(BaseModel):
 
 	def add_relationship(self, parent_uuid: str, child_uuid: str) -> None:
 		"""Add a parent-child relationship between blocks"""
-		parent_uuid = self._converter.clean_uuid(parent_uuid)
-		child_uuid = self._converter.clean_uuid(child_uuid)
+		parent_uuid = converter.clean_uuid(parent_uuid)
+		child_uuid = converter.clean_uuid(child_uuid)
 
 		# Add to parents dict
 		self.parents[child_uuid] = parent_uuid
@@ -54,7 +57,7 @@ class BlockTree(BaseModel):
 
 	def add_parent(self, parent_uuid: str) -> None:
 		"""Add a parent block, might be root with no children"""
-		parent_uuid = self._converter.clean_uuid(parent_uuid)
+		parent_uuid = converter.clean_uuid(parent_uuid)
 
 		if parent_uuid not in self.children:
 			self.children[parent_uuid] = []
@@ -66,13 +69,13 @@ class BlockTree(BaseModel):
 
 	def get_parent(self, uuid: str) -> Optional[str]:
 		"""Get parent UUID of a block"""
-		uuid = self._converter.clean_uuid(uuid)
+		uuid = converter.clean_uuid(uuid)
 		return self.parents.get(uuid)
 
 
 	def get_children(self, uuid: str) -> List[str]:
 		"""Get children UUIDs of a block"""
-		uuid = self._converter.clean_uuid(uuid)
+		uuid = converter.clean_uuid(uuid)
 		return self.children.get(uuid, [])
 
 
@@ -146,8 +149,8 @@ class BlockTree(BaseModel):
 
 	def remove_relationship(self, parent_uuid: str, child_uuid: str) -> None:
 		"""Remove a parent-child relationship"""
-		parent_uuid = self._converter.clean_uuid(parent_uuid)
-		child_uuid = self._converter.clean_uuid(child_uuid)
+		parent_uuid = converter.clean_uuid(parent_uuid)
+		child_uuid = converter.clean_uuid(child_uuid)
 
 		if child_uuid in self.parents:
 			del self.parents[child_uuid]
@@ -162,7 +165,7 @@ class BlockTree(BaseModel):
 
 	def remove_subtree(self, root_uuid: str) -> None:
 		"""Remove a node and all its descendants"""
-		root_uuid = self._converter.clean_uuid(root_uuid)
+		root_uuid = converter.clean_uuid(root_uuid)
 		
 		# First get all descendants
 		to_remove = set()

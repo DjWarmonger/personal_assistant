@@ -1,5 +1,8 @@
 import re
 
+# TODO: Define (g)uuid as a separate class in tz_common
+# TODO: Validate argument types for every use - is it correct uuid?
+
 class UUIDConverter:
 	
 	UUID_PATTERN = re.compile(r'^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$', re.IGNORECASE)
@@ -31,8 +34,12 @@ class UUIDConverter:
 
 	def to_uuid(self, uuid: str) -> str:
 		"""Convert any valid UUID format to clean 32-char format"""
+		if not uuid:
+			raise ValueError(f"UUID cannot be empty")
+
 		if not self.validate_uuid(uuid):
-			raise ValueError("Invalid UUID format")
+			raise ValueError(f"Invalid UUID format: {uuid}")
+
 		return self.clean_uuid(uuid)
 	
 

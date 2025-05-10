@@ -154,10 +154,6 @@ class NotionClient:
 		if block_tree is None:
 			log.error("block_tree is None in get_block_content")
 
-		if isinstance(block_id, int):
-			converted = self.index.get_uuid(block_id)
-			block_id = converted
-
 		uuid = self.index.to_uuid(block_id)
 		if uuid is None:
 			return None

@@ -38,7 +38,9 @@ class AgentAction(BaseModel):
 			id=tool_call_id,
 			description=f"{tool_name} ({tool_call_id}) with args: {args}",
 			# These fields are required by the model but not provided in tool calls
-			task_id="default_task",  # TODO: Get from state/context
+			# FIXME: Get from state/context
+			task_id="",
+			# TODO: Get from state/context
 			agent_id=""  # Using default empty string
 		)
 

@@ -15,7 +15,7 @@ class CompleteTaskTool(ContextAwareTool):
 		task_id: str = Field(description="ID of the task to complete (eg. UUID or 01)")
 		status: TaskStatus = Field(description="Status of the task after completion")
 		resolution: str = Field(description="Resolution of the task, ie. achieved result or reason of failure.")
-		data_output: str = Field(description="If task is a question or query, provide detailed answer, including data, tables, etc.")
+		data_output: str = Field(default="", description="If task is a question, request for information or query, provide detailed answer, including data, tables, etc in this field. Only leave this empty if it's actionable task and 'resolution' description is sufficient.")
 
 	async def _run(self,
 				context: AgentState,
@@ -24,6 +24,10 @@ class CompleteTaskTool(ContextAwareTool):
 				resolution: str,
 				data_output: str,
 				**kwargs: Any) -> tuple[AgentState, str]:
+
+		if not task_id:
+			# TODO: Validate uuid in uuid class
+			raise ValueError("Cannot complete task with empty ID")
 
 		log.flow(f"Completing task: {task_id}")
 		
@@ -35,6 +39,10 @@ class CompleteTaskTool(ContextAwareTool):
 
 		if goal is None:
 			# FIXME: If task id is wrong, then it won't be marked as failed
+			for completed_task in context["completedTasks"]:
+				if str(completed_task.id) == str(task_id):
+					raise ValueError(f"Task is already completed: {task_id}")
+
 			raise ValueError(f"Task not found in unsolved tasks: {task_id}")
 		
 		task = AgentTask(id=task_id, goal=goal)
