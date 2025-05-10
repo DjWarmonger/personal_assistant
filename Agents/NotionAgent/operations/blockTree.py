@@ -38,15 +38,20 @@ class BlockTree(BaseModel):
 		child_uuid = converter.clean_uuid(child_uuid)
 
 		# Add to parents dict
+		parent_changed = self.parents.get(child_uuid) != parent_uuid
 		self.parents[child_uuid] = parent_uuid
 
 		# Add to children dict
+		children_changed = False
 		if parent_uuid not in self.children:
 			self.children[parent_uuid] = []
+			children_changed = True
 		if child_uuid not in self.children[parent_uuid]:
 			self.children[parent_uuid].append(child_uuid)
+			children_changed = True
 
-		log.debug(f"Added relationship to tree: {parent_uuid} -> {child_uuid}")
+		if parent_changed or children_changed:
+			log.debug(f"Added relationship to tree: {parent_uuid} -> {child_uuid}")
 
 
 	def add_relationships(self, parent_uuid: str, child_uuids: List[str]) -> None:
@@ -61,8 +66,7 @@ class BlockTree(BaseModel):
 
 		if parent_uuid not in self.children:
 			self.children[parent_uuid] = []
-
-		log.debug(f"Added parent to tree: {parent_uuid}")
+			log.debug(f"Added parent to tree: {parent_uuid}")
 
 		# FIXME: What is this "parent is not actually a root"?
 
@@ -152,16 +156,20 @@ class BlockTree(BaseModel):
 		parent_uuid = converter.clean_uuid(parent_uuid)
 		child_uuid = converter.clean_uuid(child_uuid)
 
+		removed = False
 		if child_uuid in self.parents:
 			del self.parents[child_uuid]
+			removed = True
 
 		if parent_uuid in self.children:
 			if child_uuid in self.children[parent_uuid]:
 				self.children[parent_uuid].remove(child_uuid)
+				removed = True
 			if not self.children[parent_uuid]:
 				del self.children[parent_uuid]
 
-		#log.debug(f"Removed relationship from tree: {parent_uuid} -> {child_uuid}")
+		if removed:
+			log.debug(f"Removed relationship from tree: {parent_uuid} -> {child_uuid}")
 
 	def remove_subtree(self, root_uuid: str) -> None:
 		"""Remove a node and all its descendants"""
