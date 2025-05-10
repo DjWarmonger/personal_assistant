@@ -4,7 +4,7 @@ from langfuse.decorators import observe
 
 from tz_common.logs import log, LogLevel
 from tz_common import create_langfuse_handler
-from tz_common.langchain_wrappers import AgentState, trim_recent_results, check_and_call_tools, add_timestamp
+from tz_common.langchain_wrappers import AgentState, trim_recent_results, get_message_timeline_from_state,check_and_call_tools, add_timestamp
 from tz_common.tasks import AgentTaskList
 from tz_common.actions import AgentActionListUtils, ActionStatus
 
@@ -46,34 +46,7 @@ def call_json_agent(state: JsonAgentState) -> JsonAgentState:
 	# Filter out messages with tool calls
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 
-	# Create a list of tuples (timestamp, content, type) for both messages and actions
-	timeline = []
-	
-	# Add messages to timeline
-	for msg in state["messages"]:
-		timestamp = msg.response_metadata.get("timestamp")
-		timeline.append((timestamp, msg, "message"))
-		log.debug(f"Message timestamp: {timestamp}")
-
-	# Add actions to timeline
-	if state["actions"]:
-		for action in state["actions"]:
-			timestamp = action.get_timestamp()
-			timeline.append((timestamp, action, "action"))
-			log.debug(f"Action timestamp: {action.get_timestamp_str()}")
-
-	# Sort timeline by timestamp
-	timeline.sort(key=lambda x: x[0])
-
-	# Build context with temporary messages (not persisted to history)
-	messages_with_context = []
-	
-	# Add messages and actions in chronological order
-	for _, item, item_type in timeline:
-		if item_type == "message":
-			messages_with_context.append(item)
-		elif item_type == "action":
-			messages_with_context.append(AIMessage(content=f"Action taken: {str(item)}"))
+	messages_with_context = get_message_timeline_from_state(state)
 
 	# Trim recent results to prevent context window overflow
 	state = trim_recent_results(state, 2000)

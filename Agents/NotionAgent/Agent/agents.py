@@ -98,7 +98,7 @@ writer_prompt = """
 You are a writer agent. Your job is to answer the user's request based on the information retrieved from Notion. Based on that content, you must answer the user's request.
 
 <instructions>
-Use complete_task tool to indicate that given task is finished. Put your detailed answer in "data_output" field.
+Use complete_task tool to indicate that given task is finished. Yyou must provide detailed answer in "data_output" field.
 </instructions>
 
 <instructions>
@@ -109,15 +109,16 @@ Use full task uuid for complete_task tool.
 Only attempt to complete tasks if its not already completed.
 </instructions>
 
+{format_instructions}
+"""
+
+"""
 <url_handling>
 You will only receive URLs in the form of integer index, eg. {{"url": 37}}. Whenever you need to output an URL, you MUST print it in the placeholder form instead: [[index]].
 Example markdown:
 [Link description]([[index]])
 </url_handling>
-
-{format_instructions}
 """
-
 # If this information is not enough to answer the user's request, you may ask for clarification or request additional information.
 
 writer_prompt = ChatPromptTemplate.from_messages(

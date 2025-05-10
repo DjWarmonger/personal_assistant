@@ -61,6 +61,7 @@ class AgentAction(BaseModel):
 		self.status = ActionStatus.IN_PROGRESS
 
 
+	# TODO: This is not used anywhere
 	def complete(self, resolution: str):
 		# TODO: Set separate timestamp for completion for statistics?
 		self.status = ActionStatus.COMPLETED

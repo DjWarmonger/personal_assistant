@@ -1,14 +1,15 @@
-from typing import TypedDict, Sequence, Set, Optional, List
-from typing_extensions import TypedDict,NotRequired
+from typing import TypedDict, Sequence, List, Tuple
+from typing_extensions import TypedDict
 import asyncio
 
 from pydantic.v1 import BaseModel, Field
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, AIMessage
 from langgraph.graph.message import add_messages
 
+from tz_common.logs import log
 from tz_common.tasks import AgentTask, AgentTaskList
 from tz_common.actions import AgentAction
-from tz_common.logs import log
+from tz_common.langchain_wrappers.message import add_timestamp
 
 
 class AgentState(TypedDict):
@@ -75,6 +76,43 @@ def trim_recent_results(state: AgentState, max_chars: int = 10000) -> AgentState
 	
 	state["recentResults"] = recentResults
 	return state
+
+
+def get_message_timeline_from_state(state: AgentState) -> List[Tuple[str, BaseMessage, str]]:
+	
+	# Create a list of tuples (timestamp, content, type) for both messages and actions
+	timeline = []
+	
+	# Add messages to timeline
+	for msg in state["messages"]:
+		timestamp = msg.response_metadata.get("timestamp")
+		if timestamp is None:
+			add_timestamp(msg)
+			log.error(f"Added timestamp to message ", msg.content[:200])
+		timeline.append((timestamp, msg, "message"))
+		log.debug(f"Message timestamp: {timestamp}")
+
+	# Add actions to timeline
+	if state["actions"]:
+		for action in state["actions"]:
+			timestamp = action.get_timestamp()
+			timeline.append((timestamp, action, "action"))
+			log.debug(f"Action timestamp: {action.get_timestamp_str()}")
+
+	# Sort timeline by timestamp
+	timeline.sort(key=lambda x: x[0])
+
+	# Build context with temporary messages (not persisted to history)
+	messages_with_context = []
+	
+	# Add messages and actions in chronological order
+	for _, item, item_type in timeline:
+		if item_type == "message":
+			messages_with_context.append(item)
+		elif item_type == "action":
+			messages_with_context.append(AIMessage(content=f"Action taken: {str(item)}"))
+
+	return messages_with_context
 
 
 

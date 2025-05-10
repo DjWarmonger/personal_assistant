@@ -4,7 +4,7 @@ from langgraph.graph import StateGraph, END
 
 from tz_common.logs import log
 from tz_common.tasks import TaskStatus, TaskRole
-from tz_common.langchain_wrappers import check_and_call_tools
+from tz_common.langchain_wrappers import check_and_call_tools, get_message_timeline_from_state, add_timestamp
 
 from agents import planner_agent_runnable
 from agentTools import planner_tool_executor, client
@@ -29,6 +29,7 @@ def planner_start(state: PlannerAgentState) -> PlannerAgentState:
 
 
 		state["messages"].append(AIMessage(content=message))
+		add_timestamp(state["messages"][-1])
 	else:
 		log.error(f"No favourites found")
 
@@ -51,8 +52,9 @@ def planning(state: PlannerAgentState) -> PlannerAgentState:
 		raise KeyError("blockTree missing in planner state at planning")
 
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
+	messages_in_order = get_message_timeline_from_state(state)
 
-	response = planner_agent_runnable.invoke({"messages": state["messages"]})
+	response = planner_agent_runnable.invoke({"messages": messages_in_order})
 
 	state["messages"].append(response)
 
@@ -98,12 +100,16 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 	}
 
 	notion_agent_response = notion_agent.invoke(notion_agent_state)
-	log.debug(f"Notion agent response:", notion_agent_response)
 
 	if "blockTree" not in notion_agent_response:
 		raise KeyError("blockTree missing in notion agent response at call_agents")
 	if notion_agent_response["blockTree"].is_empty():
 		log.error("blockTree is empty in notion agent response at call_agents")
+
+	notion_agent_readable_response = notion_agent_response.copy()
+	# Log blockTree as string representation
+	notion_agent_readable_response["blockTree"] = str(notion_agent_response["blockTree"])
+	log.debug(f"Notion agent response:", notion_agent_readable_response)
 
 	# TODO: Read remaining tasks back from notion agent
 
@@ -120,12 +126,13 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 	}
 
 	writer_agent_response = writer_agent.invoke(writer_agent_state)
+	log.debug(f"Writer agent response:", writer_agent_response)
 
 	# TODO: Remember visited blocks for subsequent calls?
 
 	return {"messages": state["messages"],
-			"solvedTasks": list(set(writer_agent_state["completedTasks"])),
-			"unsolvedTasks": list(set(writer_agent_state["unsolvedTasks"]))}
+			"solvedTasks": list(set(writer_agent_response["completedTasks"])),
+			"unsolvedTasks": list(set(writer_agent_response["unsolvedTasks"]))}
 
 
 def check_tasks(state: PlannerAgentState) -> str:

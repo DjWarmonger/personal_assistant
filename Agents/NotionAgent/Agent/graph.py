@@ -1,17 +1,19 @@
+from enum import Enum
+
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import BaseMessage, AIMessage
+from langfuse.decorators import observe
 
 from tz_common.logs import log
 from tz_common import create_langfuse_handler
-from tz_common.langchain_wrappers import trim_recent_results, check_and_call_tools
+from tz_common.langchain_wrappers import trim_recent_results, get_message_timeline_from_state, check_and_call_tools
 from tz_common.tasks import AgentTaskList
 from tz_common.actions import AgentActionListUtils
 
 from .agents import notion_agent_runnable
-from langfuse.decorators import observe
 from .agentTools import tool_executor, client
 from .agentState import NotionAgentState
-from ..operations.blockTree import BlockTree
+from operations.blockTree import BlockTree
 
 # TODO: Add to other agents?
 langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
@@ -63,7 +65,7 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
 		tree_str = state['blockTree'].get_tree_str(tree_mapping)
 
-		log.knowledge("\n\nVisited blocks:\n", tree_str)
+		#log.knowledge("\n\nVisited blocks:\n", tree_str)
 
 		tree_str = f"Tree of blocks visited so far:" + '\n' + tree_str
 
@@ -76,7 +78,8 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 	if state["actions"]:
 		actions_str = "Actions taken:\n" + AgentActionListUtils.actions_to_string(state["actions"])
 
-	messages_with_context = [message for message in state["messages"]]
+	messages_with_context = get_message_timeline_from_state(state)
+
 	if state['unsolvedTasks']:
 		messages_with_context.append(AIMessage(content=remaining_tasks))
 	if state['completedTasks']:

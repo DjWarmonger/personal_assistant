@@ -14,15 +14,15 @@ class CompleteTaskTool(ContextAwareTool):
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		task_id: str = Field(description="ID of the task to complete (eg. UUID or 01)")
 		status: TaskStatus = Field(description="Status of the task after completion")
-		resolution: str = Field(description="Resolution of the task, ie. achieved result or reason of failure.")
-		data_output: str = Field(default="", description="If task is a question, request for information or query, provide detailed answer, including data, tables, etc in this field. Only leave this empty if it's actionable task and 'resolution' description is sufficient.")
+		resolution: str = Field(description="Brief resolution of the task, ie. achieved result or reason of failure.")
+		data_output: str = Field(default="", description="Detailed output of the task, if any. If task is a question, request for information or query, provide detailed answer, including data, tables, etc in this field. Only leave this empty if it's actionable task and 'resolution' description is sufficient.")
 
 	async def _run(self,
 				context: AgentState,
 				task_id: str,
 				status: TaskStatus,
 				resolution: str,
-				data_output: str,
+				data_output: str = "",
 				**kwargs: Any) -> tuple[AgentState, str]:
 
 		if not task_id:

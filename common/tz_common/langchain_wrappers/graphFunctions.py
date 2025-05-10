@@ -11,12 +11,12 @@ from .agentState import AgentState
 from tz_common.actions import AgentAction, AgentActionListUtils, ActionStatus
 
 
-async def get_tool_result(tool, action: AgentAction, state: AgentState, input_args: dict) -> tuple[str, str]:
+async def get_tool_result(tool, action: AgentAction, state: AgentState, input_args: dict) -> tuple[str, tuple[AgentState, str]]:
 	try:
 		# Workaround for args handling in langchain
 		input_args["context"] = state
-		result = await tool.arun(tool_input=input_args)
-		return (action, result)
+		context, result = await tool.arun(tool_input=input_args)
+		return (action, (context, result))
 	except Exception as e:
 		# Attach the action to the exception context
 		e.args = (action,) + e.args
@@ -66,6 +66,7 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 					processed_results[failed_action.to_tool_call_string()] = (failed_action, error_message)
 				else:
 					action, (_, message) = result
+					action.complete("Tool call succeeded")
 					processed_results[action.to_tool_call_string()] = (action, message)
 					# TODO: Add "related message" with tool output to action
 
@@ -83,7 +84,9 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 
 	for key, (action, message) in processed_results.items():
 		log.debug(f"Result of tool {key}:", message)
-		ai_message = AIMessage(content=message)
+
+		# Show AI tool call -> result
+		ai_message = AIMessage(content=f"Result of tool {key}: {message}")
 		add_timestamp(ai_message)
 		state["recentResults"].append(ai_message)
 		state["toolResults"].append(ai_message)

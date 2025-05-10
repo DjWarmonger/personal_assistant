@@ -57,7 +57,7 @@ class NotionPageDetailsTool(ContextAwareTool):
 
 class NotionGetChildrenTool(ContextAwareTool):
 	name: str = "NotionGetChildren"
-	description: str = "Retrieve children of a page or block in Notion"
+	description: str = "Retrieve children of a page or block in Notion. Only call if node's 'has_children' is True"
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		index: int | str = Field(..., description="Index id or uuid of the page or block to retrieve children for")
