@@ -43,8 +43,8 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 
-	remaining_tasks = f"Remaining tasks:\n{str(AgentTaskList.from_set(state['unsolvedTasks']))}"
-	completed_tasks = f"Completed tasks:\n{str(AgentTaskList.from_set(state['completedTasks']))}"
+	remaining_tasks = f"Remaining tasks:\n{str(AgentTaskList.from_list(state['unsolvedTasks']))}"
+	completed_tasks = f"Completed tasks:\n{str(AgentTaskList.from_list(state['completedTasks']))}"
 
 	tree_str = ""
 	

@@ -35,8 +35,8 @@ def planner_start(state: PlannerAgentState) -> PlannerAgentState:
 	return {
 		"initialPrompt": initial_prompt,
 		"messages": state["messages"],
-		"unsolvedTasks": set(),
-		"completedTasks": set(),
+		"unsolvedTasks": [],
+		"completedTasks": [],
 		"actions": [],
 		"toolResults": [],
 		"recentResults": [],
@@ -65,10 +65,6 @@ def check_and_call_tools_wrapper(state: PlannerAgentState) -> PlannerAgentState:
 
 	if "blockTree" not in state:
 		raise KeyError("blockTree missing in planner state at call_and_check_tools")
-	
-	"""FIXME:
-	Call tool failed: (AgentAction(id='T3kO87ctoyrtbgz73yaUMoig', created_at=datetime.datetime(2025, 5, 4, 9, 56, 9, 990172, tzinfo=datetime.timezone.utc), task_id='default_task', agent_id='', description='complete_task (T3kO87ctoyrtbgz73yaUMoig) with args: {\'task_id\': \'b6cf4611-1340-4e87-ad59-7d8418b63d82\', \'status\': \'completed\', \'resolution\': "Retrieved all text content from the \'Integracja z Notion\' page."}', related_messages=[], related_documents=[], status=<ActionStatus.IN_PROGRESS: 1>, resolution=None), "CompleteTaskTool._run() missing 1 required positional argument: 'data_output'")
-	"""
 
 	return check_and_call_tools(state, planner_tool_executor)
 
