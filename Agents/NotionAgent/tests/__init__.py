@@ -1,3 +1,3 @@
 """
-NotionAgent.tests package - contains test suite for NotionAgent.
+Unit tests for NotionAgent package.
 """ 

@@ -2,5 +2,6 @@
 NotionAgent package - provides functionality for interacting with Notion workspaces.
 """
 
-# Import main components for easier access
-from .Agent import * 
+# Define imports as placeholders to prevent automatic loading
+# These will be populated when explicitly imported
+__all__ = ["NotionClient", "BlockCache", "BlockTree", "Index", "UrlIndex"] 

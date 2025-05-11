@@ -5,6 +5,7 @@ import os
 # Update the import path to include the project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# Use direct imports from operations
 from operations.blockTree import BlockTree
 
 class TestBlockTree(unittest.TestCase):

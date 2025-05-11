@@ -1,10 +1,17 @@
 import unittest
-import sys
+import asyncio
 import os
+import sys
+import pytest
+import pytest_asyncio
+from dotenv import load_dotenv
 
 # Update the import path to include the project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# Use direct imports from operations
+from operations.notion_client import NotionClient
+from operations.asyncClientManager import AsyncClientManager
 from operations.index import Index
 
 class TestFavourites(unittest.TestCase):
