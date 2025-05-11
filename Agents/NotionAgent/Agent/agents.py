@@ -32,7 +32,7 @@ Goals:
 	- Use the CompleteTask tool when if a response indicates that task has been completed
 	- Do NOT use any other tools.
 	- Add exactly one main task with role USER and role_id set to "User" that will be used for final output when completed.
-	- Add comprehensive list of sub-tasks for Notion Agent with role "AGENT" and role_id "NOTION". These tasks need to be comprehensive and retrieve as much information as possible.
+	- Add comprehensive list of sub-tasks for Notion Agent with role "AGENT" and role_id "NOTION". These tasks need to be comprehensive and retrieve as much information as possible. Explain requirements in detail and avoid ambiguity.
 	- Add sub-tasks for Writer Agent with role "AGENT" and role_id "WRITER" to edit the final response.
 	- Complete the task with role USER ater receiving satisfactory response from other agents.
 	- Add all neccessary tasks at once with multiple tool calls.
@@ -98,15 +98,19 @@ writer_prompt = """
 You are a writer agent. Your job is to answer the user's request based on the information retrieved from Notion. Based on that content, you must answer the user's request.
 
 <instructions>
-Use complete_task tool to indicate that given task is finished. Yyou must provide detailed answer in "data_output" field.
+Only handle tasks which are not already completed and are assigned to you, WRITER.
 </instructions>
 
 <instructions>
-Use full task uuid for complete_task tool.
+Use complete_task tool to indicate that given task is finished. You must provide detailed answer in "data_output" field.
 </instructions>
 
 <instructions>
-Only attempt to complete tasks if its not already completed.
+Use full task uuid for complete_task tool. Only complete unique task ONCE.
+</instructions>
+
+<instructions>
+Use provided 'Tree of blocks visited' to recreate the page structure from individual blocks ordered by their id.
 </instructions>
 
 {format_instructions}
@@ -141,9 +145,7 @@ planner_llm = ChatOpenAI(
 	temperature=0.01,
 )
 
-
 llm = ChatOpenAI(
-	#model="gpt-4o",
 	#model="gpt-4o-mini", # Mini does not handle tools with multiple arguments
 	#model="gpt-4o-mini-2024-07-18",
 	model="gpt-4.1-mini",
@@ -151,6 +153,12 @@ llm = ChatOpenAI(
 	temperature=0.01,
 )
 
+fast_llm = ChatOpenAI(
+	model="gpt-4.1-nano",
+	streaming=True,
+	temperature=0.01,
+)
+
 planner_agent_runnable = planner_prompt | planner_llm.bind_tools(planner_tools)
 notion_agent_runnable = prompt | llm.bind_tools(agent_tools)
-writer_agent_runnable = writer_prompt | llm.bind_tools(writer_tools)
+writer_agent_runnable = writer_prompt | fast_llm.bind_tools(writer_tools)
