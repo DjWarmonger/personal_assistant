@@ -88,6 +88,7 @@ def get_message_timeline_from_state(state: AgentState) -> List[Tuple[str, BaseMe
 		timestamp = msg.response_metadata.get("timestamp")
 		if timestamp is None:
 			add_timestamp(msg)
+			timestamp = msg.response_metadata["timestamp"]
 			log.error(f"Added timestamp to message ", msg.content[:200])
 		timeline.append((timestamp, msg, "message"))
 		log.debug(f"Message timestamp: {timestamp}")

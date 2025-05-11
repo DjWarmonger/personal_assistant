@@ -31,8 +31,8 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 	# FIXME: Original user query might be confusing
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 
-	remaining_tasks = f"Remaining tasks:\n{str(AgentTaskList.from_list(state['unsolvedTasks']))}"
-	completed_tasks = f"Completed tasks:\n{str(AgentTaskList.from_list(state['completedTasks']))}"
+	remaining_tasks = f"Remaining tasks:\n{AgentTaskList.from_list(state['unsolvedTasks']).for_agent()}"
+	completed_tasks = f"Completed tasks:\n{AgentTaskList.from_list(state['completedTasks']).for_agent()}"
 	
 	tree_str = ""
 
@@ -41,7 +41,7 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 		tree_mapping = client.index.to_int(state["blockTree"].get_all_nodes())
 
 		#log.debug(f"Tree ids:", tree_mapping.values())
-		tree_names = client.index.get_names(list(tree_mapping.keys()))
+		tree_names = client.index.get_names(list(tree_mapping.values()))
 
 		log.debug(f"Tree names:", {uuid: name for uuid, name in tree_names.items() if name != ""})
 
@@ -53,7 +53,7 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 
 		tree_str = state['blockTree'].get_tree_str(tree_mapping)
 
-		log.knowledge("\n\nVisited blocks:\n", tree_str)
+		log.knowledge("\n\nVisited blocks for writer:\n", tree_str)
 
 		tree_str = f"Tree of blocks visited:" + '\n' + tree_str
 	else:
@@ -66,7 +66,7 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 	if state["actions"]:
 		actions_str = "Actions taken:\n" + AgentActionListUtils.actions_to_string(state["actions"])
 
-	messages_with_context = [message for message in state["messages"]]
+	messages_with_context = get_message_timeline_from_state(state)
 
 	if state["unsolvedTasks"]:
 		messages_with_context.append(AIMessage(content=remaining_tasks))
@@ -109,7 +109,7 @@ def response_check(state: WriterAgentState) -> str:
 				log.error(f"Task failed: {task.name}")
 				return "failed"
 
-		log.flow(f"All tasks completed")
+		log.flow(f"All writer tasks completed")
 		return "completed"
 	else:
 		return "continue"

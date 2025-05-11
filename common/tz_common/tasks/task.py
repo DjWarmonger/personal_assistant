@@ -50,6 +50,12 @@ class AgentTask(BaseModel):
 			"status": self.status.name,
 			"resolution": self.resolution
 		}
+	
+	def for_agent(self) -> str:
+		string = f"Task Id: {self.id} for {self.role.name} {self.role_id} - {self.goal} - {self.status.name}"
+		if self.resolution:
+			string += f" - {self.resolution}"
+		return string
 
 
 	def __str__(self):
@@ -102,6 +108,9 @@ class AgentTaskList(BaseModel):
 	def from_set(cls, task_set: Set[AgentTask]) -> "AgentTaskList":
 		"""Create an AgentTaskList from a set of tasks"""
 		return cls(tasks=list(task_set))
+	
+	def for_agent(self) -> str:
+		return "\n".join([task.for_agent() for task in self.tasks])
 
 
 	def add(self, task: AgentTask) -> bool:

@@ -12,7 +12,8 @@ class CompleteTaskTool(ContextAwareTool):
 	description: str = "Complete a task. Provide answer to the task question, if any."
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		task_id: str = Field(description="ID of the task to complete (eg. UUID or 01)")
+		# TODO: Map UUID to integer
+		task_id: str = Field(description="UUID of the task to complete")
 		status: TaskStatus = Field(description="Status of the task after completion")
 		resolution: str = Field(description="Brief resolution of the task, ie. achieved result or reason of failure.")
 		data_output: str = Field(default="", description="Detailed output of the task, if any. If task is a question, request for information or query, provide detailed answer, including data, tables, etc in this field. Only leave this empty if it's actionable task and 'resolution' description is sufficient.")
