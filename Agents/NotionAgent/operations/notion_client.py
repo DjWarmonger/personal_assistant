@@ -137,7 +137,7 @@ class NotionClient:
 		children = await asyncio.gather(*tasks.values())
 		children_dict = {index: child for index, child in children}
 		if block_tree is not None:
-			log.debug(f"Adding parent-children relationship to blockTree for children of {uuid}")
+			#log.debug(f"Adding parent-children relationship to blockTree for children of {uuid}")
 			child_ids = list(children_dict.keys())
 			converted_children = [self.index.to_uuid(child_id) for child_id in child_ids]
 			# Update the tree with parent-child relationships
@@ -277,7 +277,7 @@ class NotionClient:
 
 			child_uuids = [self.index.to_uuid(child_id) for child_id in list(immediate_children.keys())]
 
-			log.debug(f"Adding parent-children relationship for immediate_children of {block_identifier}")
+			#log.debug(f"Adding parent-children relationship for immediate_children of {block_identifier}")
 
 			if block_tree is not None:
 				block_tree.add_relationships(block_identifier, child_uuids)
@@ -466,7 +466,7 @@ class NotionClient:
 						del obj[key]
 					elif isinstance(obj[key], (dict, list)) and not obj[key]:
 						del obj[key]
-					elif key in ['icon', 'cover', 'bold', 'italic', 'strikethrough', 'underline', 'archived', 'in_trash', 'last_edited_by', 'created_by', 'annotations']:
+					elif key in ['icon', 'cover', 'bold', 'italic', 'strikethrough', 'underline', 'archived', 'in_trash', 'last_edited_by', 'created_by', 'annotations', 'plain_text']:
 						del obj[key]
 					elif isinstance(obj[key], (dict, list)):
 						clean_object(obj[key])
@@ -511,7 +511,7 @@ class NotionClient:
 		def convert_object(obj):
 			if isinstance(obj, dict):
 				for key in list(obj.keys()):
-					if key in ["url", "href", "content", "plain_text"] and isinstance(obj[key], str):
+					if key in ["url", "href", "content"] and isinstance(obj[key], str):
 						if self.url_index.is_url(obj[key]):
 							del obj[key]
 					elif isinstance(obj[key], (dict, list)):
