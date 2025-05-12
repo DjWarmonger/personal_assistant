@@ -91,14 +91,14 @@ def get_message_timeline_from_state(state: AgentState) -> List[Tuple[str, BaseMe
 			timestamp = msg.response_metadata["timestamp"]
 			log.error(f"Added timestamp to message ", msg.content[:200])
 		timeline.append((timestamp, msg, "message"))
-		log.debug(f"Message timestamp: {timestamp}")
+		#log.debug(f"Message timestamp: {timestamp}")
 
 	# Add actions to timeline
 	if state["actions"]:
 		for action in state["actions"]:
 			timestamp = action.get_timestamp()
 			timeline.append((timestamp, action, "action"))
-			log.debug(f"Action timestamp: {action.get_timestamp_str()}")
+			#log.debug(f"Action timestamp: {action.get_timestamp_str()}")
 
 	# Sort timeline by timestamp
 	timeline.sort(key=lambda x: x[0])

@@ -1,6 +1,7 @@
 ---
 description: Features and use cases of Favourites
-globs: ./index.py, ./plannerGraph.py, ./agents.py
+globs: Agents/NotionAgent/Agent/*.py,Agents/NotionAgent/operations/*.py
+alwaysApply: false
 ---
 ### Favourite Pages
 

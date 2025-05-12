@@ -1,6 +1,7 @@
 ---
 description: Database and Storage features
-globs: ./blockCache.py
+globs: Agents/NotionAgent/Agent/*.py
+alwaysApply: false
 ---
 - Cache all blocks along with parent-child relationships.
 - Do not cache entire pages; instead, check modification date to invalidate outdated cache entries.

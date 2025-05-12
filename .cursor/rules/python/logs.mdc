@@ -1,11 +1,15 @@
 ---
 description: Custom log system
 globs: *.py
+alwaysApply: false
 ---
-- Always use logs from [logs.py](mdc:tz_common/logs.py) istead of print.
+- Always use logs from [logs.py](mdc:common/tz_common/logs.py) instead of print.
 
 - Add log import at the beginning of every file:
-from tz_common.logs import log
+
+    ```python
+    from tz_common.logs import log
+    ```
 
 # Log formatting
 

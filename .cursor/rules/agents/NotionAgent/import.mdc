@@ -1,0 +1,12 @@
+---
+description: 
+globs: Agents/NotionAgent/**/*.*
+alwaysApply: false
+---
+
+@architecture.mdc
+@blockCache.mdc
+@context.mdc
+@editor.mdc
+[favourites.mdc](mdc:Agents/NotionAgent/.cursor/rules/favourites.mdc)
+[fetchNotion.mdc](mdc:Agents/NotionAgent/.cursor/rules/fetchNotion.mdc)

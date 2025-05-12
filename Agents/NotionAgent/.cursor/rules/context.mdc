@@ -1,6 +1,7 @@
 ---
 description: Storing Context Info for Agents
-globs: ../blockCache, ./graph.py, ./writerGraph.py, ./editorGraph.py
+globs: Agents/NotionAgent/Agent/*.py
+alwaysApply: false
 ---
 # Block Cache
 

@@ -1,6 +1,7 @@
 ---
 description: Target multi-agent architetcure
-globs: ./*.py
+globs: *.py
+alwaysApply: false
 ---
 # Architecture
 
