@@ -9,7 +9,7 @@ from tz_common.tasks import AgentTaskList
 from tz_common.actions import AgentActionListUtils
 
 from .agents import writer_agent_runnable
-from .agentTools import tool_executor, client
+from .agentTools import writer_tool_executor, client
 from .agentState import WriterAgentState
 from operations.blockTree import BlockTree
 
@@ -93,7 +93,7 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 
 
 def check_and_call_tools_wrapper(state: WriterAgentState) -> WriterAgentState:
-	return check_and_call_tools(state, tool_executor)
+	return check_and_call_tools(state, writer_tool_executor)
 
 
 def response_check(state: WriterAgentState) -> str:

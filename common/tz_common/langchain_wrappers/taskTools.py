@@ -7,23 +7,22 @@ from tz_common import log
 from .tool import ContextAwareTool
 from .agentState import AgentState
 
-class CompleteTaskTool(ContextAwareTool):
-	name: str = "complete_task"
-	description: str = "Complete a task. Provide answer to the task question, if any."
 
+class CompleteTaskToolBase(ContextAwareTool):
+	"""Base class for task completion tools"""
+	
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		# TODO: Map UUID to integer
 		task_id: str = Field(description="UUID of the task to complete")
 		status: TaskStatus = Field(description="Status of the task after completion")
 		resolution: str = Field(description="Brief resolution of the task, ie. achieved result or reason of failure.")
-		data_output: str = Field(default="", description="Detailed output of the task, if any. If task is a question, request for information or query, provide detailed answer, including data, tables, etc in this field. Only leave this empty if it's actionable task and 'resolution' description is sufficient.")
 
-	async def _run(self,
+	async def _complete_task(self,
 				context: AgentState,
 				task_id: str,
 				status: TaskStatus,
 				resolution: str,
-				data_output: str = "",
+				data_output: str,
 				**kwargs: Any) -> tuple[AgentState, str]:
 
 		if not task_id:
@@ -64,6 +63,52 @@ class CompleteTaskTool(ContextAwareTool):
 		context["completedTasks"].append(task)
 
 		return context, f"Completed task {task_id} with resolution: {resolution}, output: {data_output}"
+
+
+class CompleteTaskTool(CompleteTaskToolBase):
+	name: str = "complete_task"
+	description: str = "Complete a task. Provide resolution for the task."
+
+	async def _run(self,
+				context: AgentState,
+				task_id: str,
+				status: TaskStatus,
+				resolution: str,
+				**kwargs: Any) -> tuple[AgentState, str]:
+		
+		return await self._complete_task(
+			context=context,
+			task_id=task_id,
+			status=status,
+			resolution=resolution,
+			data_output="",
+			**kwargs
+		)
+
+
+class CompleteTaskWithDataTool(CompleteTaskToolBase):
+	name: str = "complete_task_with_data"
+	description: str = "Complete a task. Provide answer to the task question, if any."
+
+	class ArgsSchema(CompleteTaskToolBase.ArgsSchema):
+		data_output: str = Field(description="Detailed output of the task. Provide comprehensive answer, including data, tables, etc in this field.")
+
+	async def _run(self,
+				context: AgentState,
+				task_id: str,
+				status: TaskStatus,
+				resolution: str,
+				data_output: str,
+				**kwargs: Any) -> tuple[AgentState, str]:
+		
+		return await self._complete_task(
+			context=context,
+			task_id=task_id,
+			status=status,
+			resolution=resolution,
+			data_output=data_output,
+			**kwargs
+		)
 
 
 class AddTaskTool(ContextAwareTool):

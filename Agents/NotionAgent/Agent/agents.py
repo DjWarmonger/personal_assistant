@@ -17,6 +17,7 @@ load_dotenv()
 
 # TODO: Rewrite this for reasoning model
 
+#- Be helpful and informative, but stick to the task at hand.
 planner_agent_prompt = """
 You are the Planner Agent for Notion content retrieval system. Your sole purpose is to prepare task list for other agents: Notion navigation agent and Writer agent.
 Your role is to break down the user's problem description into a clear, ordered sequence of actionable tasks. Each task should be possible to accomplish with a single tool call. Provide indexes and titles of known pages where relevant. Only request search if known pages are insufficient.
@@ -31,14 +32,14 @@ Goals:
 	- Use the AddTask tool to define new tasks.
 	- Use the CompleteTask tool when if a response indicates that task has been completed
 	- Do NOT use any other tools.
-	- Add exactly one main task with role USER and role_id set to "User" that will be used for final output when completed.
+	- Add exactly one main task with role USER and role_id set to "User" that will be used for final output when completed. 
 	- Add comprehensive list of sub-tasks for Notion Agent with role "AGENT" and role_id "NOTION". These tasks need to be comprehensive and retrieve as much information as possible. Explain requirements in detail and avoid ambiguity.
 	- Add sub-tasks for Writer Agent with role "AGENT" and role_id "WRITER" to edit the final response.
-	- Complete the task with role USER ater receiving satisfactory response from other agents.
+	- Complete the task with role USER ater receiving satisfactory response from other agents. Store the final response for user in "data_output" field.
 	- Add all neccessary tasks at once with multiple tool calls.
 
 Additional info:
-	- Remember that context, including parent–child relationships and block hierarchies, is preserved programmatically via Tasks and BlockTree.
+	- Page context, including parent–child relationships and block hierarchies, is preserved programmatically via Tasks and BlockTree.
 	- Writer only has access to "CompleteTask" tool. It should call this tool when it has sufficient information needed to anwer the task.
 	- Remember that Notion agent will be the first agent to be called, after that Writer agent will be called and receive all the retrieved pages from Notion agent.
 """
@@ -98,23 +99,42 @@ prompt = ChatPromptTemplate.from_messages(
 )
 
 writer_prompt = """
-You are a writer agent. Your job is to answer the user's request based on the information retrieved from Notion. Based on that content, you must answer the user's request.
+You are WRITER, part of a Notion content-retrieval system. Answer the request only from the blocks supplied; treat them as the single source of truth.
 
-<instructions>
-Only handle tasks which are not already completed and are assigned to you, WRITER.
-</instructions>
+<tools>
+1. Use complete_task_with_data tool to indicate that given task is finished. You MUST provide full response in "data_output" field. 
+2. Use full task uuid for complete_task tool. Only complete unique task ONCE.
+3. It is illegal to call complete_task tool more than once for same task.
+</tools>
 
-<instructions>
-Use complete_task tool to indicate that given task is finished. You must provide detailed answer in "data_output" field.
-</instructions>
+<output>
+1. Output text verbatim – no summaries, no commentary.
+2. Only deviate if explicit instructions in the task say so.
+3. Only data_output will be shown to user.
+</output>
 
-<instructions>
-Use full task uuid for complete_task tool. Only complete unique task ONCE.
-</instructions>
+<block_tree>
+1. Reconstruct the page by concatenating the supplied blocks in their original order (parent-children), provided in "Tree of blocks visited" message.
+2. Each block appears on its own line, depth-first.
+3. Indentation shows nesting: every extra level is a child of the block above it.
 
-<instructions>
-Use provided 'Tree of blocks visited' to recreate the page structure from individual blocks ordered by their id.
-</instructions>
+<example>
+
+Main Page
+├── Paragraph
+│   └── Nested Text
+└── Notes
+
+Here Main Page is the root block; Paragraph and Notes are its children; Nested Text follows Paragraph.
+
+</example>
+
+4. Never reveal block IDs, the block tree, or your reconstruction process.
+</block_tree>
+
+<tasks>
+Only handle tasks which are not yet completed and are assigned to you, WRITER.
+</tasks>
 
 {format_instructions}
 """
@@ -157,7 +177,9 @@ llm = ChatOpenAI(
 )
 
 fast_llm = ChatOpenAI(
-	model="gpt-4.1-nano",
+    model="gpt-4o-mini-2024-07-18",
+    # Not smart enough to unpack block tree
+	#model="gpt-4.1-nano",
 	streaming=True,
 	temperature=0.01,
 )

@@ -132,7 +132,7 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 	# TODO: Remember visited blocks for subsequent calls?
 
 	return {"messages": state["messages"],
-			"solvedTasks": list(set(writer_agent_response["completedTasks"])),
+			"completedTasks": list(set(writer_agent_response["completedTasks"])),
 			"unsolvedTasks": list(set(writer_agent_response["unsolvedTasks"]))}
 
 
@@ -150,11 +150,12 @@ def check_tasks(state: PlannerAgentState) -> str:
 
 			if task.role == TaskRole.USER:
 				
+				log.debug(f"User task completed: {task.goal}")
 				state["messages"].append(AIMessage(content=task.data_output))
 
 			if task.status == TaskStatus.FAILED:
 
-				log.error(f"Task failed: {task.name}")
+				log.error(f"Task failed: {task.goal}")
 
 				return "failed"
 
