@@ -6,11 +6,11 @@ from tz_common.logs import log
 from tz_common.tasks import TaskStatus, TaskRole
 from tz_common.langchain_wrappers import check_and_call_tools, get_message_timeline_from_state, add_timestamp
 
-from agents import planner_agent_runnable
-from agentTools import planner_tool_executor, client
-from agentState import PlannerAgentState, NotionAgentState, WriterAgentState
-from graph import notion_agent
-from writerGraph import writer_agent
+from .agents import planner_agent_runnable
+from .agentTools import planner_tool_executor, client
+from .agentState import PlannerAgentState, NotionAgentState, WriterAgentState
+from .graph import notion_agent
+from .writerGraph import writer_agent
 
 
 def planner_start(state: PlannerAgentState) -> PlannerAgentState:
@@ -118,7 +118,8 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 	writer_agent_state = {
 		"messages": state["initialPrompt"],
 		"unsolvedTasks": list(unsolvedTasksWriter),
-		"completedTasks": notion_agent_response["completedTasks"],
+		"completedTasks": [],
+		#"completedTasks": notion_agent_response["completedTasks"],
 		"visitedBlocks": notion_agent_response["visitedBlocks"],
 		"blockTree": notion_agent_response["blockTree"],
 		"toolResults": [],

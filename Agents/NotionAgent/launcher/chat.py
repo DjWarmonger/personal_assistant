@@ -1,8 +1,17 @@
 from langchain_community.chat_message_histories import ChatMessageHistory
 
 from tz_common.logs import log
-from ..Agent.plannerGraph import planner_runnable
-from ..Agent.graph import notion_agent, langfuse_handler
+from tz_common.langchain_wrappers import add_timestamp
+
+import sys
+from pathlib import Path
+
+project_root = Path(__file__).parent.parent.parent.absolute()
+if str(project_root) not in sys.path:
+	sys.path.insert(0, str(project_root))
+
+from Agent.plannerGraph import planner_runnable
+from Agent.graph import notion_agent, langfuse_handler
 
 
 def chat(loop = True, user_prompt = "") -> str:
@@ -29,6 +38,7 @@ def chat(loop = True, user_prompt = "") -> str:
 			continue
 
 		history.add_user_message(user_input)
+		add_timestamp(history.messages[-1])
 
 		# FIXME: Langfuse cannot handle dicts
 
