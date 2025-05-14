@@ -6,6 +6,7 @@ from .langfuse import create_langfuse_handler
 # TODO: Separate package for converters
 from .yaml import YamlConverter
 from .json import JsonConverter
+from .uuid import CustomUUID
 
 # Conditionally import TZRag if dependencies are available
 try:
