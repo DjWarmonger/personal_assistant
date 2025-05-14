@@ -2,7 +2,7 @@
 
 ## Implementation Checklist
 
-When implementing new features:
+When implementing new Agent tools and features:
 
 1. **State Changes**
    - [ ] State classes are pure data containers

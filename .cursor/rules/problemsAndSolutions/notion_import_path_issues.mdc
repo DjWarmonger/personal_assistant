@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
 # NotionAgent Module Creation Notes
 
 ## Import Path Issues - Fix Summary
@@ -41,3 +46,4 @@ Tests now run successfully with minimal changes:
 - Proceed cautiously with incremental changes
 - __init__.py files can be adjusted as needed for import paths
 - When dependencies cause issues, tackle them at the source
+

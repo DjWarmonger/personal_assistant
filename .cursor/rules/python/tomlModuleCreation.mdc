@@ -1,0 +1,65 @@
+---
+description: 
+globs: *.toml
+alwaysApply: false
+---
+This article describes recommended and desired way to organize python subprojects
+
+# Problems and requirements
+
+- Allow to keep python files organized in nested folder structure
+- Ensure that project can be laucnhed from any path - root or external
+- Ensure that tests can be easily launched
+- Eliminate issues coming from incorrect working directory or folder navigation
+- Reduce the need of manual reorganizing and updating imports as project evolves
+
+# Solution: toml modules for every python subproject
+
+## Folder structure
+
+myproject/                 # repository root  (any name on disk)
+├─ pyproject.toml          # build + tool config
+├─ src/                    # ← *all importable code lives only here*
+│   └─ myproject/          # top-level **package** (matches import name)
+│       ├─ __init__.py
+│       ├─ main.py
+│       └─ utils/
+│           ├─ __init__.py
+│           └─ helpers.py
+└─ tests/                  # ordinary tests, data, docs, …
+    └─ test_helpers.py
+
+## How to initialize
+
+* Inside a virtualenv/conda env run once:
+```bash
+python -m pip install -e .
+```
+pip drops an egg-link to src/, so import myproject … works no matter where you later launch Python or pytest. No need to touch PYTHONPATH.
+
+* Keep every directory you want to import … as a real package (has __init__.py).
+Use absolute package imports inside the tree:
+
+## Run code as a module, not as a file
+
+```bash
+python -m myproject.main         # good
+python src/myproject/main.py     # bad – changes import semantics
+```
+
+Or expose a CLI in pyproject.toml:
+
+```toml
+[project]
+name = "myproject"
+version = "0.1.0"
+dependencies = []
+[project.scripts]
+mycli = "myproject.main:cli"     # `mycli` is now on PATH after `pip install -e .`
+```
+
+# Testing workflow
+
+- Put tests outside src/ (pytest default).
+- Never reach into package internals via relative paths; just import myproject.
+- If tests need data files, access them with importlib.resources.files("myproject") / "data.json" – path-safe even when the project is later packaged.

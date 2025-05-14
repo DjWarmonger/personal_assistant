@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
 # NotionAgent Restructuring
 
 ## Issue: Disorganized code structure hindering development
@@ -24,15 +29,7 @@
 
 ## Prevention: Standardized project structure
 
-* Follow standardized project structure across all agents:
-```
-Agents/AgentName/
-├── Agent/                     # Core agent functionality
-├── operations/                # Domain-specific operations
-├── launcher/                  # Application entry points
-├── tests/                     # Test suite
-└── resources/                 # Resource files
-```
+* Follow standardized project structure across all agents, as described in [projectStructure.mdc](mdc:.cursor/rules/agents/projectStructure.mdc)
 
 * Use proper relative imports with clear paths
 * Create comprehensive documentation in each agent folder:
@@ -41,5 +38,6 @@ Agents/AgentName/
   - TODO.md: Current priorities
   - ALREADY_DONE.md: Completed features
 
-* When moving files, ensure all imports are updated properly and test thoroughly
+* When moving files, ensure all imports are updated properly
+* Run unit tests to validate changes in imports and paths
 * Use Python's package system properly with `__init__.py` files in each directory 
