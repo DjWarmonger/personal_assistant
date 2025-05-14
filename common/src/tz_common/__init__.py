@@ -7,6 +7,12 @@ from .langfuse import create_langfuse_handler
 from .yaml import YamlConverter
 from .json import JsonConverter
 
+# Conditionally import TZRag if dependencies are available
+try:
+	from .tzrag import TZRag
+except ImportError:
+	log.debug("TZRag not available - missing dependencies")
+
 # Base classes or tools that solve common problems automagically
 from .timed_storage import TimedStorage
 from .urlIndex import UrlIndex
@@ -15,7 +21,8 @@ from .urlIndex import UrlIndex
 # TODO: Separate package for data structures
 from .feedItem import FeedItem, FeedItemFactory
 
-# Ensure the langchain_wrappers subpackage is imported using absolute style
-import tz_common.langchain_wrappers
-import tz_common.tasks
-import tz_common.actions
+# Import subpackages
+# Using relative imports here to avoid circular references
+from . import langchain_wrappers
+from . import tasks
+from . import actions

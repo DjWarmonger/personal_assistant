@@ -1,9 +1,3 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
-setup(
-	name="tz-common",
-	version="0.9",
-	author="Tomasz Zieliński",
-	description="Utilities for agentic projects",
-	packages=find_packages(),
-)
+setup()

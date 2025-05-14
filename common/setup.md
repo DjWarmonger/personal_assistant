@@ -1,10 +1,47 @@
-`conda activate services`
+# tz_common Setup
 
-`pip install pillow`
+## Environment Requirements
 
-`pip install langfuse lightrag`
+This package must be used with the `services` conda environment:
 
-`pip install -e .`
+```bash
+conda activate services
+```
+
+## Installation
+
+Install the package in development mode:
+
+```bash
+cd common
+pip install -e .
+```
+
+## Dependencies
+
+Some modules have dependencies on local packages:
+
+- `tzrag.py` depends on the LightRAG package, which should be installed from:
+  ```bash
+  cd F:\AI\LightRAG
+  pip install -e .
+  ```
+
+## Testing
+
+Run tests with:
+
+```bash
+# Activate the correct environment
+conda activate services
+
+# Run all tests
+cd common
+python -m unittest discover
+
+# Run specific test
+python -m unittest tests/test_imports.py
+```
 
 ### Here's what actually worked:
 
