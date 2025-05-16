@@ -1,0 +1,52 @@
+---
+description: 
+globs: *.mdc
+alwaysApply: false
+---
+# Cursor Rules Location
+
+Rules for placing and organizing Cursor rule files in the repository.
+
+* Always place rule files in PROJECT_ROOT/.cursor/rules/:
+```
+.cursor/rules/
+├── your-rule-name.mdc
+├── another-rule.mdc
+└── ...
+```
+
+* Follow the naming convention:
+         - Use camel-case for filenames
+         - Always use .mdc extension
+         - Make names descriptive of the rule's purpose
+
+* Follow directory structure for language- or project-specific rules
+```
+PROJECT_ROOT/
+├───.cursor
+│   └───rules
+│       ├───agents
+│       │   ├───agent1
+│       │   └───anotherAgent
+│       ├───common
+│       ├───problemsAndSolutions
+│       ├───python
+│       └───C++
+         └── ...
+```
+General and meta-rules are stored in main .cursor/rules folder
+
+* Never place rule files:
+    - In the project root
+    - In subdirectories outside .cursor/rules
+    - In any other location
+
+## Examples:
+
+* Bad: Rule file in wrong location
+    rules/my-rule.mdc
+my-rule.mdc
+    .rules/my-rule.mdc
+
+* Good: Rule file in correct location
+    .cursor/rules/my-rule.mdc
