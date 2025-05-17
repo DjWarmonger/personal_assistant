@@ -148,7 +148,7 @@ class ChangeFavourties(ContextAwareTool):
 
 
 	async def _run(self, context: AgentState, urlOrUuid: str, add: bool, title: str = "", **kwargs: Any) -> tuple[AgentState, str]:
-		notion_id = await client.index.add_notion_url_or_uuid_to_favourites(urlOrUuid, add, title)
+		notion_id = client.index.add_notion_url_or_uuid_to_favourites(urlOrUuid, add, title)
 		result = f"Added {urlOrUuid} to favourites with id {notion_id}"
 		return context, result
 

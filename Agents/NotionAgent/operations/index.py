@@ -50,6 +50,35 @@ class Index(TimedStorage):
 			self.start_periodic_save()
 
 
+	def _resolve_to_uuid(self, identifier: Union[str, int, CustomUUID]) -> Optional[CustomUUID]:
+		if isinstance(identifier, CustomUUID):
+			return identifier
+		elif isinstance(identifier, int):
+			return self.get_uuid(identifier) 
+		elif isinstance(identifier, str):
+			if self.validate_notion_url(identifier):
+				try:
+					return self.url_to_uuid(identifier)
+				except ValueError:
+					log.warn(f"Could not parse UUID from valid Notion URL: {identifier}")
+					return None
+			else:
+				# Try to interpret as a direct UUID string
+				try:
+					return CustomUUID(value=identifier)
+				except ValueError:
+					# If it's not a valid UUID string, try to see if it's an integer string
+					try:
+						int_id = int(identifier)
+						return self.get_uuid(int_id)
+					except ValueError:
+						log.warn(f"Identifier '{identifier}' is not a valid URL, UUID, or integer ID.")
+						return None
+		else:
+			log.error(f"Invalid type for identifier: {type(identifier)}. Expected str, int, or CustomUUID.")
+			return None
+
+
 	def _tables_exist(self):
 		"""Check if required tables already exist"""
 		try:
@@ -145,6 +174,9 @@ class Index(TimedStorage):
 				message = f"{'Added to' if add else 'Removed from'} favourites : {uuid_str}"
 
 			elif isinstance(uuid, list):
+				# Ensure all elements in the list are CustomUUID
+				if not all(isinstance(u, CustomUUID) for u in uuid):
+					raise ValueError("All items in the list must be CustomUUID objects for set_favourite.")
 				uuid_strs = [str(u) for u in uuid]
 				if add:
 					self.cursor.executemany('INSERT OR REPLACE INTO favourites (uuid) VALUES (?)', [(u,) for u in uuid_strs])
@@ -153,7 +185,7 @@ class Index(TimedStorage):
 
 				message = f"{'Added to' if add else 'Removed from'} favourites : {', '.join(uuid_strs)}"
 			else:
-				raise ValueError(f"Invalid type for set_favourite: {type(uuid)}")
+				raise ValueError(f"Invalid type for set_favourite: {type(uuid)}. Expected CustomUUID or List[CustomUUID].")
 
 			self.db_conn.commit()
 			self.set_dirty()
@@ -165,22 +197,19 @@ class Index(TimedStorage):
 	def set_favourite_int(self, id: Union[int, List[int]], add: bool) -> str:
 		with self.db_lock:
 			if isinstance(id, int):
-				uuids = self.get_uuid(id)
-				if uuids is None: # Handle case where single id doesn't return a UUID
-					uuids = []
-				else:
-					uuids = [uuids]
+				custom_uuid = self.get_uuid(id)
+				uuids_to_process = [custom_uuid] if custom_uuid else []
 			elif isinstance(id, list):
-				uuids = [self.get_uuid(i) for i in id]
+				uuids_to_process = [self.get_uuid(i) for i in id]
 			else:
-				raise ValueError(f"Invalid type for set_favourite_int: {type(id)}")
+				raise ValueError(f"Invalid type for set_favourite_int: {type(id)}. Expected int or List[int].")
 				
 		# Remove None values from the list of UUIDs
-		uuids = [uuid_obj for uuid_obj in uuids if uuid_obj is not None]
-		if not uuids:
-			return "None of the provided ids were found in the index"
+		valid_uuids = [uuid_obj for uuid_obj in uuids_to_process if uuid_obj is not None]
+		if not valid_uuids:
+			return "None of the provided ids were found in the index or they did not resolve to valid UUIDs."
 
-		return self.set_favourite(uuids, add)
+		return self.set_favourite(valid_uuids, add)
 
 
 	def validate_notion_url(self, notion_url: str) -> bool:
@@ -199,13 +228,13 @@ class Index(TimedStorage):
 			raise ValueError("No UUID found in URL")
 		
 		uuid_str = match.group(0)
-		try:
-			return CustomUUID(value=uuid_str)
-		except ValueError:
-			raise ValueError("Invalid UUID format")
+		# CustomUUID constructor handles validation
+		return CustomUUID(value=uuid_str)
 
 
 	def add_uuid(self, uuid: CustomUUID, name: str = "") -> int:
+		if not isinstance(uuid, CustomUUID):
+			raise TypeError(f"Expected CustomUUID, got {type(uuid)}")
 		uuid_str = str(uuid)
 
 		# First check if UUID exists
@@ -262,6 +291,8 @@ class Index(TimedStorage):
 		"""
 		Increase visit count for a page
 		"""
+		if not isinstance(uuid, CustomUUID):
+			raise TypeError(f"Expected CustomUUID, got {type(uuid)}")
 		uuid_str = str(uuid)
 		with self.db_lock:
 			self.cursor.execute('''
@@ -277,6 +308,8 @@ class Index(TimedStorage):
 		"""
 		Increase visit count for a page
 		"""
+		if not isinstance(int_id, int):
+			raise TypeError(f"Expected int, got {type(int_id)}")
 		with self.db_lock:
 			self.cursor.execute('''
 				UPDATE index_data
@@ -288,52 +321,43 @@ class Index(TimedStorage):
 
 
 	def to_uuid(self, id_val: Union[int, str, CustomUUID]) -> Optional[CustomUUID]:
-		if isinstance(id_val, int):
-			return self.get_uuid(id_val)
-		elif isinstance(id_val, str):
-			try:
-				# Try to convert string to int first, if it's a numerical string representation of an int_id
-				int_id = int(id_val)
-				return self.get_uuid(int_id)
-			except ValueError:
-				# If not an int, assume it's a UUID string
-				try:
-					return CustomUUID(value=id_val)
-				except ValueError:
-					log.error(f"Invalid uuid string: {id_val}")
-					# Or, depending on desired behavior, return None or raise the ValueError
-					# For now, let's return None for invalid UUID strings to avoid crashing
-					return None 
-		elif isinstance(id_val, CustomUUID):
-			return id_val
-		else:
-			raise TypeError(f"Invalid type for conversion to uuid: {type(id_val)}")
+		return self._resolve_to_uuid(id_val)
 
 
-	def add_notion_url_or_uuid_to_index(self, url_or_uuid: str, title: str = "") -> int:
-		if self.validate_notion_url(url_or_uuid):
-			uuid_obj = self.url_to_uuid(url_or_uuid)
-		else:
-			try:
-				uuid_obj = CustomUUID(value=url_or_uuid)
-			except ValueError:
-				raise ValueError(f"Invalid Notion UUID string: {url_or_uuid}")
+	def add_notion_url_or_uuid_to_index(self, url_or_uuid: Union[str, CustomUUID], title: str = "") -> int:
+		uuid_obj = self._resolve_to_uuid(url_or_uuid)
+		if not uuid_obj:
+			raise ValueError(f"Invalid Notion URL or UUID string: {url_or_uuid}")
 
-		# TODO: Determine item type from url?
 		return self.add_uuid(uuid_obj, name=title)
 
 
-	def add_notion_url_or_uuid_to_favourites(self, url_or_uuid: str, set_fav: bool = True, title: str = "") -> int:
-		notion_id = self.add_notion_url_or_uuid_to_index(url_or_uuid, title=title)
-		uuid_obj = self.get_uuid(notion_id)
-		if uuid_obj:
-			self.set_favourite(uuid_obj, set_fav)
+	def add_notion_url_or_uuid_to_favourites(self, url_or_uuid: Union[str, int, CustomUUID], set_fav: bool = True, title: str = "") -> int:
+		uuid_obj = self._resolve_to_uuid(url_or_uuid)
+
+		if not uuid_obj:
+			# If url_or_uuid was an int and not found, get_uuid would return None.
+			# If it was a string that couldn't be resolved, _resolve_to_uuid returns None.
+			log.warn(f"Could not resolve '{url_or_uuid}' to a valid UUID. Cannot add to favourites.")
+			# Depending on desired behavior, we might raise an error or return a specific value.
+			# For now, let's indicate failure by returning a conventional error value like -1 or raising.
+			# Given the function signature returns int (presumably notion_id), raising might be better.
+			raise ValueError(f"Could not resolve '{url_or_uuid}' to a valid UUID.")
+
+		# Add to index first (or get existing int_id)
+		# title is only used if the uuid is new to the index
+		notion_id = self.add_uuid(uuid_obj, name=title) 
+
+		# Now that we have the CustomUUID object (uuid_obj), set it as favourite
+		self.set_favourite(uuid_obj, set_fav)
 		return notion_id
 
 
 	def to_int(self, uuid: Union[CustomUUID, List[CustomUUID]]) -> Union[Optional[int], Dict[CustomUUID, Optional[int]]]:
+
+		
 		with self.db_lock:
-			if isinstance(uuid, CustomUUID):
+			if isinstance(uuid, CustomUUID) or isinstance(uuid, str):
 				uuid_str = str(uuid)
 				self.cursor.execute('SELECT int_id FROM index_data WHERE uuid = ?', (uuid_str,))
 				result = self.cursor.fetchone()
@@ -346,10 +370,12 @@ class Index(TimedStorage):
 				rows = self.cursor.fetchall()
 				return {CustomUUID(value=row[0]): row[1] for row in rows}
 			else:
-				raise ValueError(f"Invalid type for to_int: {type(uuid)}")
+				raise ValueError(f"Invalid type for to_int: {type(uuid)}. Expected CustomUUID or List[CustomUUID].")
 
 
 	def get_uuid(self, int_id: int) -> Optional[CustomUUID]:
+		if not isinstance(int_id, int):
+			raise TypeError(f"Expected int, got {type(int_id)}")
 		with self.db_lock:
 			self.cursor.execute('SELECT uuid FROM index_data WHERE int_id = ?', (int_id,))
 			result = self.cursor.fetchone()
@@ -357,6 +383,8 @@ class Index(TimedStorage):
 
 
 	def get_visit_count(self, int_id: int) -> int:
+		if not isinstance(int_id, int):
+			raise TypeError(f"Expected int, got {type(int_id)}")
 		with self.db_lock:
 			self.cursor.execute('SELECT visit_count FROM index_data WHERE int_id = ?', (int_id,))
 			result = self.cursor.fetchone()
@@ -364,6 +392,10 @@ class Index(TimedStorage):
 
 
 	def set_name(self, int_id: int, name: str):
+		if not isinstance(int_id, int):
+			raise TypeError(f"Expected int, got {type(int_id)}")
+		if not isinstance(name, str):
+			raise TypeError(f"Expected str for name, got {type(name)}")
 		with self.db_lock:
 			self.cursor.execute('UPDATE index_data SET name = ? WHERE int_id = ?', (name, int_id))
 			self.db_conn.commit()
@@ -371,6 +403,8 @@ class Index(TimedStorage):
 
 
 	def get_name(self, int_id: int) -> str:
+		if not isinstance(int_id, int):
+			raise TypeError(f"Expected int, got {type(int_id)}")
 		with self.db_lock:
 			self.cursor.execute('SELECT name FROM index_data WHERE int_id = ?', (int_id,))
 			result = self.cursor.fetchone()
@@ -378,6 +412,8 @@ class Index(TimedStorage):
 
 
 	def get_names(self, int_ids: List[int]) -> Dict[int, str]:
+		if not isinstance(int_ids, list) or not all(isinstance(i, int) for i in int_ids):
+			raise TypeError(f"Expected List[int], got {type(int_ids)}")
 		with self.db_lock:
 			placeholders = ','.join('?' for _ in int_ids)
 			query = f"SELECT int_id, name FROM index_data WHERE int_id IN ({placeholders})"
@@ -387,6 +423,8 @@ class Index(TimedStorage):
 
 
 	def delete_uuid(self, uuid: CustomUUID) -> int:
+		if not isinstance(uuid, CustomUUID):
+			raise TypeError(f"Expected CustomUUID, got {type(uuid)}")
 		uuid_str = str(uuid)
 		with self.db_lock:
 			self.cursor.execute('DELETE FROM index_data WHERE uuid = ?', (uuid_str,))
