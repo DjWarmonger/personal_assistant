@@ -50,7 +50,7 @@ class Index(TimedStorage):
 			self.start_periodic_save()
 
 
-	def _resolve_to_uuid(self, identifier: Union[str, int, CustomUUID]) -> Optional[CustomUUID]:
+	def resolve_to_uuid(self, identifier: Union[str, int, CustomUUID]) -> Optional[CustomUUID]:
 		if isinstance(identifier, CustomUUID):
 			return identifier
 		elif isinstance(identifier, int):
@@ -60,7 +60,7 @@ class Index(TimedStorage):
 				try:
 					return self.url_to_uuid(identifier)
 				except ValueError:
-					log.warn(f"Could not parse UUID from valid Notion URL: {identifier}")
+					log.error(f"Could not parse UUID from valid Notion URL: {identifier}")
 					return None
 			else:
 				# Try to interpret as a direct UUID string
@@ -72,11 +72,18 @@ class Index(TimedStorage):
 						int_id = int(identifier)
 						return self.get_uuid(int_id)
 					except ValueError:
-						log.warn(f"Identifier '{identifier}' is not a valid URL, UUID, or integer ID.")
+						# FIXME: Explain that this logger doesn't have "warn" level
+						log.error(f"Identifier '{identifier}' is not a valid URL, UUID, or integer ID.")
 						return None
 		else:
 			log.error(f"Invalid type for identifier: {type(identifier)}. Expected str, int, or CustomUUID.")
 			return None
+		
+	def resolve_to_int(self, identifier: Union[str, int, CustomUUID]) -> Optional[int]:
+		uuid = self.resolve_to_uuid(identifier)
+		if not uuid:
+			return None
+		return self.to_int(uuid)
 
 
 	def _tables_exist(self):
@@ -321,11 +328,11 @@ class Index(TimedStorage):
 
 
 	def to_uuid(self, id_val: Union[int, str, CustomUUID]) -> Optional[CustomUUID]:
-		return self._resolve_to_uuid(id_val)
+		return self.resolve_to_uuid(id_val)
 
 
 	def add_notion_url_or_uuid_to_index(self, url_or_uuid: Union[str, CustomUUID], title: str = "") -> int:
-		uuid_obj = self._resolve_to_uuid(url_or_uuid)
+		uuid_obj = self.resolve_to_uuid(url_or_uuid)
 		if not uuid_obj:
 			raise ValueError(f"Invalid Notion URL or UUID string: {url_or_uuid}")
 
@@ -333,11 +340,11 @@ class Index(TimedStorage):
 
 
 	def add_notion_url_or_uuid_to_favourites(self, url_or_uuid: Union[str, int, CustomUUID], set_fav: bool = True, title: str = "") -> int:
-		uuid_obj = self._resolve_to_uuid(url_or_uuid)
+		uuid_obj = self.resolve_to_uuid(url_or_uuid)
 
 		if not uuid_obj:
 			# If url_or_uuid was an int and not found, get_uuid would return None.
-			# If it was a string that couldn't be resolved, _resolve_to_uuid returns None.
+			# If it was a string that couldn't be resolved, resolve_to_uuid returns None.
 			log.warn(f"Could not resolve '{url_or_uuid}' to a valid UUID. Cannot add to favourites.")
 			# Depending on desired behavior, we might raise an error or return a specific value.
 			# For now, let's indicate failure by returning a conventional error value like -1 or raising.
