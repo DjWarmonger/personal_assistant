@@ -65,16 +65,6 @@ class NotionClient:
 
 	async def get_notion_page_details(self, page_id: Optional[Union[str, CustomUUID]] = None, database_id: Optional[Union[str, CustomUUID]] = None):
 
-		""" FIXME:
-		Getting details of Notion page... 1
-		Returning existing UUID 1029efeb6676804488d6c61da2eb04b9 from index
-		Returning existing UUID c08ae2d4dc4d4ef2b0cfeb6c2c22c605 from index
-		Item page:1029efeb6676804488d6c61da2eb04b9 not found in cache
-		Item page:1029efeb6676804488d6c61da2eb04b9 not found in cache
-
-		# FIXME: Pages are not cached, do not attempt to retrieve item with page: prefix
-		"""
-
 		current_page_id: Optional[CustomUUID] = None
 		current_database_id: Optional[CustomUUID] = None
 
@@ -207,7 +197,7 @@ class NotionClient:
 			# formatted_uuid expects string or int, to_uuid returns CustomUUID or None
 			sc_uuid_obj = self.index.to_uuid(start_cursor)
 			if sc_uuid_obj:
-				sc_formatted_uuid = self.formatted_uuid(sc_uuid_obj) # Pass CustomUUID here
+				sc_formatted_uuid = sc_uuid_obj.to_formatted() # Pass CustomUUID here
 				url += f"&start_cursor={sc_formatted_uuid}"
 				current_cache_key_str = sc_formatted_uuid # Update cache key if start_cursor is used
 			else:
@@ -344,7 +334,8 @@ class NotionClient:
 				"property": "object"
 			}
 		if start_cursor is not None:
-			payload["start_cursor"] = self.formatted_uuid(start_cursor) # formatted_uuid handles CustomUUID or str
+			custom_uuid_obj = self.index.to_uuid(start_cursor)
+			payload["start_cursor"] = custom_uuid_obj.to_formatted() if custom_uuid_obj else None
 
 
 		cache_entry = self.cache.get_search_results(query, filter_type, str(start_cursor) if start_cursor else None)
@@ -370,6 +361,8 @@ class NotionClient:
 
 			# TODO: Make sure children are actually blocks
 			# TODO: Handle pages or maybe db if they are not blocks
+
+			# TODO: Check if parent type set by AI is actually correct (was BLOCK)
 			self.cache.add_parent_children_relationships(
 				cache_key,
 				block_ids,
@@ -414,7 +407,8 @@ class NotionClient:
 		if filter:
 			payload["filter"] = filter
 		if start_cursor is not None:
-			payload["start_cursor"] = self.formatted_uuid(start_cursor) # formatted_uuid handles CustomUUID or str
+			custom_uuid_obj = self.index.to_uuid(start_cursor)
+			payload["start_cursor"] = custom_uuid_obj.to_formatted() if custom_uuid_obj else None
 
 		cache_entry = self.cache.get_database_query_results(db_id_str, filter, str(start_cursor) if start_cursor else None)
 		if cache_entry is not None:
@@ -592,13 +586,6 @@ class NotionClient:
 			del message["request_id"]
 
 		return message
-
-
-	def formatted_uuid(self, uuid_input: Union[str, int, CustomUUID]) -> Optional[str]:
-		custom_uuid_obj = self.index.to_uuid(uuid_input) # to_uuid can handle str, int, or CustomUUID
-		if custom_uuid_obj:
-			return custom_uuid_obj.to_formatted()
-		return None
 
 
 
