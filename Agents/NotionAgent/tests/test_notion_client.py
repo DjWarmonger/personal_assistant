@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from operations.notion_client import NotionClient
 from operations.asyncClientManager import AsyncClientManager
 from operations.blockTree import BlockTree
+from tz_common import CustomUUID
 
 load_dotenv()
 
@@ -32,7 +33,7 @@ async def test_navigate_to_notion_page(notion_client):
 
 	assert result["object"] == "page"
 	assert "id" in result
-	assert notion_client.index.to_uuid(result["id"]) == notion_client.index.converter.clean_uuid(page_id)
+	assert notion_client.index.to_uuid(result["id"]) == CustomUUID.from_string(page_id)
 	assert "properties" in result
 
 @pytest.mark.asyncio
@@ -43,14 +44,23 @@ async def test_navigate_to_database(notion_client):
 
 	assert result["object"] == "database"
 	assert "id" in result
-	assert notion_client.index.to_uuid(result["id"]) == notion_client.index.converter.clean_uuid(database_id)
+	assert notion_client.index.to_uuid(result["id"]) == CustomUUID.from_string(database_id)
 	assert "properties" in result
 
 @pytest.mark.asyncio
 async def test_navigate_to_notion_page_negative(notion_client):
-	page_id = "invalid-page-id"
+	page_id = "11111111-1111-1111-1111-111111111111" # Valid format, but non-existent
 	result = await notion_client.get_notion_page_details(page_id=page_id)
-	assert "status" not in result
+	
+	assert isinstance(result, dict)
+	# After clean_error_message, "object" key should be removed or its value None
+	assert result.get("object") is None 
+	assert "status" in result
+	# Allow for 404 or 400 as Notion might return different codes for "not found" vs "bad request"
+	# depending on how it interprets a correctly formatted but non-existent ID
+	assert result["status"] in [404, 400] 
+	assert "code" in result 
+	assert "message" in result
 
 @pytest.mark.asyncio
 async def test_search_notion(notion_client):
