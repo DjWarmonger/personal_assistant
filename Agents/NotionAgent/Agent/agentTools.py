@@ -5,7 +5,7 @@ from langfuse.decorators import observe
 from operations.notion_client import NotionClient
 from tz_common import log, JsonConverter
 from tz_common.tasks import AgentTask, AgentTaskList
-from tz_common.langchain_wrappers import ContextAwareTool, AgentState, AddTaskTool, CompleteTaskTool
+from tz_common.langchain_wrappers import ContextAwareTool, AgentState, AddTaskTool, CompleteTaskTool, CompleteTaskWithDataTool
 
 client = NotionClient()
 json_converter = JsonConverter()
@@ -214,7 +214,7 @@ agent_tools = [
 planner_tools = [AddTaskTool()] + agent_tools
 
 # TODO: Allow writer to give feedback or request clarification
-writer_tools = [CompleteTaskTool()]
+writer_tools = [CompleteTaskWithDataTool()]
 
 
 planner_tool_executor = ToolExecutor(planner_tools)
