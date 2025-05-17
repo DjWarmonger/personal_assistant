@@ -1,6 +1,6 @@
 ---
 description: 
-globs: *.py
+globs: common/**/*.py
 alwaysApply: false
 ---
 [overview.mdc](mdc:common/.cursor/rules/overview.mdc)
