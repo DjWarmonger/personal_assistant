@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from tz_common import CustomUUID
 
 class Utils:
 
@@ -23,3 +24,13 @@ class Utils:
 		formatted_id = url.replace(base_url, "")
 		
 		return formatted_id
+	
+	
+	@staticmethod
+	def strip_cache_prefix(prefixed_uuid: str) -> CustomUUID:
+		"""Strip prefix from cache prefixed UUID and return a CustomUUID object"""
+		if ":" not in prefixed_uuid:
+			raise ValueError(f"No prefix found in UUID: {prefixed_uuid}")
+		
+		prefix, uuid = prefixed_uuid.split(":", 1)
+		return CustomUUID(value=uuid)

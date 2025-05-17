@@ -1,8 +1,9 @@
 from dotenv import load_dotenv
 import os
 import asyncio
-from typing import Optional
+from typing import Optional, Union
 
+from tz_common import CustomUUID
 from .asyncClientManager import AsyncClientManager
 from .index import Index
 from .urlIndex import UrlIndex
@@ -32,7 +33,13 @@ class NotionClient:
 				 landing_page_id=NOTION_LANDING_PAGE_ID,
 				 load_from_disk=True,
 				 run_on_start=True):
-		self.landing_page_id = landing_page_id
+		
+		raw_landing_page_id = landing_page_id
+		if raw_landing_page_id:
+			self.landing_page_id = CustomUUID.from_string(raw_landing_page_id)
+		else:
+			self.landing_page_id = None # Or raise an error if it's mandatory
+		
 		self.notion_token = notion_token
 
 		self.index = Index(load_from_disk=load_from_disk, run_on_start=run_on_start)
@@ -56,7 +63,7 @@ class NotionClient:
 		pass
 
 
-	async def get_notion_page_details(self, page_id=None, database_id=None):
+	async def get_notion_page_details(self, page_id: Optional[Union[str, CustomUUID]] = None, database_id: Optional[Union[str, CustomUUID]] = None):
 
 		""" FIXME:
 		Getting details of Notion page... 1
@@ -68,25 +75,29 @@ class NotionClient:
 		# FIXME: Pages are not cached, do not attempt to retrieve item with page: prefix
 		"""
 
+		current_page_id: Optional[CustomUUID] = None
+		current_database_id: Optional[CustomUUID] = None
+
 		if page_id is None and database_id is None:
-			page_id = self.landing_page_id
+			current_page_id = self.landing_page_id
+		elif page_id is not None:
+			current_page_id = self.index.to_uuid(page_id) # to_uuid handles str or CustomUUID
+		elif database_id is not None:
+			current_database_id = self.index.to_uuid(database_id)
 
 		try:
-			if page_id is not None:
-				page_id = self.index.to_uuid(page_id)
+			if current_page_id is not None:
 				# Example: check cache, etc.
+				pass 
 
-			if database_id is not None:
-				database_id = self.index.to_uuid(database_id)
-				cache_entry = self.cache.get_database(database_id)
+			if current_database_id is not None:
+				cache_entry = self.cache.get_database(str(current_database_id))
 				if cache_entry is not None:
 					return cache_entry
 
-			url = (
-				f"https://api.notion.com/v1/pages/{page_id}"
-				if page_id is not None
-				else f"https://api.notion.com/v1/databases/{database_id}"
-			)
+			url_segment = str(current_page_id) if current_page_id else str(current_database_id)
+			url_type = "pages" if current_page_id else "databases"
+			url = f"https://api.notion.com/v1/{url_type}/{url_segment}"
 
 			# Rate limiting + shared client usage
 			await AsyncClientManager.wait_for_next_request()
@@ -97,19 +108,25 @@ class NotionClient:
 				log.error(response.status_code)
 				return self.clean_error_message(response.json())
 			else:
-				data = self.convert_message(response.json(), clean_timestamps=False)
+				raw_data = response.json() # Get raw data first
+				original_response_id_str = raw_data.get("id") # Extract original ID string
 
-				uuid = self.index.to_uuid(data["id"])
-				# FIXME: Why there is no last_edited_time in unit test?
-				# FIXME: Does this happen with real pages?
-				last_edited_time = data["last_edited_time"] if "last_edited_time" in data else None
-				if uuid is not None:
-					if last_edited_time is not None:
-						self.cache.invalidate_page_if_expired(uuid, Utils.convert_date_to_timestamp(last_edited_time))
-					self.index.visit_uuid(uuid)
+				# Now convert the message for general processing (this will convert 'id' to int)
+				data = self.convert_message(raw_data, clean_timestamps=False)
+				
+				# Use the original_response_id_str for operations needing CustomUUID
+				if original_response_id_str:
+					try:
+						response_uuid = CustomUUID.from_string(original_response_id_str)
+						last_edited_time = raw_data.get("last_edited_time") # Get last_edited_time from raw_data too
+						if last_edited_time is not None:
+							self.cache.invalidate_page_if_expired(str(response_uuid), Utils.convert_date_to_timestamp(last_edited_time))
+						self.index.visit_uuid(response_uuid)
+					except ValueError as ve:
+						log.error(f"Failed to convert original id {original_response_id_str} to CustomUUID: {ve}")
 
-				data = self.clean_timestamps(data)
-
+				# Clean timestamps on the already partially converted 'data'
+				data = self.clean_timestamps(data) 
 				return data
 
 		except ValueError as e:
@@ -117,77 +134,99 @@ class NotionClient:
 			return str(e)
 		
 
-	async def get_block_children(self, uuid: str, block_tree: Optional[BlockTree] = None) -> dict:
+	async def get_block_children(self, uuid: Union[str, CustomUUID], block_tree: Optional[BlockTree] = None) -> dict:
 		"""
 		This should be called only if we know that children have been already fetched.
 		"""
+		parent_uuid_obj = self.index.to_uuid(uuid)
+		if not parent_uuid_obj:
+			log.error(f"Could not convert {uuid} to CustomUUID in get_block_children")
+			return {}
+		
 		if block_tree is None:
 			log.error("block_tree is None in get_block_children")
-		#log.debug(f"get_block_children called with uuid: {uuid} (type: {type(uuid).__name__})")
-		indexes = self.cache.get_children_uuids(uuid)
-		indexes =[self.index.to_int(index) for index in indexes]
 
-		# TODO: Handle case where children are paginated
+		# get_children_uuids returns List[CustomUUID]
+		children_custom_uuids = self.cache.get_children_uuids(str(parent_uuid_obj))
+		
+		# to_int now expects CustomUUID or List[CustomUUID]
+		# We need to handle the case where children_custom_uuids might be empty
+		children_int_ids_map = {} # Stores CustomUUID -> int representation
+		if children_custom_uuids:
+			# Assuming to_int called with a list returns a map {CustomUUID: int}
+			conversion_result = self.index.to_int(children_custom_uuids)
+			if isinstance(conversion_result, dict):
+				children_int_ids_map = conversion_result
+			else:
+				log.error(f"Expected dict from self.index.to_int for list, got {type(conversion_result)}")
 
-		async def get_children(index) -> tuple[int, dict]:
-			children = await self.get_block_content(index, block_tree=block_tree, get_children=False)
-			return index, children
+		# Convert map values (int ids) to a list for task creation
+		children_int_ids_list = list(children_int_ids_map.values())
 
-		tasks = {index: get_children(index) for index in indexes}
-		children = await asyncio.gather(*tasks.values())
-		children_dict = {index: child for index, child in children}
-		if block_tree is not None:
-			#log.debug(f"Adding parent-children relationship to blockTree for children of {uuid}")
-			child_ids = list(children_dict.keys())
-			converted_children = [self.index.to_uuid(child_id) for child_id in child_ids]
-			# Update the tree with parent-child relationships
-			block_tree.add_relationships(self.index.to_uuid(uuid), converted_children)
-		return children_dict
+		async def get_child_content_by_int_id(int_id: int) -> tuple[int, dict]:
+			child_content = await self.get_block_content(int_id, block_tree=block_tree, get_children=False)
+			return int_id, child_content
+
+		tasks = {int_id: get_child_content_by_int_id(int_id) for int_id in children_int_ids_list}
+		gathered_children_content = await asyncio.gather(*tasks.values())
+		
+		children_content_dict = {int_id: content for int_id, content in gathered_children_content}
+
+		if block_tree is not None and children_custom_uuids:
+			block_tree.add_relationships(parent_uuid_obj, children_custom_uuids)
+		
+		# The final dictionary should map int_id to content, as per original logic
+		return children_content_dict
 
 
 	async def get_block_content(self,
-							 block_id,
-							 get_children = False,
-							 start_cursor=None,
+							 block_id: Union[int, str, CustomUUID],
+							 get_children=False,
+							 start_cursor: Optional[Union[int, str, CustomUUID]] = None,
 							 block_tree: Optional[BlockTree] = None):
 		
 		if block_tree is None:
 			log.error("block_tree is None in get_block_content")
 
-		uuid = self.index.to_uuid(block_id)
-		if uuid is None:
+		uuid_obj = self.index.to_uuid(block_id)
+		if uuid_obj is None:
+			log.error(f"Could not convert block_id {block_id} to CustomUUID")
 			return None
 		
+		# cache_key should use the string representation of CustomUUID
+		current_cache_key_str = str(uuid_obj)
+		url_uuid_str = str(uuid_obj) # For the API URL
+
 		if block_tree is not None:
-			# Always mark root as visited
-			# TODO: What is we get exception before retrieving any results?
-			# FIXME: cached key with start_cursor should not have separate children from just cached uuid key
+			# block_tree methods now expect CustomUUID
+			# block_tree.add_parent(uuid_obj) # Potentially add here or after successful fetch
 			pass
-			# FIXME: Can add parent, but it gets not children relationships
-			#block_tree.add_parent(uuid)
 
-		cached = None
-		cache_key = None
-
-		url = f"https://api.notion.com/v1/blocks/{uuid}/children?page_size=20"
+		url = f"https://api.notion.com/v1/blocks/{url_uuid_str}/children?page_size=20"
 		if start_cursor is not None:
-			sc_uuid = self.formatted_uuid(start_cursor)
-			url += f"&start_cursor={sc_uuid}"
-			cache_key = sc_uuid
-		else:
-			cache_key = uuid
-
-		cached = self.cache.get_block(cache_key)
-
-		if cached is not None:
-			if not get_children:
-				block_tree.add_parent(cache_key)
-				return cached
+			# formatted_uuid expects string or int, to_uuid returns CustomUUID or None
+			sc_uuid_obj = self.index.to_uuid(start_cursor)
+			if sc_uuid_obj:
+				sc_formatted_uuid = self.formatted_uuid(sc_uuid_obj) # Pass CustomUUID here
+				url += f"&start_cursor={sc_formatted_uuid}"
+				current_cache_key_str = sc_formatted_uuid # Update cache key if start_cursor is used
 			else:
-				if self.cache.get_children_fetched_for_block(cache_key):
-					return await self.get_all_children_recursively(cache_key, block_tree)
-			# Proceed to retrieve this block AND its children
-		# If block is not cached, proceed as before.
+				log.error(f"Could not format start_cursor {start_cursor}")
+
+		cached_content = self.cache.get_block(current_cache_key_str) # get_block expects string
+
+		if cached_content is not None:
+			if not get_children:
+				if block_tree is not None:
+					# Ensure we add the correct CustomUUID object to the tree
+					key_for_tree = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
+					block_tree.add_parent(key_for_tree)
+				return cached_content
+			else:
+				if self.cache.get_children_fetched_for_block(current_cache_key_str):
+					# Ensure we pass the correct CustomUUID object for recursive call
+					key_for_recursion = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
+					return await self.get_all_children_recursively(key_for_recursion, block_tree)
 
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
@@ -197,121 +236,98 @@ class NotionClient:
 			log.error(response.status_code)
 			return self.clean_error_message(response.json())
 		else:
+			response_data_json = response.json()
 			if block_tree is not None:
-				block_tree.add_parent(cache_key)
+				key_for_tree_add = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
+				block_tree.add_parent(key_for_tree_add)
 
-			data = self.convert_message(response.json(),
+			data_after_conversion = self.convert_message(response_data_json,
 							   clean_type=False,
 							   clean_timestamps=False,
 							   convert_to_index_id=False)
 			
-			# TODO: Increase visit count
-
-			if "results" not in data:
-				log.error(f"No key 'results' when retrieving children for block {uuid}")
+			if "results" not in data_after_conversion:
+				log.error(f"No key 'results' when retrieving children for block {url_uuid_str}")
 			else:
-				for block in response.json()["results"]:
-					self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
+				for block_item in response_data_json.get("results", []):
+					block_item_id_str = block_item.get("id")
+					block_item_last_edited = block_item.get("last_edited_time")
+					if block_item_id_str and block_item_last_edited:
+						self.cache.invalidate_block_if_expired(block_item_id_str, block_item_last_edited)
 
-				children_uuids = [block["id"] for block in data["results"]]
+				children_id_strs = [item["id"] for item in data_after_conversion.get("results", [])]
 
-				# TODO: Batch add multiple blocks?
-				for uuid, content in zip(children_uuids, data["results"]):
-
-					# TODO: Save last_edited_time / timestamp in db?
-					content = self.convert_message(content)
-
-					self.cache.add_block(uuid, content)
-
-				# TODO: Make sure this enum works for db and page
+				for child_id_str, content_item in zip(children_id_strs, data_after_conversion.get("results", [])):
+					processed_content = self.convert_message(content_item)
+					self.cache.add_block(child_id_str, processed_content) # add_block expects string UUID
 
 				self.cache.add_parent_children_relationships(
-					cache_key,
-					children_uuids,
+					current_cache_key_str, # parent is identified by its cache key string
+					children_id_strs,    # children are list of string IDs from response
 					parent_type=ObjectType.BLOCK,
 					child_type=ObjectType.BLOCK)
 				
-				if children_uuids:
-					self.cache.add_children_fetched_for_block(cache_key)
+				if children_id_strs:
+					self.cache.add_children_fetched_for_block(current_cache_key_str)
 
-			# TODO: Update or delete children-parent relationships if content of block is modified
-
-			data = self.clean_type(data)
-			data = self.clean_timestamps(data)
-			data = self.convert_to_index_id(data)
-
-			if start_cursor is None:
-				self.cache.add_block(uuid, data)
-			else:
-				self.cache.add_block(start_cursor, data)
+			final_data = self.clean_type(data_after_conversion)
+			final_data = self.clean_timestamps(final_data)
+			final_data = self.convert_to_index_id(final_data)
+			
+			# Use current_cache_key_str for adding to cache, as it includes start_cursor if present
+			self.cache.add_block(current_cache_key_str, final_data) 
 
 			if get_children:
-				# Proceed to retrieve children on lower level recursively
-				log.flow("Retrieving children recursively for block " + str(cache_key))
-				data = await self.get_all_children_recursively(cache_key, block_tree)
-				return data
+				log.flow("Retrieving children recursively for block " + str(current_cache_key_str))
+				# Pass the original uuid_obj (or sc_uuid_obj if start_cursor was used) for recursion
+				key_for_recursion_after_fetch = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
+				final_data = await self.get_all_children_recursively(key_for_recursion_after_fetch, block_tree)
+				return final_data
 
-			return data
+			return final_data
 		
 	
-	async def get_all_children_recursively(self, block_identifier, block_tree: Optional[BlockTree] = None) -> dict:
+	async def get_all_children_recursively(self, block_identifier: Union[str, CustomUUID], block_tree: Optional[BlockTree] = None) -> dict:
 		"""
 		Recursively fetch and flatten all children blocks for the given block identifier.
 		Returns a dictionary mapping each child block's id (int) to its content.
 		"""
+		parent_uuid_obj = self.index.to_uuid(block_identifier)
+		if not parent_uuid_obj:
+			log.error(f"Could not convert {block_identifier} to CustomUUID in get_all_children_recursively")
+			return {}
 
 		if block_tree is None:
 			log.error("block_tree is None in get_all_children_recursively")
-		# If block_identifier is an int, convert it to uuid string.
-		if isinstance(block_identifier, int):
-			converted = self.index.get_uuid(block_identifier)
-			block_identifier = converted
 
-		flat_children = {}
-		# Get immediate children
-		immediate_children = await self.get_block_children(block_identifier, block_tree)
+		flat_children_by_int_id = {}
+		# get_block_children expects string or CustomUUID, returns dict {int_id: content}
+		immediate_children_content_map = await self.get_block_children(parent_uuid_obj, block_tree)
 
-		if immediate_children:
+		if immediate_children_content_map:
+			# Extract CustomUUIDs of children to update block_tree
+			# This requires mapping int_ids from immediate_children_content_map back to CustomUUIDs
+			# We already have children_custom_uuids from the initial call to self.cache.get_children_uuids inside get_block_children
+			# For now, assume get_block_children populates block_tree correctly internally.
+			# The main goal here is to recurse.
+			pass # block_tree is updated within get_block_children
 
-			# FIXME: Never called :/
+		for child_int_id, child_content in immediate_children_content_map.items():
+			flat_children_by_int_id[child_int_id] = child_content
+			# For recursion, we need the CustomUUID of the child.
+			# We get child_int_id from immediate_children_content_map. We need to convert this int_id back to CustomUUID.
+			child_uuid_obj_for_recursion = self.index.get_uuid(child_int_id) # get_uuid returns CustomUUID or None
+			if child_uuid_obj_for_recursion:
+				descendants_map = await self.get_all_children_recursively(child_uuid_obj_for_recursion, block_tree)
+				flat_children_by_int_id.update(descendants_map)
+			else:
+				log.error(f"Could not find CustomUUID for int_id {child_int_id} during recursion")
 
-			child_uuids = [self.index.to_uuid(child_id) for child_id in list(immediate_children.keys())]
-
-			#log.debug(f"Adding parent-children relationship for immediate_children of {block_identifier}")
-
-			if block_tree is not None:
-				block_tree.add_relationships(block_identifier, child_uuids)
-			#log.debug(f"Adding parent-children relationships for block {block_identifier}:", child_uuids)
-			self.cache.add_parent_children_relationships(
-				block_identifier,
-				child_uuids,
-				parent_type=ObjectType.BLOCK,
-				child_type=ObjectType.BLOCK)
-			
-			#log.debug(f"Adding children fetched for block {block_identifier}:", child_uuids)
-
-			self.cache.add_children_fetched_for_block(block_identifier)
-
-		for child_id, child_content in immediate_children.items():
-			#log.debug(f"Processing child: {child_id} (type: {type(child_id).__name__})")
-			flat_children[child_id] = child_content
-			# Ensure child_id is a uuid string when recursing
-			child_uuid = child_id
-			if isinstance(child_id, int):
-				converted_child = self.index.get_uuid(child_id)
-				#log.debug(f"Converted child_id {child_id} (int) to uuid string: {converted_child}")
-				child_uuid = converted_child
-			# Recursively get descendants of the child block
-			descendants = await self.get_all_children_recursively(child_uuid, block_tree)
-			flat_children.update(descendants)
-
-		# Log the visited nested blocks (using a similar style as in graph.py)
-		#log.debug(f"Visited nested blocks:", list(flat_children.keys()))
-		return flat_children
+		return flat_children_by_int_id
 
 
 	async def search_notion(self, query, filter_type=None,
-							start_cursor=None, sort="descending"):
+							start_cursor: Optional[Union[str, CustomUUID]] = None, sort="descending"):
 
 		url = "https://api.notion.com/v1/search"
 		payload = {
@@ -328,10 +344,10 @@ class NotionClient:
 				"property": "object"
 			}
 		if start_cursor is not None:
-			payload["start_cursor"] = self.formatted_uuid(start_cursor)
+			payload["start_cursor"] = self.formatted_uuid(start_cursor) # formatted_uuid handles CustomUUID or str
 
 
-		cache_entry = self.cache.get_search_results(query, filter_type, start_cursor)
+		cache_entry = self.cache.get_search_results(query, filter_type, str(start_cursor) if start_cursor else None)
 		if cache_entry is not None:
 			return cache_entry
 
@@ -346,7 +362,7 @@ class NotionClient:
 				log.error(response.status_code)
 				return self.clean_error_message(response_json)
 			
-			cache_key = self.cache.create_search_results_cache_key(query, filter_type, start_cursor)
+			cache_key = self.cache.create_search_results_cache_key(query, filter_type, str(start_cursor) if start_cursor else None)
 			
 			#log.common(response_json)
 
@@ -357,7 +373,7 @@ class NotionClient:
 			self.cache.add_parent_children_relationships(
 				cache_key,
 				block_ids,
-				parent_type=ObjectType.BLOCK,
+				parent_type=ObjectType.SEARCH_RESULTS, # Corrected parent type
 				child_type=ObjectType.BLOCK)
 				# TODO: Invalidate cache is any children is modified. But not here, as we're going to add it to cache anyway.
 
@@ -377,7 +393,7 @@ class NotionClient:
 
 
 			# Max ttl for search results is 30 days
-			self.cache.add_search_results(query, data, filter_type, start_cursor, ttl = 30 * 24 * 60 * 60)
+			self.cache.add_search_results(query, data, filter_type, str(start_cursor) if start_cursor else None, ttl = 30 * 24 * 60 * 60)
 
 			return data
 
@@ -386,20 +402,21 @@ class NotionClient:
 			return {"error": str(e)}
 
 
-	async def query_database(self, database_id, filter=None, start_cursor=None):
+	async def query_database(self, database_id: Union[str, CustomUUID], filter=None, start_cursor: Optional[Union[str, CustomUUID]] = None):
+		db_id_str = str(database_id) # Ensure database_id is string for cache and URL
 		if filter is None:
 			filter = {}
 
-		url = f"https://api.notion.com/v1/databases/{database_id}/query"
+		url = f"https://api.notion.com/v1/databases/{db_id_str}/query"
 		payload = {
 			"page_size": self.page_size,
 		}
 		if filter:
 			payload["filter"] = filter
 		if start_cursor is not None:
-			payload["start_cursor"] = self.formatted_uuid(start_cursor)
+			payload["start_cursor"] = self.formatted_uuid(start_cursor) # formatted_uuid handles CustomUUID or str
 
-		cache_entry = self.cache.get_database_query_results(database_id, filter, start_cursor)
+		cache_entry = self.cache.get_database_query_results(db_id_str, filter, str(start_cursor) if start_cursor else None)
 		if cache_entry is not None:
 			return cache_entry
 
@@ -487,13 +504,17 @@ class NotionClient:
 			for key, value in message.items():
 				if key in ['id', 'next_cursor', 'page_id', 'database_id', 'block_id']:
 					# Property ids are short, ignore them
-					if self.index.converter.validate_uuid(value):
-						cleaned_uuid = self.index.converter.clean_uuid(value)
-						uuid = self.index.add_uuid(cleaned_uuid)
-						message[key] = uuid
+					if isinstance(value, str) and CustomUUID.validate(value):
+						uuid_obj = CustomUUID.from_string(value)
+						int_id = self.index.add_uuid(uuid_obj) # add_uuid expects CustomUUID
+						message[key] = int_id
 					else:
-						# Silently ignore non-uuids
-						pass
+						# Silently ignore non-uuids or already converted ints
+						if isinstance(value, int):
+							pass # Already an int, do nothing
+						else:
+							# Silently ignore other non-UUID string cases
+							pass
 				else:
 					self.convert_to_index_id(value)
 		elif isinstance(message, list):
@@ -573,10 +594,11 @@ class NotionClient:
 		return message
 
 
-	def formatted_uuid(self, uuid: str | int) -> str:
-		if isinstance(uuid, int):
-			uuid = self.index.get_uuid(uuid)
-		return self.index.converter.to_formatted_uuid(uuid)
+	def formatted_uuid(self, uuid_input: Union[str, int, CustomUUID]) -> Optional[str]:
+		custom_uuid_obj = self.index.to_uuid(uuid_input) # to_uuid can handle str, int, or CustomUUID
+		if custom_uuid_obj:
+			return custom_uuid_obj.to_formatted()
+		return None
 
 
 

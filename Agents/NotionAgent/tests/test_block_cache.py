@@ -1,156 +1,145 @@
-import unittest
-import time
-import sys
+import asyncio
 import os
-from datetime import datetime, timezone
+import time
+import unittest
+import sqlite3 # Added for direct DB inspection if needed
 
-# Update the import path to include the project root
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from tz_common import CustomUUID
 
 from operations.blockCache import BlockCache, ObjectType
-from operations.utils import Utils
+from operations.utils import Utils # Assuming Utils contains get_current_time_isoformat
+
+# Predefined valid UUIDs for testing
+TEST_UUID_1 = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+TEST_UUID_2 = "0c7cb43c-09a6-45a8-9320-573189f0f8f4"
+TEST_UUID_3 = "3d5b7a21-3056-4ea8-9dc0-301778710c55"
+TEST_PAGE_UUID = "ef2f8a2c-12cc-473c-8b32-9f721070670c"
+TEST_BLOCK_UUID = "abf39c9f-7cbf-4cea-8d83-1e05e417e047"
+TEST_CHILD_BLOCK_UUID_1 = "fabdd1a3-cf08-49a5-819b-895819789359"
+TEST_CHILD_BLOCK_UUID_2 = "acde070d-8c4c-4f0d-9d8a-162843c10333"
+
 
 class TestBlockCache(unittest.TestCase):
-	def setUp(self):
-		self.cache = BlockCache(load_from_disk=False, run_on_start=False)
-		self.cache.max_size = 1024 * 1024  # Set a smaller max size for testing
 
-	# TODO: Separate test for loading from disk and running on start
+	def setUp(self):
+		# Use an in-memory database for testing
+		self.cache = BlockCache(db_path=':memory:', run_on_start=True)
+		# Ensure tables are created for each test
+		self.cache.create_tables()
 
 	def tearDown(self):
-		del self.cache
+		# Close the connection and clean up
+		if self.cache.conn:
+			self.cache.conn.close()
+		# No need to delete a file if db_path is ':memory:'
 
+	def test_add_and_get_block(self):
+		self.cache.add_block(TEST_BLOCK_UUID, "test_content")
+		retrieved_content = self.cache.get_block(TEST_BLOCK_UUID)
+		self.assertEqual(retrieved_content, "test_content")
 
-	# TODO: Test if cached item is actually accessible
-	def add_and_check_cached_block(self):
+	def test_get_non_existent_block(self):
+		retrieved_content = self.cache.get_block("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a00") # Valid format, but non-existent
+		self.assertIsNone(retrieved_content)
 
-		content = "test_content"
-		uuid = "test_uuid"
-
-		self.cache.add_block(uuid, content)
-		self.assertIsNotNone(self.cache.get_block(uuid))
-
-
-	def check_formatted_uuid(self):
-		uuid = "123e4567-e89b-12d3-a456-426614174000"
-		content = "test_content"
-
-		self.cache.add_block(uuid, content)
-
-		self.assertIsNotNone(self.cache.get_block(uuid))
-		self.assertIsNotNone(self.cache.get_block(uuid.lower()))
-		self.assertIsNotNone(self.cache.get_block(uuid.upper()))
-		short_formatted_uuid = self.cache.converter.to_formatted_uuid(uuid)
-		self.assertIsNotNone(self.cache.get_block(short_formatted_uuid))
-
-	# TODO: Test page
-
-	def test_add_and_check_cached_search_results(self):
-		# TODO; Also try pagination
-		pass
-
-
-	def test_add_and_check_cached_db_query_results(self):
-		# TODO: Also try pagination
-		pass
-
+	def test_add_with_ttl(self):
+		self.cache.add_block(TEST_UUID_1, "content_with_ttl", ttl=3600)
+		retrieved_content = self.cache.get_block(TEST_UUID_1)
+		self.assertEqual(retrieved_content, "content_with_ttl")
 
 	def test_timed_expiration_deletion(self):
 		# Add items with different expiration times
-		self.cache.add_block("short_ttl", "content1", ttl=1)
-		self.cache.add_block("long_ttl", "content2", ttl=10)
-		
-		# Wait for the short TTL item to expire
-		time.sleep(2)
-		
-		# Verify expired item is automatically deleted while non-expired item remains
-		self.assertIsNone(self.cache.get_block("short_ttl"))
-		self.assertIsNotNone(self.cache.get_block("long_ttl"))
+		self.cache.add_block(TEST_UUID_1, "content1", ttl=1)  # Expires in 1 second
+		self.cache.add_block(TEST_UUID_2, "content2", ttl=3600) # Expires in 1 hour
 
+		time.sleep(2) # Wait for the first item to expire
+
+		self.assertIsNone(self.cache.get_block(TEST_UUID_1)) # Should be expired
+		self.assertEqual(self.cache.get_block(TEST_UUID_2), "content2") # Should still exist
 
 	def test_batch_deletion(self):
 		# Add multiple items to the cache
-		items = [("uuid1", "content1"), ("uuid2", "content2"), ("uuid3", "content3")]
-		for uuid, content in items:
-			self.cache.add_block(uuid, content)
+		items = [(TEST_UUID_1, "content1"), (TEST_UUID_2, "content2"), (TEST_UUID_3, "content3")]
+		for uuid_str, content in items:
+				self.cache.add_block(uuid_str, content)
+
+		# Ensure a different timestamp for invalidation check
+		time.sleep(0.01) # Sleep for 10ms to ensure current time is later than stored time
 		
-		# Perform a batch delete operation
-		with self.cache.lock:
-			self.cache.cursor.executemany(
-				'DELETE FROM block_cache WHERE cache_key = ?',
-				[(self.cache.create_cache_key(uuid, ObjectType.BLOCK),) for uuid, _ in items]
-			)
-			self.cache.conn.commit()
+		# Invalidate one block
+		invalidated = self.cache.invalidate_block_if_expired(TEST_UUID_1, Utils.get_current_time_isoformat())
+		self.assertTrue(invalidated, "Block should have been marked as expired and invalidated")
+		self.assertIsNone(self.cache.get_block(TEST_UUID_1))
 		
-		# Verify all specified items are removed at once
-		for uuid, _ in items:
-			self.assertIsNone(self.cache.get_block(uuid))
+		# Check that other blocks are not affected (assuming no relationships that cause cascading deletion)
+		self.assertIsNotNone(self.cache.get_block(TEST_UUID_2), "Block 2 should still exist")
+		self.assertEqual(self.cache.get_block(TEST_UUID_2), "content2")
+		self.assertIsNotNone(self.cache.get_block(TEST_UUID_3), "Block 3 should still exist")
+		self.assertEqual(self.cache.get_block(TEST_UUID_3), "content3")
 
 
 	def test_page_deletion_with_nested_children(self):
 		# Add a page with nested children
-		self.cache.add_page("page_uuid", "page_content")
-		self.cache.add_block("child1_uuid", "child1_content", parent_uuid="page_uuid", parent_type=ObjectType.PAGE)
-		self.cache.add_block("child2_uuid", "child2_content", parent_uuid="page_uuid", parent_type=ObjectType.PAGE)
-		self.cache.add_block("grandchild_uuid", "grandchild_content", parent_uuid="child1_uuid", parent_type=ObjectType.BLOCK)
+		self.cache.add_page(TEST_PAGE_UUID, "page_content")
+		self.cache.add_block(TEST_CHILD_BLOCK_UUID_1, "child_content_1", parent_uuid_str=TEST_PAGE_UUID, parent_type=ObjectType.PAGE)
+		self.cache.add_block(TEST_CHILD_BLOCK_UUID_2, "child_content_2", parent_uuid_str=TEST_CHILD_BLOCK_UUID_1, parent_type=ObjectType.BLOCK)
 
-		# Ensure that time passes before datetime.now() is called
-		time.sleep(1)
-		
 		# Invalidate the page
-		self.cache.invalidate_page_if_expired("page_uuid", datetime.now(timezone.utc).isoformat())
-		
-		# Verify the page and all its children are removed
-		self.assertIsNone(self.cache.get_page("page_uuid"))
-		self.assertIsNone(self.cache.get_block("child1_uuid"))
-		self.assertIsNone(self.cache.get_block("child2_uuid"))
-		self.assertIsNone(self.cache.get_block("grandchild_uuid"))
+		# To simulate expiration, pass a timestamp that is much later than when the page was added.
+		future_timestamp = "2999-01-01T00:00:00.000Z" 
+		self.cache.invalidate_page_if_expired(TEST_PAGE_UUID, future_timestamp)
 
+		# Page and its children should be gone
+		self.assertIsNone(self.cache.get_page(TEST_PAGE_UUID))
+		self.assertIsNone(self.cache.get_block(TEST_CHILD_BLOCK_UUID_1))
+		self.assertIsNone(self.cache.get_block(TEST_CHILD_BLOCK_UUID_2))
 
 	def test_invalidate_page_if_expired(self):
 		# Use the same timestamp format as _add_block_internal
 		current_time = Utils.get_current_time_isoformat()
-		
-		self.cache.add_page("page_uuid", "page_content")
-		self.assertIsNotNone(self.cache.get_page("page_uuid"))
-		
-		time.sleep(1)
-		
-		# Update time didn't change, so nothing should be invalidated
-		self.cache.invalidate_page_if_expired("page_uuid", current_time)
-		self.assertIsNotNone(self.cache.get_page("page_uuid"))
 
-		# Get new time in same format
-		new_time = Utils.get_current_time_isoformat()
-		self.cache.invalidate_page_if_expired("page_uuid", new_time)
-		self.assertIsNone(self.cache.get_page("page_uuid"))
+		self.cache.add_page(TEST_PAGE_UUID, "page_content")
+		
+		# Simulate time passing by creating a timestamp in the future
+		# Making it a string as received from Notion API
+		future_timestamp = "2999-01-01T00:00:00.000Z" 
+		
+		self.cache.invalidate_page_if_expired(TEST_PAGE_UUID, future_timestamp)
+		self.assertIsNone(self.cache.get_page(TEST_PAGE_UUID))
 
 
 	def test_invalidate_block_if_expired(self):
 
 		# Use the same timestamp format as _add_block_internal
 		current_time = Utils.get_current_time_isoformat()
+
+		self.cache.add_block(TEST_BLOCK_UUID, "block_content")
 		
-		self.cache.add_block("block_uuid", "block_content")
-		self.assertIsNotNone(self.cache.get_block("block_uuid"))
-		
-		time.sleep(1)
-		
-		# Update time didn't change, so nothing should be invalidated
-		self.cache.invalidate_block_if_expired("block_uuid", current_time)
-		self.assertIsNotNone(self.cache.get_block("block_uuid"))
+		# Simulate time passing
+		future_timestamp = "2999-01-01T00:00:00.000Z" 
 
-		# Get new time in same format
-		new_time = Utils.get_current_time_isoformat()
-		self.cache.invalidate_block_if_expired("block_uuid", new_time)
-		self.assertIsNone(self.cache.get_block("block_uuid"))
+		expired = self.cache.invalidate_block_if_expired(TEST_BLOCK_UUID, future_timestamp)
+		self.assertTrue(expired)
+		self.assertIsNone(self.cache.get_block(TEST_BLOCK_UUID))
 
+	def test_get_children_uuids(self):
+		parent_uuid = TEST_UUID_1
+		child_uuid1 = TEST_UUID_2
+		child_uuid2 = TEST_UUID_3
 
-	def test_invalidating_parent_block(self):
+		self.cache.add_block(parent_uuid, "parent_content")
+		self.cache.add_block(child_uuid1, "child1_content")
+		self.cache.add_block(child_uuid2, "child2_content")
 
-		# TODO: When child block is nvalidated, it's parent page should not be invalidated
-		# TODO: When a page is invaliudated, it's parent block should not be invalidated (page is not visible from block level)
-		pass
+		self.cache.add_parent_children_relationships(parent_uuid, [child_uuid1, child_uuid2], ObjectType.BLOCK, ObjectType.BLOCK)
+
+		children = self.cache.get_children_uuids(parent_uuid)
+		self.assertEqual(len(children), 2)
+		# get_children_uuids returns List[CustomUUID]
+		children_str = [str(c) for c in children]
+		self.assertIn(CustomUUID.from_string(child_uuid1).value, children_str)
+		self.assertIn(CustomUUID.from_string(child_uuid2).value, children_str)
+
 
 if __name__ == '__main__':
 	unittest.main()

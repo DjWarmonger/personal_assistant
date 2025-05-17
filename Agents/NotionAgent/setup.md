@@ -44,5 +44,5 @@ python -m Agents.NotionAgent.launcher.chat
 To run tests:
 ```
 conda activate services
-python -m pytest Agents.NotionAgent.tests
+python -m pytest Agents/NotionAgent/tests
 ```

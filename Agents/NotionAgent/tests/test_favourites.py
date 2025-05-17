@@ -5,6 +5,7 @@ import sys
 import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
+from typing import List, Union
 
 # Update the import path to include the project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -13,6 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from operations.notion_client import NotionClient
 from operations.asyncClientManager import AsyncClientManager
 from operations.index import Index
+from tz_common import CustomUUID
 
 class TestFavourites(unittest.TestCase):
 
@@ -21,11 +23,24 @@ class TestFavourites(unittest.TestCase):
 		# Clear any existing favourites
 		self.index.cursor.execute('DELETE FROM favourites')
 		self.index.db_conn.commit()
+		self.loop = asyncio.new_event_loop()
+		asyncio.set_event_loop(self.loop)
+		self.notion_client = self.loop.run_until_complete(NotionClient().__aenter__())
 
+	def tearDown(self):
+		self.loop.run_until_complete(self.notion_client.__aexit__(None, None, None))
+		self.loop.close()
+		if os.path.exists(self.index.db_path):
+			os.remove(self.index.db_path)
 
-	def to_formatted_uuid(self, uuid: str) -> str:
-		return self.index.converter.to_formatted_uuid(uuid)
-
+	def to_formatted_uuid(self, uuid: Union[str, CustomUUID]) -> str:
+		if isinstance(uuid, CustomUUID):
+			return uuid.to_formatted()
+		elif isinstance(uuid, str):
+			# Assuming if it's a string, it might need to be converted to CustomUUID first
+			# This path might need adjustment based on how strings are handled upstream
+			return CustomUUID.from_string(uuid).to_formatted()
+		raise TypeError(f"Expected str or CustomUUID, got {type(uuid)}")
 
 	def test_add_single_favourite(self):
 
@@ -104,10 +119,6 @@ class TestFavourites(unittest.TestCase):
 
 		for favourite in favourites:
 			self.assertIn(self.to_formatted_uuid(favourite), test_uuids)
-
-
-	def tearDown(self):
-		self.index.db_conn.close()
 
 
 if __name__ == '__main__':
