@@ -61,27 +61,24 @@ class BlockCache(TimedStorage):
 		return f"{object_type.value}:{key_part}"
 
 
-	def create_search_results_cache_key(self, query: str, filter_str: str = None, start_cursor_str: str = None) -> str:
+	def create_search_results_cache_key(self, query: str, filter_str: Optional[str] = None, start_cursor: Optional[CustomUUID] = None) -> str:
 		key = query
 		if filter_str is not None:
 			key += f":{filter_str}"
-		if start_cursor_str is not None:
-			uuid_obj = CustomUUID.from_string(start_cursor_str)
-			key += f":{str(uuid_obj)}"
+		if start_cursor is not None:
+			key += f":{str(start_cursor)}"
 		# Pass the composite key directly to create_cache_key for SEARCH_RESULTS type
 		return self.create_cache_key(key, ObjectType.SEARCH_RESULTS)
 
 
-	def create_database_query_results_cache_key(self, database_id_str: str, filter_str: str = None, start_cursor_str: str = None) -> str:
-		uuid_obj = CustomUUID.from_string(database_id_str)
-		key = str(uuid_obj)
+	def create_database_query_results_cache_key(self, database_id: CustomUUID, filter_str: Optional[str] = None, start_cursor: Optional[CustomUUID] = None) -> str:
+		key = str(database_id)
 
 		if filter_str is not None:
 			key += f":{filter_str}"
 
-		if start_cursor_str is not None:
-			start_uuid_obj = CustomUUID.from_string(start_cursor_str)
-			key += f":{str(start_uuid_obj)}"
+		if start_cursor is not None:
+			key += f":{str(start_cursor)}"
 		# Pass the composite key directly to create_cache_key for DATABASE_QUERY_RESULTS type
 		return self.create_cache_key(key, ObjectType.DATABASE_QUERY_RESULTS)
 
@@ -122,7 +119,7 @@ class BlockCache(TimedStorage):
 			self.set_dirty()
 
 
-	def _add_block_internal(self, cache_key: str, content: str, ttl: int = None, parent_key: str = None):
+	def _add_block_internal(self, cache_key: str, content: str, ttl: Optional[int] = None, parent_key: Optional[str] = None):
 		now = Utils.get_current_time_isoformat()
 
 		content = str(content)
@@ -159,34 +156,34 @@ class BlockCache(TimedStorage):
 		#log.debug(f'{"Updated block in" if exists else "Added block to"} cache: {cache_key}')
 
 
-	def add_block(self, uuid_str: str, content: str, ttl: int = None, parent_uuid_str: Union[str, CustomUUID] = None, parent_type: ObjectType = ObjectType.BLOCK):
+	def add_block(self, uuid: CustomUUID, content: str, ttl: Optional[int] = None, parent_uuid: Optional[CustomUUID] = None, parent_type: ObjectType = ObjectType.BLOCK):
 
-		cache_key = self.create_cache_key(uuid_str, ObjectType.BLOCK)
+		cache_key = self.create_cache_key(str(uuid), ObjectType.BLOCK)
 
-		parent_key = self.create_cache_key(parent_uuid_str, parent_type) if parent_uuid_str else None
+		parent_key = self.create_cache_key(str(parent_uuid), parent_type) if parent_uuid else None
 		self._add_block_internal(cache_key, content, ttl, parent_key)
 
 
-	def add_page(self, uuid_str: str, content: str, ttl: int = None):
-		cache_key = self.create_cache_key(uuid_str, ObjectType.PAGE)
+	def add_page(self, uuid: CustomUUID, content: str, ttl: Optional[int] = None):
+		cache_key = self.create_cache_key(str(uuid), ObjectType.PAGE)
 		self._add_block_internal(cache_key, content, ttl)
 
 
-	def add_database(self, uuid_str: str, content: str, ttl: int = None):
-		cache_key = self.create_cache_key(uuid_str, ObjectType.DATABASE)
+	def add_database(self, uuid: CustomUUID, content: str, ttl: Optional[int] = None):
+		cache_key = self.create_cache_key(str(uuid), ObjectType.DATABASE)
 		self._add_block_internal(cache_key, content, ttl)
 
 
 	def add_search_results(self,
 						query: str,
 						content: str,
-						filter_str: str = None,
-						start_cursor_str: Union[str, CustomUUID] = None,
-						ttl: int = None):
+						filter_str: Optional[str] = None,
+						start_cursor: Optional[CustomUUID] = None,
+						ttl: Optional[int] = None):
 
 		# TODO: Use ttl for search results?
 
-		cache_key = self.create_search_results_cache_key(query, filter_str, start_cursor_str)
+		cache_key = self.create_search_results_cache_key(query, filter_str, start_cursor)
 		self._add_block_internal(cache_key, content, ttl)
 
 
@@ -258,8 +255,8 @@ class BlockCache(TimedStorage):
 				return False
 
 
-	def invalidate_block_if_expired(self, uuid_str: str, last_update_time: str) -> bool:
-		cache_key = self.create_cache_key(uuid_str, ObjectType.BLOCK)
+	def invalidate_block_if_expired(self, uuid: CustomUUID, last_update_time: str) -> bool:
+		cache_key = self.create_cache_key(str(uuid), ObjectType.BLOCK)
 
 		expired = self.check_if_expired(cache_key, last_update_time)
 
@@ -273,8 +270,8 @@ class BlockCache(TimedStorage):
 		return expired
 
 
-	def invalidate_page_if_expired(self, uuid_str: str, last_update_time: str):
-		cache_key = self.create_cache_key(uuid_str, ObjectType.PAGE)
+	def invalidate_page_if_expired(self, uuid: CustomUUID, last_update_time: str):
+		cache_key = self.create_cache_key(str(uuid), ObjectType.PAGE)
 		# FIXME: Some methods are checking timestamp internally, others are not
 
 		expired = self.check_if_expired(cache_key, last_update_time)
@@ -328,33 +325,33 @@ class BlockCache(TimedStorage):
 				return None
 
 
-	def get_block(self, uuid_str: str) -> Optional[str]:
-		cache_key = self.create_cache_key(uuid_str, ObjectType.BLOCK)
+	def get_block(self, uuid: CustomUUID) -> Optional[str]:
+		cache_key = self.create_cache_key(str(uuid), ObjectType.BLOCK)
 		return self._get_block_internal(cache_key)
 
 
-	def get_page(self, uuid_str: str) -> Optional[str]:
-		cache_key = self.create_cache_key(uuid_str, ObjectType.PAGE)
+	def get_page(self, uuid: CustomUUID) -> Optional[str]:
+		cache_key = self.create_cache_key(str(uuid), ObjectType.PAGE)
 		return self._get_block_internal(cache_key)
 
 
-	def get_database(self, uuid_str: str) -> Optional[str]:
-		cache_key = self.create_cache_key(uuid_str, ObjectType.DATABASE)
+	def get_database(self, uuid: CustomUUID) -> Optional[str]:
+		cache_key = self.create_cache_key(str(uuid), ObjectType.DATABASE)
 		return self._get_block_internal(cache_key)
 
 
-	def get_search_results(self, query: str, filter_str: str = None, start_cursor_str: str = None) -> Optional[str]:
-		cache_key = self.create_search_results_cache_key(query, filter_str, start_cursor_str)
+	def get_search_results(self, query: str, filter_str: Optional[str] = None, start_cursor: Optional[CustomUUID] = None) -> Optional[str]:
+		cache_key = self.create_search_results_cache_key(query, filter_str, start_cursor)
 		return self._get_block_internal(cache_key)
 
 
-	def get_database_query_results(self, database_id_str: str, filter_str: str = None, start_cursor_str: str = None) -> Optional[str]:
-		cache_key = self.create_database_query_results_cache_key(database_id_str, filter_str, start_cursor_str)
+	def get_database_query_results(self, database_id: CustomUUID, filter_str: Optional[str] = None, start_cursor: Optional[CustomUUID] = None) -> Optional[str]:
+		cache_key = self.create_database_query_results_cache_key(database_id, filter_str, start_cursor)
 		return self._get_block_internal(cache_key)
 
 
-	def get_children_uuids(self, uuid_str: str) -> list[CustomUUID]:
-		cache_key = self.create_cache_key(uuid_str, ObjectType.BLOCK)
+	def get_children_uuids(self, uuid: CustomUUID) -> List[CustomUUID]:
+		cache_key = self.create_cache_key(str(uuid), ObjectType.BLOCK)
 
 		children_keys = []
 		with self.lock:
@@ -430,8 +427,8 @@ class BlockCache(TimedStorage):
 			#log.debug(f"Item {cache_key} is still valid")
 
 
-	def invalidate_database_if_expired(self, uuid_str: str, timestamp: str):
-		cache_key = self.create_cache_key(uuid_str, ObjectType.DATABASE)
+	def invalidate_database_if_expired(self, uuid: CustomUUID, timestamp: str):
+		cache_key = self.create_cache_key(str(uuid), ObjectType.DATABASE)
 		self._invalidate_block_internal(cache_key, timestamp)
 
 
@@ -479,10 +476,10 @@ class BlockCache(TimedStorage):
 			
 
 
-	def add_parent_child_relationship(self, parent_uuid_str: str, child_uuid_str: str, parent_type: ObjectType, child_type: ObjectType = ObjectType.BLOCK):
+	def add_parent_child_relationship(self, parent_uuid: CustomUUID, child_uuid: CustomUUID, parent_type: ObjectType, child_type: ObjectType = ObjectType.BLOCK):
 
-		parent_key = self.create_cache_key(parent_uuid_str, parent_type)
-		child_key = self.create_cache_key(child_uuid_str, child_type)
+		parent_key = self.create_cache_key(str(parent_uuid), parent_type)
+		child_key = self.create_cache_key(str(child_uuid), child_type)
 
 		with self.lock:
 
@@ -497,10 +494,10 @@ class BlockCache(TimedStorage):
 		#log.debug(f"Added parent-child relationship: {parent_key} -> {child_key}")
 
 
-	def add_parent_children_relationships(self, parent_uuid_str: str, children_uuids_str: List[str], parent_type: ObjectType, child_type: ObjectType = ObjectType.BLOCK):
-		parent_key = self.create_cache_key(parent_uuid_str, parent_type)
+	def add_parent_children_relationships(self, parent_uuid: CustomUUID, children_uuids: List[CustomUUID], parent_type: ObjectType, child_type: ObjectType = ObjectType.BLOCK):
+		parent_key = self.create_cache_key(str(parent_uuid), parent_type)
 		with self.lock:
-			child_keys = [(parent_key, self.create_cache_key(child_uuid_str, child_type)) for child_uuid_str in children_uuids_str]
+			child_keys = [(parent_key, self.create_cache_key(str(child_uuid), child_type)) for child_uuid in children_uuids]
 			
 			self.cursor.executemany('''
 				INSERT OR IGNORE INTO block_relationships (parent_key, child_key)
@@ -510,7 +507,7 @@ class BlockCache(TimedStorage):
 			self.conn.commit()
 			self.set_dirty()
 
-		log.debug(f"Added parent-children relationships: {parent_key} -> {len(children_uuids_str)} children")
+		log.debug(f"Added parent-children relationships: {parent_key} -> {len(children_uuids)} children")
 
 
 	def add_children_fetched_for_block(self, cache_key: str):

@@ -71,9 +71,9 @@ class NotionClient:
 		if page_id is None and database_id is None:
 			current_page_id = self.landing_page_id
 		elif page_id is not None:
-			current_page_id = self.index.to_uuid(page_id) # to_uuid handles str or CustomUUID
+			current_page_id = self.index.resolve_to_uuid(page_id) # resolve_to_uuid handles str or CustomUUID
 		elif database_id is not None:
-			current_database_id = self.index.to_uuid(database_id)
+			current_database_id = self.index.resolve_to_uuid(database_id)
 
 		try:
 			if current_page_id is not None:
@@ -92,7 +92,7 @@ class NotionClient:
 			# Rate limiting + shared client usage
 			await AsyncClientManager.wait_for_next_request()
 			client = await AsyncClientManager.get_client()
-			response = await client.get(url, headers=self.headers)
+			response = await client.get(url, headers=self.headers, timeout=30.0)
 
 			if response.status_code != 200:
 				log.error(response.status_code)
@@ -128,7 +128,7 @@ class NotionClient:
 		"""
 		This should be called only if we know that children have been already fetched.
 		"""
-		parent_uuid_obj = self.index.to_uuid(uuid)
+		parent_uuid_obj = self.index.resolve_to_uuid(uuid)
 		if not parent_uuid_obj:
 			log.error(f"Could not convert {uuid} to CustomUUID in get_block_children")
 			return {}
@@ -178,9 +178,9 @@ class NotionClient:
 		if block_tree is None:
 			log.error("block_tree is None in get_block_content")
 
-		uuid_obj = self.index.to_uuid(block_id)
+		uuid_obj = self.index.resolve_to_uuid(block_id)
 		if uuid_obj is None:
-			log.error(f"Could not convert block_id {block_id} to CustomUUID")
+			log.error(f"Could not convert block_id {block_id} to UUID")
 			return None
 		
 		# cache_key should use the string representation of CustomUUID
@@ -194,8 +194,7 @@ class NotionClient:
 
 		url = f"https://api.notion.com/v1/blocks/{url_uuid_str}/children?page_size=20"
 		if start_cursor is not None:
-			# formatted_uuid expects string or int, to_uuid returns CustomUUID or None
-			sc_uuid_obj = self.index.to_uuid(start_cursor)
+			sc_uuid_obj = self.index.resolve_to_uuid(start_cursor)
 			if sc_uuid_obj:
 				sc_formatted_uuid = sc_uuid_obj.to_formatted() # Pass CustomUUID here
 				url += f"&start_cursor={sc_formatted_uuid}"
@@ -220,7 +219,7 @@ class NotionClient:
 
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
-		response = await client.get(url, headers=self.headers)
+		response = await client.get(url, headers=self.headers, timeout=30.0)
 
 		if response.status_code != 200:
 			log.error(response.status_code)
@@ -282,7 +281,7 @@ class NotionClient:
 		Recursively fetch and flatten all children blocks for the given block identifier.
 		Returns a dictionary mapping each child block's id (int) to its content.
 		"""
-		parent_uuid_obj = self.index.to_uuid(block_identifier)
+		parent_uuid_obj = self.index.resolve_to_uuid(block_identifier)
 		if not parent_uuid_obj:
 			log.error(f"Could not convert {block_identifier} to CustomUUID in get_all_children_recursively")
 			return {}
@@ -334,7 +333,7 @@ class NotionClient:
 				"property": "object"
 			}
 		if start_cursor is not None:
-			custom_uuid_obj = self.index.to_uuid(start_cursor)
+			custom_uuid_obj = self.index.resolve_to_uuid(start_cursor)
 			payload["start_cursor"] = custom_uuid_obj.to_formatted() if custom_uuid_obj else None
 
 
@@ -407,7 +406,7 @@ class NotionClient:
 		if filter:
 			payload["filter"] = filter
 		if start_cursor is not None:
-			custom_uuid_obj = self.index.to_uuid(start_cursor)
+			custom_uuid_obj = self.index.resolve_to_uuid(start_cursor)
 			payload["start_cursor"] = custom_uuid_obj.to_formatted() if custom_uuid_obj else None
 
 		cache_entry = self.cache.get_database_query_results(db_id_str, filter, str(start_cursor) if start_cursor else None)

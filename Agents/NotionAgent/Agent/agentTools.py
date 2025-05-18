@@ -4,6 +4,7 @@ from langchain_core.pydantic_v1 import Field, validator
 from langfuse.decorators import observe
 from operations.notion_client import NotionClient
 from tz_common import log, JsonConverter
+from tz_common import CustomUUID
 from tz_common.tasks import AgentTask, AgentTaskList
 from tz_common.langchain_wrappers import ContextAwareTool, AgentState, AddTaskTool, CompleteTaskTool, CompleteTaskWithDataTool
 
@@ -37,13 +38,7 @@ class NotionPageDetailsTool(ContextAwareTool):
 		log.flow(f"Getting details of Notion page... {notion_id}")
 		result = await client.get_notion_page_details(page_id=notion_id)
 
-		if isinstance(notion_id, str):
-			try:
-				index = int(notion_id)
-			except ValueError:
-				index = client.index.to_int(notion_id)
-		else:
-			index = int(notion_id)
+		index = client.index.resolve_to_int(notion_id)
 
 		if index is None:
 			raise ValueError(f"Invalid page index: {notion_id}")
@@ -68,17 +63,21 @@ class NotionGetChildrenTool(ContextAwareTool):
 		cursor_info = f" start cursor: {start_cursor}" if start_cursor is not None else ""
 		log.flow(f"Retrieving children of Notion block... {index}{cursor_info}")
 
-		result = await client.get_block_content(block_id=index, start_cursor=start_cursor, get_children=True, block_tree=context.get("blockTree"))
+		block_id = client.index.resolve_to_uuid(index)
+
+		result = await client.get_block_content(block_id=block_id, start_cursor=start_cursor, get_children=True, block_tree=context.get("blockTree"))
 
 		visited_dict = dict(context["visitedBlocks"])
 
 		if type(result) == dict:
 			for id, content in result.items():
 				visited_dict[int(id)] = content
-		elif type(index) == int:
-			visited_dict[index] = result
 		else:
-			log.error(f"Unhandled key type: {type(index)}")
+			index = client.index.to_int(block_id)	
+			if index is not None:
+				visited_dict[index] = result
+			else:
+				log.error(f"Could not resolve index {block_id} to int")
 
 		context["visitedBlocks"] = list(visited_dict.items())
 

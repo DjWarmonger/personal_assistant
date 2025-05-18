@@ -327,10 +327,6 @@ class Index(TimedStorage):
 			self.set_dirty()
 
 
-	def to_uuid(self, id_val: Union[int, str, CustomUUID]) -> Optional[CustomUUID]:
-		return self.resolve_to_uuid(id_val)
-
-
 	def add_notion_url_or_uuid_to_index(self, url_or_uuid: Union[str, CustomUUID], title: str = "") -> int:
 		uuid_obj = self.resolve_to_uuid(url_or_uuid)
 		if not uuid_obj:
