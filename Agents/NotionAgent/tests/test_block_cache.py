@@ -29,6 +29,7 @@ class TestBlockCache(unittest.TestCase):
 
 	def tearDown(self):
 		# Close the connection and clean up
+		self.cache.stop_periodic_save() # Stop the save thread first
 		if self.cache.conn:
 			self.cache.conn.close()
 		# No need to delete a file if db_path is ':memory:'
@@ -81,8 +82,8 @@ class TestBlockCache(unittest.TestCase):
 	def test_page_deletion_with_nested_children(self):
 		# Add a page with nested children
 		self.cache.add_page(TEST_PAGE_UUID, "page_content")
-		self.cache.add_block(TEST_CHILD_BLOCK_UUID_1, "child_content_1", parent_uuid_str=TEST_PAGE_UUID, parent_type=ObjectType.PAGE)
-		self.cache.add_block(TEST_CHILD_BLOCK_UUID_2, "child_content_2", parent_uuid_str=TEST_CHILD_BLOCK_UUID_1, parent_type=ObjectType.BLOCK)
+		self.cache.add_block(TEST_CHILD_BLOCK_UUID_1, "child_content_1", parent_uuid=TEST_PAGE_UUID, parent_type=ObjectType.PAGE)
+		self.cache.add_block(TEST_CHILD_BLOCK_UUID_2, "child_content_2", parent_uuid=TEST_CHILD_BLOCK_UUID_1, parent_type=ObjectType.BLOCK)
 
 		# Invalidate the page
 		# To simulate expiration, pass a timestamp that is much later than when the page was added.
@@ -139,6 +140,96 @@ class TestBlockCache(unittest.TestCase):
 		children_str = [str(c) for c in children]
 		self.assertIn(CustomUUID.from_string(child_uuid1).value, children_str)
 		self.assertIn(CustomUUID.from_string(child_uuid2).value, children_str)
+
+	def test_cache_metrics_hit(self):
+		# Add a block to the cache
+		self.cache.add_block(TEST_UUID_1, "test_content")
+		
+		# Get the block - should count as a hit
+		content = self.cache.get_block(TEST_UUID_1)
+		self.assertEqual(content, "test_content")
+		
+		# Check metrics
+		metrics = self.cache.get_metrics()
+		self.assertEqual(metrics["hits"], 1)
+		
+		# Get the block again - should count as another hit
+		content = self.cache.get_block(TEST_UUID_1)
+		
+		# Check metrics again
+		metrics = self.cache.get_metrics()
+		self.assertEqual(metrics["hits"], 2)
+
+	def test_cache_metrics_miss_not_found(self):
+		# Try to get a non-existent block - should count as a miss
+		non_existent_uuid = "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22"
+		content = self.cache.get_block(non_existent_uuid)
+		self.assertIsNone(content)
+		
+		# Check metrics
+		metrics = self.cache.get_metrics()
+		self.assertEqual(metrics["misses_not_found"], 1)
+		
+		# Try invalidating a non-existent block - should also count as a miss
+		self.cache.invalidate_block_if_expired(non_existent_uuid, Utils.get_current_time_isoformat())
+		
+		# Check metrics again
+		metrics = self.cache.get_metrics()
+		self.assertEqual(metrics["misses_not_found"], 2)
+
+	def test_cache_metrics_miss_expired(self):
+		# Add a block to the cache
+		self.cache.add_block(TEST_UUID_1, "test_content", ttl=1)
+		
+		# Wait for the block to expire
+		time.sleep(2)
+		
+		# Get the expired block - should count as a miss_expired
+		content = self.cache.get_block(TEST_UUID_1)
+		self.assertIsNone(content)
+		
+		# Check metrics
+		metrics = self.cache.get_metrics()
+		self.assertEqual(metrics["misses_expired"], 1)
+		
+		# Add another block and invalidate it explicitly
+		self.cache.add_block(TEST_UUID_2, "test_content2")
+		future_timestamp = "2999-01-01T00:00:00.000Z"
+		self.cache.invalidate_block_if_expired(TEST_UUID_2, future_timestamp)
+		
+		# Check metrics again
+		metrics = self.cache.get_metrics()
+		self.assertEqual(metrics["misses_expired"], 2)
+		
+	def test_cache_metrics_integration(self):
+		# Reset metrics by recreating tables
+		self.cache.create_tables()
+		
+		# Add some blocks
+		self.cache.add_block(TEST_UUID_1, "content1")
+		self.cache.add_block(TEST_UUID_2, "content2", ttl=1)
+		
+		# Access existing block - should be a hit
+		self.cache.get_block(TEST_UUID_1)
+		
+		# Wait for TTL to expire
+		time.sleep(2)
+		
+		# Access expired block - should be a miss_expired
+		self.cache.get_block(TEST_UUID_2)
+		
+		# Access non-existent block - should be a miss_not_found
+		self.cache.get_block(TEST_UUID_3)
+		
+		# Invalidate an existing block - should be a miss_expired
+		future_timestamp = "2999-01-01T00:00:00.000Z"
+		self.cache.invalidate_block_if_expired(TEST_UUID_1, future_timestamp)
+		
+		# Check final metrics
+		metrics = self.cache.get_metrics()
+		self.assertEqual(metrics["hits"], 1)
+		self.assertEqual(metrics["misses_expired"], 2)
+		self.assertEqual(metrics["misses_not_found"], 1)
 
 
 if __name__ == '__main__':

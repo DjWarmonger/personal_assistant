@@ -1,7 +1,7 @@
 import sqlite3
 import threading
 import time
-from typing import Optional, Tuple, List, Union
+from typing import Optional, Tuple, List, Union, Dict
 from datetime import datetime, timezone
 from enum import Enum
 from abc import ABC, abstractmethod
@@ -115,6 +115,41 @@ class BlockCache(TimedStorage):
 				)
 			''')
 			
+			# Create cache_metrics table to track hits and misses
+			self.cursor.execute('''
+				CREATE TABLE IF NOT EXISTS cache_metrics (
+					metric_type TEXT PRIMARY KEY,
+					count INTEGER DEFAULT 0
+				)
+			''')
+			
+			# Initialize metrics if they don't exist
+			self.cursor.execute('''
+				INSERT OR IGNORE INTO cache_metrics (metric_type, count)
+				VALUES ('hits', 0)
+			''')
+			
+			self.cursor.execute('''
+				INSERT OR IGNORE INTO cache_metrics (metric_type, count)
+				VALUES ('misses_not_found', 0)
+			''')
+			
+			self.cursor.execute('''
+				INSERT OR IGNORE INTO cache_metrics (metric_type, count)
+				VALUES ('misses_expired', 0)
+			''')
+			
+			self.conn.commit()
+			self.set_dirty()
+
+
+	def _increment_metric(self, metric_type: str):
+		with self.lock:
+			self.cursor.execute('''
+				UPDATE cache_metrics
+				SET count = count + 1
+				WHERE metric_type = ?
+			''', (metric_type,))
 			self.conn.commit()
 			self.set_dirty()
 
@@ -258,9 +293,21 @@ class BlockCache(TimedStorage):
 	def invalidate_block_if_expired(self, uuid: CustomUUID, last_update_time: str) -> bool:
 		cache_key = self.create_cache_key(str(uuid), ObjectType.BLOCK)
 
+		# First check if the block exists at all
+		with self.lock:
+			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ?', (cache_key,))
+			exists = self.cursor.fetchone() is not None
+		
+		if not exists:
+			# Block doesn't exist, count as a miss
+			self._increment_metric('misses_not_found')
+			return False
+
 		expired = self.check_if_expired(cache_key, last_update_time)
 
 		if expired:
+			# Block exists but is expired, count as a miss_expired
+			self._increment_metric('misses_expired')
 			self._invalidate_block_recursive(cache_key)
 			log.debug(f"Invalidating item {cache_key} and its children due to expiration")
 		else:
@@ -274,10 +321,22 @@ class BlockCache(TimedStorage):
 		cache_key = self.create_cache_key(str(uuid), ObjectType.PAGE)
 		# FIXME: Some methods are checking timestamp internally, others are not
 
+		# First check if the page exists at all
+		with self.lock:
+			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ?', (cache_key,))
+			exists = self.cursor.fetchone() is not None
+		
+		if not exists:
+			# Page doesn't exist, count as a miss
+			self._increment_metric('misses_not_found')
+			return
+			
 		expired = self.check_if_expired(cache_key, last_update_time)
 
 		# Invalidate all blocks under this page
 		if expired:
+			# Page exists but is expired, count as a miss_expired
+			self._increment_metric('misses_expired')
 			self._invalidate_block_recursive(cache_key)
 		
 		# Use the internal method to directly invalidate the page itself
@@ -313,15 +372,22 @@ class BlockCache(TimedStorage):
 					now = datetime.now(timezone.utc)
 					if (now - stored_time).total_seconds() > ttl:
 						log.debug(f"Item {cache_key} has expired")
+						
+						# Increment miss count for expired items
+						self._increment_metric('misses_expired')
 
 						self.cursor.execute('DELETE FROM block_cache WHERE cache_key = ?', (cache_key,))
 						self.conn.commit()
 						self.set_dirty()
 						return None
 
+				# Increment hit count
+				self._increment_metric('hits')
 				#log.debug(f"Returning cached {cache_key.split(':')[1]}")
 				return content
 			else:
+				# Increment miss count for not found items
+				self._increment_metric('misses_not_found')
 				return None
 
 
@@ -348,6 +414,16 @@ class BlockCache(TimedStorage):
 	def get_database_query_results(self, database_id: CustomUUID, filter_str: Optional[str] = None, start_cursor: Optional[CustomUUID] = None) -> Optional[str]:
 		cache_key = self.create_database_query_results_cache_key(database_id, filter_str, start_cursor)
 		return self._get_block_internal(cache_key)
+
+
+	def get_metrics(self) -> Dict[str, int]:
+		"""
+		Returns a dictionary with cache metrics.
+		"""
+		with self.lock:
+			self.cursor.execute('SELECT metric_type, count FROM cache_metrics')
+			results = self.cursor.fetchall()
+			return {metric_type: count for metric_type, count in results}
 
 
 	def get_children_uuids(self, uuid: CustomUUID) -> List[CustomUUID]:
@@ -415,12 +491,26 @@ class BlockCache(TimedStorage):
 
 	def _invalidate_block_internal(self, cache_key: str, timestamp: str):
 		
+		# First check if the block exists
+		with self.lock:
+			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ?', (cache_key,))
+			exists = self.cursor.fetchone() is not None
+			
+		if not exists:
+			# Block doesn't exist, count as a miss
+			self._increment_metric('misses_not_found')
+			return
+			
 		if self.check_if_expired(cache_key, timestamp):
-			self.cursor.execute('''
-				DELETE FROM block_cache WHERE cache_key = ?
-			''', (cache_key,))
-			self.conn.commit()
-			self.set_dirty()
+			# Block exists but is expired, count as a miss_expired
+			self._increment_metric('misses_expired')
+			
+			with self.lock:
+				self.cursor.execute('''
+					DELETE FROM block_cache WHERE cache_key = ?
+				''', (cache_key,))
+				self.conn.commit()
+				self.set_dirty()
 			log.debug(f"Invalidated item {cache_key} due to expiration")
 		else:
 			pass
