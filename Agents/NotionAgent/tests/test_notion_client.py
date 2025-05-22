@@ -33,7 +33,7 @@ async def test_navigate_to_notion_page(notion_client):
 
 	assert result["object"] == "page"
 	assert "id" in result
-	assert notion_client.index.to_uuid(result["id"]) == CustomUUID.from_string(page_id)
+	assert notion_client.index.resolve_to_uuid(result["id"]) == CustomUUID.from_string(page_id)
 	assert "properties" in result
 
 @pytest.mark.asyncio
@@ -44,7 +44,7 @@ async def test_navigate_to_database(notion_client):
 
 	assert result["object"] == "database"
 	assert "id" in result
-	assert notion_client.index.to_uuid(result["id"]) == CustomUUID.from_string(database_id)
+	assert notion_client.index.resolve_to_uuid(result["id"]) == CustomUUID.from_string(database_id)
 	assert "properties" in result
 
 @pytest.mark.asyncio
@@ -98,7 +98,7 @@ async def test_get_children(notion_client):
 
 	if result["has_more"] == True:
 		print(f"Has more: {result['has_more']}, starting cursor in children test: {result['next_cursor']}")
-		start_cursor=notion_client.index.to_uuid(result["next_cursor"])
+		start_cursor=notion_client.index.resolve_to_uuid(result["next_cursor"])
 		result = await notion_client.get_block_content(block_id=block_id, start_cursor=start_cursor, block_tree=block_tree)
 
 		assert result["object"] == "list"
@@ -150,7 +150,7 @@ async def test_database_query_with_empty_filter(notion_client):
 	assert "results" in result
 
 	if result["has_more"]:
-		start_cursor=notion_client.index.to_uuid(result["next_cursor"])
+		start_cursor=notion_client.index.resolve_to_uuid(result["next_cursor"])
 		result = await notion_client.query_database(database_id=database_id, filter={}, start_cursor=start_cursor)
 		assert result["object"] == "list"
 

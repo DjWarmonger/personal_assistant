@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 import os
 import asyncio
+import json
 from typing import Optional, Union
 
 from tz_common import CustomUUID
@@ -396,20 +397,23 @@ class NotionClient:
 
 	async def query_database(self, database_id: Union[str, CustomUUID], filter=None, start_cursor: Optional[Union[str, CustomUUID]] = None):
 		db_id_str = str(database_id) # Ensure database_id is string for cache and URL
-		if filter is None:
-			filter = {}
+		# FIXME: Verify if id is known in index but is NOT a database
+
+		filter_obj = self.parse_filter(filter)
 
 		url = f"https://api.notion.com/v1/databases/{db_id_str}/query"
 		payload = {
 			"page_size": self.page_size,
 		}
-		if filter:
-			payload["filter"] = filter
+		if filter_obj: # Use the parsed/validated filter_obj
+			payload["filter"] = filter_obj
 		if start_cursor is not None:
 			custom_uuid_obj = self.index.resolve_to_uuid(start_cursor)
 			payload["start_cursor"] = custom_uuid_obj.to_formatted() if custom_uuid_obj else None
 
-		cache_entry = self.cache.get_database_query_results(db_id_str, filter, str(start_cursor) if start_cursor else None)
+		# Use a consistent key for caching that reflects the actual filter object used
+		cache_filter_key = json.dumps(filter_obj, sort_keys=True) if filter_obj else None
+		cache_entry = self.cache.get_database_query_results(db_id_str, cache_filter_key, str(start_cursor) if start_cursor else None)
 		if cache_entry is not None:
 			return cache_entry
 
@@ -418,8 +422,9 @@ class NotionClient:
 		response = await client.post(url, headers=self.headers, json=payload)
 
 		if response.status_code != 200:
-			log.error(response.status_code)
-			return self.clean_error_message(response.json())
+			error_message = self.clean_error_message(response.json())
+			log.error(response.status_code, error_message)
+			return error_message
 		else:
 			# TODO: Invalidate blocks recursively if they are not up to date
 			data = self.convert_message(response.json(), clean_timestamps=False, convert_to_index_id=False)
@@ -585,8 +590,47 @@ class NotionClient:
 			del message["request_id"]
 
 		return message
+	
 
+	def parse_filter(self, filter: Optional[dict | str]) -> dict:
+		"""
+		Parses the input filter into a Python dictionary to ensure correct
+		serialization for the Notion API.
 
+		The Notion API expects the 'filter' in a query request body to be a
+		JSON object. If a string representation of a JSON object is passed
+		directly to the HTTP client, it will be serialized as a JSON string,
+		leading to a 400 validation error from Notion.
+
+		This method handles:
+		- None: Returns an empty dictionary (no filter).
+		- String: Attempts to parse it as JSON. If parsing fails (e.g., malformed
+		  JSON), logs an error and returns an empty dictionary.
+		- Dictionary: Returns it directly.
+
+		Args:
+			filter: The filter to parse. Can be a Python dictionary,
+			        a JSON string, or None.
+
+		Returns:
+			A Python dictionary representing the filter, ready for API request.
+		"""
+		if filter is None:
+			filter_obj = {}
+		elif isinstance(filter, str):
+			try:
+				filter_obj = json.loads(filter)
+			except json.JSONDecodeError:
+				log.error(f"Failed to parse filter string as JSON: ", filter)
+				# Fallback to an empty filter or handle error appropriately
+				filter_obj = {}
+		elif isinstance(filter, dict):
+			filter_obj = filter
+		else:
+			log.error(f"Filter is of unexpected type {type(filter)}.", "Using empty filter.")
+			filter_obj = {}
+	
+		return filter_obj
 
 
 
