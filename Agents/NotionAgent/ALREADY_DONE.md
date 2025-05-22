@@ -33,3 +33,7 @@
 - ✅ Added setup instructions
 - ✅ Documented directory structure
 - ✅ Created running instructions 
+
+## Dashboard & Monitoring
+- ✅ Implemented cache metrics (hits, misses, expired) in `blockCache.py`
+- ✅ Added a non-interactive block in `dashboard.py` to display cache hits, misses, and ratio 

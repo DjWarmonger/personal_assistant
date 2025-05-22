@@ -1,50 +1,34 @@
-# Agent Graph
+# Misc features
 
-## Writer agent
+# Extra agent tools
 
-#### FIXME: Results are scrambled, probably block tree is not ordered?
+## Inform AGent about current time
 
-> ### Moja integracja
-> #### Zalety
-> - Nauczę się tworzyć autonomicznych agentów
-> - Potencjał biznesowy - Notion jest powszechnie używane
-> - Mogę wyeksportować moje projekty i notatki bezpośrednio do narzędzi, np. Pythagora
-> - Notion zawiera i będzie zawierać najbardziej kompletne dane o mnie i moich planach
-> - Agent może porządkować i czyścić strony
-> - Agent może zarządzać taskami, listą TODO czy np. artykułami i wideo do obrzejrzenia
-> - Agent może za mnie przeszukiwać Notion
-> - Mogę wyekstrahować wiedzę z Notion do innej formy, np. graph-RAG
-> #### Scenariusze użycia
-> ##### Wyszukiwanie informacji
-> ##### Edycja indeksu
-> ##### Edycja informacji
-> ##### Działania autonomiczne?
-> #### Dedykowany agent samodzielnie przeglądający Notion
-> #### Integracja z YouTube
-> - Wygenerować token API: Autoryzacja
-> - Obsługa błędów
-> - Brak uprawnień
-> - Strona nie istnieje
-> - Brak sieci
-> - Obsługa size limit - W zależności od typu obiektu
-> - Obsługa języka polskiego
-> - Przygotować zakres funkcjonalności MVP
-> - Wiele instancji agentów może obsługiwać różne zadania.
-> - Możliwość samodzielnego zarządzania układem stron, odnośników
-> - Jakie problemy ma rozwiązywać agent?
-> - Agregowanie wiedzy z wielu stron
-> - Możliwa integracja Notion z innymi narzędziami, np. Zapierem
-> - Rozbicie agenta na dwie części: Prostego przeglądającego strony i bardziej zaawansowanego - nadzorcy.
-> - Dodatkowy agent działający w tle, który będzie generował mapę strony, podsumowania, raporty, sugestie
-> - Jak przygotować się na wypadek dodania webhooków w przyszłości?
-> - Autoryzacja dostępu publicznego
-> - Ostatecznie chcę, aby wszystkie powiadomienia trafiały do mojego klienta.
+- A single AI Message at the end of context if fine
+- Round down to minutes
 
-# Bugs
+## Tool that shows X favourite pages
 
-#### Error messages
-> KNOWLEDGE:langfuse:Failed to process event in IngestionConsumer, skipping
-> Traceback (most recent call last):
-> (...)
-> TypeError: unhashable type: 'dict'
+- Do not give it to Agent yet
+- Allow paging?
+- Create unit tests
 
+## Limit number of loop iteration for Agent
+
+- Start with Notion Agent
+- Add iteration count to context, as last message
+- Mention it in system prompt?
+
+# Marimo dashboard
+
+## Add static field that shows cache hit ratio
+
+## Open logs from multiple tasks ran in parallel in separate tabs
+
+- Make sure text doesn't go out of tab header
+
+## Fix task browser label so it can hold long text (currently it doesn't fit and extends beyond boundaries)
+
+## Create new task in Marimo
+
+- Get all tasks from actual database: https://www.notion.so/11d9efeb667680ed98cffaef689b9cf1?v=65ea497489ca4dd4a58998f5b1242988
