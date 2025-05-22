@@ -23,11 +23,3 @@
 * Prevention:
     * Always consult project-specific testing guidelines (`agents/testing_practices.mdc`) before running tests.
     * Ensure the correct environment is activated if specified in the testing practices.
-
-## Premature TODO Updates
-
-* Issue: Attempted to update `TODO.md` and `ALREADY_DONE.md` before explicit user confirmation that the feature was working correctly, which violates the `bookkeeping.mdc` guidelines.
-* Resolution: Waited for user confirmation before proceeding with documentation updates.
-* Prevention:
-    * Strictly follow the `bookkeeping.mdc` rule: "After feature is implemented and confirmed to be working, update corresponding TODO, BACKLOG and ALREADY_DONE md files."
-    * Always seek explicit user confirmation of feature completion and correctness before modifying task-tracking documents. 

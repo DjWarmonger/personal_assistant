@@ -3,23 +3,29 @@ description:
 globs: *.md
 alwaysApply: false
 ---
-This guide describes how coding agent should update docs and notes after completing the task
+# Update docs and notes after completing the task
 
-# Update README, TODO, BACKLOG, ALREADY_DONE and setup.md
+This document explains when and how to update README, TODO, BACKLOG, ALREADY_DONE and setup.md
 
 * Top-level folder as well as project subfolders may have separate .md documentation. Update documentation according to scope of change.
 
-* After feature is implemented and confirmed to be working, update corresponding TODO, BACKLOG and ALREADY_DONE md files. Move features from TODO or BACKLOG to ALREADY_DONE when they are finished.
+* **CRITICAL: Wait for explicit user confirmation that the feature is implemented and working correctly before updating any TODO, BACKLOG, or ALREADY_DONE files.** 
+  - Do NOT assume the feature is complete just because code has been written
+  - Do NOT update these files based on successful compilation or test passes alone
+  - ALWAYS ask the user directly: "The feature appears to be implemented. Have you tested it and confirmed it's working as expected? Should I update the TODO/ALREADY_DONE documentation?"
+  - Only proceed with documentation updates after receiving clear user confirmation (e.g., "Yes, it's working" or "Yes, please update the docs")
+
+* After feature is implemented and **explicitly confirmed by the user to be working**, update corresponding TODO, BACKLOG and ALREADY_DONE md files. Move features from TODO or BACKLOG to ALREADY_DONE when they are finished.
 
 * When required libraries, variables, scripts or external configuration change, update setup.md accordingly. Make sure these instructions allow new developer launch the project with no prior knowledge about it.
 
 * Ater scope of changes is changed and verified, document project goal, architecture, structure and other assumptions in README.md
 
-# Document problems inside .notes
+# Document encountered problems inside .notes
 
 Notes are scratchpad for future guidelines optimized for AI coding agent.
 
-After a task has been completed or issue has been solved and confirmed to work, add new .md report to .notes folder. Write there notes regarding faced problems and technical issues that took multiple rounds and clarifications to resolve. Note user complaints and technical obstacles. Write down unforseen problems and inaccessible data or context unlikely to deduce by coding agent alone.
+After a task has been completed or issue has been solved and confirmed to work, add new .md report to .notes folder. Write there notes regarding faced problems and technical issues that took multiple rounds and clarifications to resolve. Note user complaints and technical obstacles. Write down unforseen problems, missing or inaccessible data or context unlikely to be deduced by coding agent alone.
 Keep notes distinct and separate from each other to help splitting or reordering by human supervisor. Prefer concise form over excessive formatting.
 
 ## Use this format
