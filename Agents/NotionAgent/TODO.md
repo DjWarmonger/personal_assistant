@@ -2,11 +2,6 @@
 
 # Extra agent tools
 
-## Inform AGent about current time
-
-- A single AI Message at the end of context if fine
-- Round down to minutes
-
 ## Tool that shows X favourite pages
 
 - Do not give it to Agent yet

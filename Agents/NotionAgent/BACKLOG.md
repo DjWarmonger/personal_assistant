@@ -178,3 +178,7 @@ Reuse timeline builder from call_json_agent to build timeline for other agents
 - Task management and TODO list maintenance
 - Content organization and cleanup
 
+# Marimo Dashboard
+
+- Store prompts in database, with various properties
+

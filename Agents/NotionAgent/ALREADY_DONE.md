@@ -18,6 +18,7 @@
 - ✅ Set up state graph for agent interaction flow
 - ✅ Added planner, notion, and writer agents with different responsibilities
 - ✅ Implemented task management system across agents
+- ✅ Added current time context to all agents via `create_current_time_message()` utility
 
 ## Project Structure
 - ✅ Reorganized codebase into modular structure:
