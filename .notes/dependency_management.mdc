@@ -3,3 +3,63 @@ description:
 globs:
 alwaysApply: false
 ---
+# Dependency Management Guidelines
+
+This document outlines how dependencies are managed in the PersonalAssistant project.
+
+## Dependency Hierarchy
+
+The project has several components with dependencies on each other:
+
+1. **Base Libraries**: External libraries (e.g., pydantic, pytest)
+2. **Local Infrastructure**: Local packages like LightRAG (`F:\AI\LightRAG`)
+3. **Common Utilities**: tz_common package with utilities used by multiple agents
+4. **Agents and Services**: Individual agents (NotionAgent, JsonAgent, etc.)
+
+## Conditional Imports
+
+For dependencies that may not always be available (e.g., LightRAG), use conditional imports:
+
+```python
+# Example from tz_common/__init__.py
+try:
+	from .tzrag import TZRag
+except ImportError:
+	log.debug("TZRag not available - missing dependencies")
+```
+
+This allows the package to be used even when optional dependencies aren't installed.
+
+## pyproject.toml Configuration
+
+Each component should have its own pyproject.toml file that:
+
+1. Specifies its direct dependencies
+2. Specifies version constraints for critical dependencies
+3. Defines optional development dependencies
+
+Example:
+```toml
+[project]
+name = "tz-common"
+version = "0.9.0"
+dependencies = [
+	"pydantic>=1.10.8,<2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+	"black",
+	"flake8",
+	"mypy",
+]
+```
+
+## Local Development
+
+For local development:
+
+1. Always use `conda activate services` environment
+2. Install all components in development mode (`pip install -e .`)
+3. When a package depends on a local repository, ensure it's also installed in dev mode
+4. Run tests to verify dependencies are correctly resolved

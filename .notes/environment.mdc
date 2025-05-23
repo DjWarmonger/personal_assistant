@@ -1,5 +1,37 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
+# Project Environment Requirements
+
+This document outlines the environment requirements for the PersonalAssistant project and its components.
+
+## Package Dependencies
+
+Some components have dependencies on locally developed packages:
+
+- **tz_common**: Uses LightRAG which is installed from a local repository (`F:\AI\LightRAG`)
+- Other agents and services may have their own specific dependencies
+
+## Installation and Development
+
+When working with the project:
+
+1. Always use the `services` conda environment
+2. Install packages in development mode:
+   ```bash
+   pip install -e .
+   ```
+3. For packages with dependencies on local repositories, ensure those local repos are also installed:
+   ```bash
+   # Example for LightRAG
+   cd F:\AI\LightRAG
+   pip install -e .
+   ```
+
+## Dependency Management
+
+- When adding new dependencies, add them to the appropriate pyproject.toml file
+- Critical dependencies with specific version requirements should be documented
+- Avoid importing libraries that are not specified in dependencies

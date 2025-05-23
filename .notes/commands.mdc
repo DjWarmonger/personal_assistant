@@ -3,3 +3,68 @@ description:
 globs:
 alwaysApply: false
 ---
+# Common Commands Reference
+
+This document provides commonly used commands for working with the PersonalAssistant project.
+
+## Environment Setup
+
+Always use the `services` conda environment:
+
+```bash
+# Activate the services environment
+conda activate services
+```
+
+## Installation Commands
+
+Install packages in development mode:
+
+```bash
+# Install tz_common
+cd F:\Programowanie\PersonalAssistant\common
+pip install -e .
+
+# Install NotionAgent
+cd F:\Programowanie\PersonalAssistant\Agents\NotionAgent
+pip install -e .
+
+# Install LightRAG (dependency required by tz_common.tzrag)
+cd F:\AI\LightRAG
+pip install -e .
+```
+
+## Testing Commands
+
+```bash
+# Run all tz_common tests
+conda activate services
+cd F:\Programowanie\PersonalAssistant\common
+python -m unittest discover
+
+# Run specific tz_common test
+conda activate services
+cd F:\Programowanie\PersonalAssistant\common
+python -m unittest tests/test_imports.py
+
+# Run all NotionAgent tests
+conda activate services
+cd F:\Programowanie\PersonalAssistant\Agents\NotionAgent
+python -m pytest
+
+# Run specific NotionAgent test file
+conda activate services
+cd F:\Programowanie\PersonalAssistant\Agents\NotionAgent
+python -m pytest tests/test_block_cache.py
+```
+
+## Dependency Verification
+
+To verify that dependencies are correctly installed:
+
+```bash
+# List installed packages
+conda activate services
+pip list | findstr lightrag
+pip list | findstr tz-common
+```
