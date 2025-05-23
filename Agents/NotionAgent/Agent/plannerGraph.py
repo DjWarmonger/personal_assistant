@@ -5,6 +5,7 @@ from langgraph.graph import StateGraph, END
 from tz_common.logs import log
 from tz_common.tasks import TaskStatus, TaskRole
 from tz_common.langchain_wrappers import check_and_call_tools, get_message_timeline_from_state, add_timestamp
+from tz_common.langchain_wrappers.message import create_current_time_message
 
 from .agents import planner_agent_runnable
 from .agentTools import planner_tool_executor, client
@@ -53,6 +54,9 @@ def planning(state: PlannerAgentState) -> PlannerAgentState:
 
 	state["messages"] = [msg for msg in state["messages"] if "tool_calls" not in msg.additional_kwargs]
 	messages_in_order = get_message_timeline_from_state(state)
+
+	# Add current time information to context
+	messages_in_order.append(create_current_time_message())
 
 	response = planner_agent_runnable.invoke({"messages": messages_in_order})
 
@@ -115,25 +119,37 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 
 	unsolvedTasksWriter = list(set([task for task in state["unsolvedTasks"] if task.role_id.upper() == "WRITER" and task.is_todo()]))
 
-	writer_agent_state = {
-		"messages": state["initialPrompt"],
-		"unsolvedTasks": list(unsolvedTasksWriter),
-		"completedTasks": [],
-		#"completedTasks": notion_agent_response["completedTasks"],
-		"visitedBlocks": notion_agent_response["visitedBlocks"],
-		"blockTree": notion_agent_response["blockTree"],
-		"toolResults": [],
-		"recentResults": []
-	}
+	if unsolvedTasksWriter:
 
-	writer_agent_response = writer_agent.invoke(writer_agent_state)
-	log.debug(f"Writer agent response:", writer_agent_response)
+		writer_agent_state = {
+			"messages": state["initialPrompt"],
+			"unsolvedTasks": list(unsolvedTasksWriter),
+			"completedTasks": [],
+			#"completedTasks": notion_agent_response["completedTasks"],
+			"visitedBlocks": notion_agent_response["visitedBlocks"],
+			"blockTree": notion_agent_response["blockTree"],
+			"toolResults": [],
+			"recentResults": []
+		}
+
+		writer_agent_response = writer_agent.invoke(writer_agent_state)
+		log.debug(f"Writer agent response:", writer_agent_response)
+
+		# FIXME: If writer is not called, then what is returned?
+
+		return {"messages": state["messages"],
+				"completedTasks": list(set(writer_agent_response["completedTasks"])),
+				"unsolvedTasks": list(set(writer_agent_response["unsolvedTasks"]))}
+	
+	else:
+
+		return {"messages": state["messages"],
+				"completedTasks": list(set(notion_agent_response["completedTasks"])),
+				"unsolvedTasks": list(set(notion_agent_response["unsolvedTasks"]))}
+	
+	# TODO: what if there were no tasks for notion agent either?
 
 	# TODO: Remember visited blocks for subsequent calls?
-
-	return {"messages": state["messages"],
-			"completedTasks": list(set(writer_agent_response["completedTasks"])),
-			"unsolvedTasks": list(set(writer_agent_response["unsolvedTasks"]))}
 
 
 def check_tasks(state: PlannerAgentState) -> str:

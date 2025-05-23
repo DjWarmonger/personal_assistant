@@ -5,6 +5,7 @@ from langfuse.decorators import observe
 from tz_common.logs import log
 from tz_common import create_langfuse_handler
 from tz_common.langchain_wrappers import AgentState, trim_recent_results, get_message_timeline_from_state, check_and_call_tools
+from tz_common.langchain_wrappers.message import create_current_time_message
 from tz_common.tasks import AgentTaskList
 from tz_common.actions import AgentActionListUtils
 
@@ -80,6 +81,8 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 		messages_with_context.append(AIMessage(content=tree_str))
 	if state["actions"]:
 		messages_with_context.append(AIMessage(content=actions_str))
+	# Add current time information to context
+	messages_with_context.append(create_current_time_message())
 
 	response = writer_agent_runnable.invoke({"messages": messages_with_context})
 

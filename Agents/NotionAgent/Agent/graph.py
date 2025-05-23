@@ -7,6 +7,7 @@ from langfuse.decorators import observe
 from tz_common.logs import log
 from tz_common import create_langfuse_handler
 from tz_common.langchain_wrappers import trim_recent_results, get_message_timeline_from_state, check_and_call_tools
+from tz_common.langchain_wrappers.message import create_current_time_message
 from tz_common.tasks import AgentTaskList
 from tz_common.actions import AgentActionListUtils
 
@@ -75,10 +76,13 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
 	# Only append them once for this call, do not permanently add them to message history
 
-	if state["actions"]:
-		actions_str = "Actions taken:\n" + AgentActionListUtils.actions_to_string(state["actions"])
+	#if state["actions"]:
+	#	actions_str = "Actions taken:\n" + AgentActionListUtils.actions_to_string(state["actions"])
 
 	messages_with_context = get_message_timeline_from_state(state)
+
+	# Add current time information to context
+	messages_with_context.append(create_current_time_message())
 
 	if state['unsolvedTasks']:
 		messages_with_context.append(AIMessage(content=remaining_tasks))
@@ -86,8 +90,11 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 		messages_with_context.append(AIMessage(content=completed_tasks))
 	if not state["blockTree"].is_empty():
 		messages_with_context.append(AIMessage(content=tree_str))
-	if state["actions"]:
-		messages_with_context.append(AIMessage(content=actions_str))
+
+	# FIXME: atons are alreayd handled by timeline
+
+	#if state["actions"]:
+	#	messages_with_context.append(AIMessage(content=actions_str))
 	if state["recentResults"]:
 		messages_with_context.append(AIMessage(content=recent_calls))
 
