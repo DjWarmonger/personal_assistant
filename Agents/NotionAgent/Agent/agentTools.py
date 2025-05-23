@@ -124,14 +124,17 @@ class NotionQueryDatabaseTool(ContextAwareTool):
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		notion_id: str = Field(..., description="UUID of the database to query")
+		# TODO: detailed filter description for 4.1-mini
 		filter: dict = Field(default={}, description='Search filter to apply to the database query. Example: {"property": "Status", "select": {"equals": "TODO"}}')
 		start_cursor: Optional[str] = Field(None, description='Cursor to start from, use "next_cursor" from previous response to get the next page')
 
 
 	async def _run(self, context: AgentState, notion_id: str, filter: dict = {}, start_cursor: Optional[str] = None, **kwargs: Any) -> tuple[AgentState, str]:
-		notion_id = notion_id.replace("-", "")
+
+		notion_id = CustomUUID(value=notion_id)
 		log.flow(f"Querying Notion database... {notion_id}")
-		log.flow("filter:", str(filter))
+		log.debug("Start cursor: ", start_cursor)
+		log.debug("filter:", str(filter))
 		result = await client.query_database(notion_id, filter, start_cursor)
 		return context, json_converter.remove_spaces(result)
 
