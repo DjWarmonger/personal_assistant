@@ -1,6 +1,6 @@
 ---
 description: Project overview and goals
-globs: common/tz_common/**/*.*
+globs: common/**/*.py,common/**/*.md
 alwaysApply: false
 ---
 # Project overview
