@@ -3,10 +3,55 @@ description:
 globs: **/tests/**/*.py
 alwaysApply: false
 ---
-* Use pytest for all unit tests
+# Testing Practices
 
-# Test separation
+This document outlines best practices for testing components of the PersonalAssistant project.
 
-* Different assertions should be placed in separate test cases.
+## Environment Setup
 
-* The only exception is when sequential assertions check state change over time, and subsequent checks require earlier checks to pass.
+All tests must be run in the `services` conda environment:
+
+```bash
+conda activate services
+```
+
+## Test Frameworks
+
+- Use **unittest** for tz_common tests
+- Use **pytest** for agent tests (e.g., NotionAgent)
+
+## Test Command Examples
+
+```bash
+# tz_common tests
+conda activate services
+cd F:\Programowanie\PersonalAssistant\common
+python -m unittest discover
+
+# NotionAgent tests 
+conda activate services
+cd F:\Programowanie\PersonalAssistant\Agents\NotionAgent
+python -m pytest
+```
+
+## Test Isolation
+
+Tests should be isolated from each other:
+
+1. Each test should set up its own environment
+2. Tests should not depend on each other's state
+3. Use temporary files and directories when needed
+4. Clean up any resources after tests complete
+
+# Remove empty / outdated tests - Case study
+
+## Issue: Obsolete/Placeholder Tests in `test_block_tree.py`
+*   The file `test_block_tree.py` contained many placeholder tests with `@patch` decorators but no actual assertions relevant to the current `BlockTree` API.
+
+## Resolution: Obsolete/Placeholder Tests in `test_block_tree.py`
+*   These tests were removed, and new, relevant tests were added for `is_empty`, `get_tree_str` on an empty tree, duplicate relationships, and `from_dict` with empty inputs.
+
+## Prevention: Obsolete/Placeholder Tests in `test_block_tree.py`
+*   Regularly review and clean up test suites to remove obsolete tests that no longer reflect the current codebase, improving clarity and maintainability.
+
+

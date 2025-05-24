@@ -42,7 +42,7 @@
 	- Include the value that caused the error
 	- Maintain original error message clarity
 
-### Error Handling Best Practices
+### Error Handling - Best Practices
 
 1. Error Message Structure:
 	- Validation errors: "Invalid lambda expression: {syntax_error}"

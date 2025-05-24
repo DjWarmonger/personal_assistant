@@ -18,7 +18,7 @@ The goals of utils is to streamline AI agent development, by providing a set of 
 
 * Reduce code duplication
 
-* Minimize cognitive load. User should not need to guess or assume anything in order to use the tool.
+* Minimize cognitive load. User should not need to remember, guess or assume anything in order to use the tool.
 
 ## Separate tools into different packages, especially:
 

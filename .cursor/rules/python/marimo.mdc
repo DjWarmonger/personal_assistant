@@ -1,0 +1,12 @@
+---
+description: 
+globs: **/*dashboard*.py
+alwaysApply: false
+---
+# General rules for Marimo dashboards
+
+Marimo dashboards are meant for manual testing via GUI.
+
+- Do not attempt to launch dashboard or marimo server from console
+
+- Whenever dashboard is involved, ask user to perform manual tests and wait for their verdict

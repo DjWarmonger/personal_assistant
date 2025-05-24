@@ -1,3 +1,8 @@
+---
+description: Issues related to cache check and invalidation in unit tests
+globs: 
+alwaysApply: false
+---
 # Notion Cache Race Condition Issue
 
 ## Problem
@@ -20,7 +25,7 @@ Modifying the `invalidate_page_if_expired` method to use direct SQL operations a
 
 ## Working Solution
 
-1. Add a 1-second delay between adding the blocks and calling `invalidate_page_if_expired`
+1. Add short delay between adding the blocks and calling `invalidate_page_if_expired`
 2. This ensures that when `datetime.now()` is called to generate the invalidation timestamp, it's substantially newer than the page creation timestamp
 
 ```python
@@ -31,7 +36,7 @@ self.cache.add_block("child2_uuid", "child2_content", parent_uuid="page_uuid", p
 self.cache.add_block("grandchild_uuid", "grandchild_content", parent_uuid="child1_uuid", parent_type=ObjectType.BLOCK)
 
 # Add a delay to ensure timestamp difference
-time.sleep(1)
+time.sleep(0.01)
 
 # Invalidate the page with a timestamp that's definitely newer
 self.cache.invalidate_page_if_expired("page_uuid", datetime.now(timezone.utc).isoformat())
@@ -39,6 +44,9 @@ self.cache.invalidate_page_if_expired("page_uuid", datetime.now(timezone.utc).is
 
 ## Lessons Learned
 
+When testing time-sensitive logic (like expirations), ensure a clear and reliable difference between timestamps used for setting up state and triggering events.
+
 1. Timestamp-based invalidation is sensitive to timing issues in tests
 2. Adding appropriate delays before generating new timestamps can help prevent race conditions
+
 3. In real-world scenarios with distributed systems, always ensure proper timestamp handling to prevent similar issues 
