@@ -1,11 +1,12 @@
 # Refactoring of block handling
 
-- [ ]  Najpierw wyodrębnienie metod `clean` do osobnej klasy - `BlockHolder`
-    - [ ]  Umieścić nową klasę jako składową klienta
-- [ ]  Klasa Pydantic o nazwie `BlockDict`
-- [ ]  Od teraz klientów Notion będzie zwracał alternatywę str / dict
+- [✅]  Najpierw wyodrębnienie metod `clean` do osobnej klasy - `BlockHolder`
+    - [✅]  Umieścić nową klasę jako składową klienta
+- [✅]  Klasa Pydantic o nazwie `BlockDict` (int id -> Block content)
+- [✅]  Od teraz klientów Notion będzie zwracał alternatywę str / dict
 - [ ]  Umieszczenie bloków w nowej klasie - przeniesienie funkcjonalności zarządzania blokami z klienta Notion
-- [ ]  Użycie klasy `BlockHolder` / `BlockDict` w toolach i w logice agenta
+- [ ]  Użycie klasy `BlockHolder` / `BlockDict` w toolach
+- [ ]  Użycie klasy `BlockHolder` / `BlockDict` w logice agenta
 - [ ]  Refactoring `BlockTree`, jeśli jest potrzebny?
 - [ ]  Przechowywać w cache **cały** blok, bez filtracji
 - [ ]  Aktualizacja testów → test, powtarzać do skutku

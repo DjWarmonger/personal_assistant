@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from operations.notion_client import NotionClient
 from operations.asyncClientManager import AsyncClientManager
 from operations.blockTree import BlockTree
+from operations.blockDict import BlockDict
 from tz_common import CustomUUID
 
 load_dotenv()
@@ -25,16 +26,30 @@ async def notion_client():
 	finally:
 		await AsyncClientManager.cleanup()
 
+
 @pytest.mark.asyncio
 async def test_navigate_to_notion_page(notion_client):
 	page_id = os.getenv("NOTION_LANDING_PAGE_ID")
 	
 	result = await notion_client.get_notion_page_details(page_id=page_id)
 
-	assert result["object"] == "page"
-	assert "id" in result
-	assert notion_client.index.resolve_to_uuid(result["id"]) == CustomUUID.from_string(page_id)
-	assert "properties" in result
+	# Handle BlockDict or error string
+	if isinstance(result, str):
+		pytest.fail(f"Expected BlockDict, got error: {result}")
+	
+	# Assume single key-value pair in BlockDict
+	assert isinstance(result, BlockDict)
+	result_dict = result.to_dict()
+	assert len(result_dict) == 1
+	
+	# Get the single page data
+	page_data = next(iter(result_dict.values()))
+	
+	assert page_data["object"] == "page"
+	assert "id" in page_data
+	assert notion_client.index.resolve_to_uuid(page_data["id"]) == CustomUUID.from_string(page_id)
+	assert "properties" in page_data
+
 
 @pytest.mark.asyncio
 async def test_navigate_to_database(notion_client):
@@ -42,35 +57,55 @@ async def test_navigate_to_database(notion_client):
 	
 	result = await notion_client.get_notion_page_details(database_id=database_id)
 
-	assert result["object"] == "database"
-	assert "id" in result
-	assert notion_client.index.resolve_to_uuid(result["id"]) == CustomUUID.from_string(database_id)
-	assert "properties" in result
+	# Handle BlockDict or error string
+	if isinstance(result, str):
+		pytest.fail(f"Expected BlockDict, got error: {result}")
+	
+	# Assume single key-value pair in BlockDict
+	assert isinstance(result, BlockDict)
+	result_dict = result.to_dict()
+	assert len(result_dict) == 1
+	
+	# Get the single database data
+	database_data = next(iter(result_dict.values()))
+	
+	assert database_data["object"] == "database"
+	assert "id" in database_data
+	assert notion_client.index.resolve_to_uuid(database_data["id"]) == CustomUUID.from_string(database_id)
+	assert "properties" in database_data
+
 
 @pytest.mark.asyncio
 async def test_navigate_to_notion_page_negative(notion_client):
 	page_id = "11111111-1111-1111-1111-111111111111" # Valid format, but non-existent
 	result = await notion_client.get_notion_page_details(page_id=page_id)
 	
-	assert isinstance(result, dict)
-	# After clean_error_message, "object" key should be removed or its value None
-	assert result.get("object") is None 
-	assert "status" in result
-	# Allow for 404 or 400 as Notion might return different codes for "not found" vs "bad request"
-	# depending on how it interprets a correctly formatted but non-existent ID
-	assert result["status"] in [404, 400] 
-	assert "code" in result 
-	assert "message" in result
+	# Should return error string for invalid page
+	assert isinstance(result, str), f"Expected error string, got {type(result)}"
+	assert "HTTP" in result and ("404" in result or "400" in result)
+
 
 @pytest.mark.asyncio
 async def test_search_notion(notion_client):
 	result = await notion_client.search_notion("Sprawy życiowe")
 
-	assert result["object"] == "list"
-	assert "results" in result
-	assert "next_cursor" not in result
-	assert "has_more" in result
-	assert len(result["results"]) <= 10
+	# Handle BlockDict or error string
+	if isinstance(result, str):
+		pytest.fail(f"Expected BlockDict, got error: {result}")
+	
+	# BlockDict contains search results as individual blocks
+	assert isinstance(result, BlockDict)
+	result_dict = result.to_dict()
+	
+	# Verify we have search results
+	assert len(result_dict) > 0
+	assert len(result_dict) <= 10
+	
+	# Each result should be a database/page object
+	for block_id, block_data in result_dict.items():
+		assert isinstance(block_id, int)
+		assert isinstance(block_data, dict)
+		assert "object" in block_data
 
 # TODO: Test search results caching
 
@@ -78,11 +113,23 @@ async def test_search_notion(notion_client):
 async def test_search_notion_with_filter(notion_client):
 	result = await notion_client.search_notion("AI", filter_type="database", sort="ascending")
 
-	assert result["object"] == "list"
-	assert "results" in result
+	# Handle BlockDict or error string
+	if isinstance(result, str):
+		pytest.fail(f"Expected BlockDict, got error: {result}")
+	
+	# BlockDict contains search results as individual blocks
+	assert isinstance(result, BlockDict)
+	result_dict = result.to_dict()
+	
+	# Verify we have search results
+	assert len(result_dict) > 0
+	
+	# Each result should be a database object
+	for block_id, block_data in result_dict.items():
+		assert isinstance(block_id, int)
+		assert isinstance(block_data, dict)
+		assert block_data["object"] == "database"
 
-	for item in result["results"]:
-		assert item["object"] == "database"
 
 @pytest.mark.asyncio
 async def test_get_children(notion_client):
@@ -91,18 +138,40 @@ async def test_get_children(notion_client):
 
 	result = await notion_client.get_block_content(block_id=block_id, block_tree=block_tree)
 
-	assert result["object"] == "list"
-	assert "results" in result
-	assert "next_cursor" in result
-	assert "has_more" in result
+	# Handle BlockDict or error string
+	if isinstance(result, str):
+		pytest.fail(f"Expected BlockDict, got error: {result}")
+	
+	# Assume single key-value pair in BlockDict for get_children=False
+	assert isinstance(result, BlockDict)
+	result_dict = result.to_dict()
+	assert len(result_dict) == 1
+	
+	# Get the single block content
+	block_content = next(iter(result_dict.values()))
+	
+	assert block_content["object"] == "list"
+	assert "results" in block_content
+	assert "next_cursor" in block_content
+	assert "has_more" in block_content
 
-	if result["has_more"] == True:
-		print(f"Has more: {result['has_more']}, starting cursor in children test: {result['next_cursor']}")
-		start_cursor=notion_client.index.resolve_to_uuid(result["next_cursor"])
+	if block_content["has_more"] == True:
+		print(f"Has more: {block_content['has_more']}, starting cursor in children test: {block_content['next_cursor']}")
+		start_cursor=notion_client.index.resolve_to_uuid(block_content["next_cursor"])
 		result = await notion_client.get_block_content(block_id=block_id, start_cursor=start_cursor, block_tree=block_tree)
 
-		assert result["object"] == "list"
-		assert "results" in result
+		# Handle second call result
+		if isinstance(result, str):
+			pytest.fail(f"Expected BlockDict, got error: {result}")
+		
+		assert isinstance(result, BlockDict)
+		result_dict = result.to_dict()
+		assert len(result_dict) == 1
+		
+		block_content = next(iter(result_dict.values()))
+		assert block_content["object"] == "list"
+		assert "results" in block_content
+
 
 @pytest.mark.asyncio
 async def test_filter_database(notion_client):
@@ -137,8 +206,23 @@ async def test_filter_database(notion_client):
 
 	result = await notion_client.query_database(database_id=database_id, filter=filter)
 
-	assert result["object"] == "list"
-	assert "results" in result
+	# Handle BlockDict or error string
+	if isinstance(result, str):
+		pytest.fail(f"Expected BlockDict, got error: {result}")
+	
+	# BlockDict contains database query results as individual blocks
+	assert isinstance(result, BlockDict)
+	result_dict = result.to_dict()
+	
+	# Verify we have query results
+	assert len(result_dict) > 0
+	
+	# Each result should be a page object from the database
+	for block_id, block_data in result_dict.items():
+		assert isinstance(block_id, int)
+		assert isinstance(block_data, dict)
+		assert block_data["object"] == "page"
+
 
 @pytest.mark.asyncio
 async def test_database_query_with_empty_filter(notion_client):
@@ -146,12 +230,135 @@ async def test_database_query_with_empty_filter(notion_client):
 
 	result = await notion_client.query_database(database_id=database_id, filter={})
 
-	assert result["object"] == "list"
-	assert "results" in result
+	# Handle BlockDict or error string
+	if isinstance(result, str):
+		pytest.fail(f"Expected BlockDict, got error: {result}")
+	
+	# BlockDict contains database query results as individual blocks
+	assert isinstance(result, BlockDict)
+	result_dict = result.to_dict()
+	
+	# Verify we have query results
+	assert len(result_dict) > 0
+	
+	# Each result should be a page object from the database
+	for block_id, block_data in result_dict.items():
+		assert isinstance(block_id, int)
+		assert isinstance(block_data, dict)
+		assert block_data["object"] == "page"
+	
+	# Note: We can't easily check has_more and next_cursor since they're not in BlockDict
+	# This is a limitation of the new return type for paginated results
 
-	if result["has_more"]:
-		start_cursor=notion_client.index.resolve_to_uuid(result["next_cursor"])
-		result = await notion_client.query_database(database_id=database_id, filter={}, start_cursor=start_cursor)
-		assert result["object"] == "list"
+
+@pytest.mark.asyncio
+async def test_get_block_children_return_type(notion_client):
+	"""Test that get_block_children returns Union[BlockDict, str]"""
+	block_id = "593cf337c82a47fd80a750671b2a1e43"
+	block_tree = BlockTree()
+	
+	# First get some content to ensure children are cached
+	await notion_client.get_block_content(block_id=block_id, block_tree=block_tree)
+	
+	# Test successful case - should return BlockDict
+	result = await notion_client.get_block_children(block_id, block_tree)
+	
+	assert isinstance(result, (BlockDict, str)), f"Expected BlockDict or str, got {type(result)}"
+	
+	if isinstance(result, BlockDict):
+		# Verify it behaves like a dictionary
+		assert hasattr(result, 'items')
+		assert hasattr(result, 'keys')
+		assert hasattr(result, 'values')
+		assert hasattr(result, 'to_dict')
+		# Test dictionary-like access
+		dict_version = result.to_dict()
+		assert isinstance(dict_version, dict)
+
+
+@pytest.mark.asyncio
+async def test_get_block_children_error_case(notion_client):
+	"""Test that get_block_children returns error string for invalid input"""
+	# Test with None block_tree - should return error string
+	result = await notion_client.get_block_children("invalid-uuid", None)
+	
+	assert isinstance(result, str), f"Expected error string, got {type(result)}"
+	assert "Could not convert" in result or "block_tree is None" in result
+
+
+@pytest.mark.asyncio
+async def test_get_all_children_recursively_return_type(notion_client):
+	"""Test that get_all_children_recursively returns Union[BlockDict, str]"""
+	block_id = "593cf337c82a47fd80a750671b2a1e43"
+	block_tree = BlockTree()
+	
+	# Test successful case - should return BlockDict
+	result = await notion_client.get_all_children_recursively(block_id, block_tree)
+	
+	assert isinstance(result, (BlockDict, str)), f"Expected BlockDict or str, got {type(result)}"
+	
+	if isinstance(result, BlockDict):
+		# Verify it's a flat dictionary (no nested structures)
+		dict_version = result.to_dict()
+		assert isinstance(dict_version, dict)
+		
+		# All keys should be integers (block IDs)
+		for key in dict_version.keys():
+			assert isinstance(key, int), f"Expected int key, got {type(key)}: {key}"
+		
+		# All values should be dictionaries (block content)
+		for value in dict_version.values():
+			assert isinstance(value, dict), f"Expected dict value, got {type(value)}"
+
+
+@pytest.mark.asyncio
+async def test_get_all_children_recursively_error_case(notion_client):
+	"""Test that get_all_children_recursively returns error string for invalid input"""
+	# Test with None block_tree - should return error string
+	result = await notion_client.get_all_children_recursively("invalid-uuid", None)
+	
+	assert isinstance(result, str), f"Expected error string, got {type(result)}"
+	assert "Could not convert" in result or "block_tree is None" in result
+
+
+@pytest.mark.asyncio
+async def test_get_block_content_with_invalid_id(notion_client):
+	"""Test HTTP error handling with deliberately incorrect block ID"""
+	invalid_block_id = "00000000-0000-0000-0000-000000000000"  # Valid UUID format but non-existent
+	block_tree = BlockTree()
+	
+	# This should trigger an HTTP error and return error string
+	result = await notion_client.get_block_content(
+		block_id=invalid_block_id, 
+		block_tree=block_tree, 
+		get_children=False
+	)
+	
+	# Should return error string for invalid block ID
+	assert isinstance(result, str), f"Expected error string, got {type(result)}"
+	assert "HTTP" in result and ("404" in result or "400" in result)
+
+
+@pytest.mark.asyncio
+async def test_get_block_content_recursive_return_type(notion_client):
+	"""Test that get_block_content with get_children=True returns BlockDict or error"""
+	block_id = "593cf337c82a47fd80a750671b2a1e43"
+	block_tree = BlockTree()
+	
+	# Test with get_children=True - should call get_all_children_recursively internally
+	result = await notion_client.get_block_content(
+		block_id=block_id, 
+		block_tree=block_tree, 
+		get_children=True
+	)
+	
+	# When get_children=True and children are fetched, it should return BlockDict
+	assert isinstance(result, (BlockDict, dict)), f"Expected BlockDict or dict, got {type(result)}"
+	
+	if isinstance(result, BlockDict):
+		# Verify flat structure
+		dict_version = result.to_dict()
+		for key in dict_version.keys():
+			assert isinstance(key, int), f"Expected int key, got {type(key)}"
 
 

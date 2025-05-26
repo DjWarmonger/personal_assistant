@@ -11,6 +11,7 @@ from .urlIndex import UrlIndex
 from .blockCache import BlockCache, ObjectType
 from .blockTree import BlockTree
 from .blockHolder import BlockHolder
+from .blockDict import BlockDict
 from tz_common.logs import log, LogLevel
 
 from .utils import Utils
@@ -66,7 +67,7 @@ class NotionClient:
 		pass
 
 
-	async def get_notion_page_details(self, page_id: Optional[Union[str, CustomUUID]] = None, database_id: Optional[Union[str, CustomUUID]] = None):
+	async def get_notion_page_details(self, page_id: Optional[Union[str, CustomUUID]] = None, database_id: Optional[Union[str, CustomUUID]] = None) -> Union[BlockDict, str]:
 
 		current_page_id: Optional[CustomUUID] = None
 		current_database_id: Optional[CustomUUID] = None
@@ -99,7 +100,8 @@ class NotionClient:
 
 			if response.status_code != 200:
 				log.error(response.status_code)
-				return self.block_holder.clean_error_message(response.json())
+				error_dict = self.block_holder.clean_error_message(response.json())
+				return f"HTTP {response.status_code}: {error_dict.get('message', 'Unknown error')}"
 			else:
 				raw_data = response.json() # Get raw data first
 				original_response_id_str = raw_data.get("id") # Extract original ID string
@@ -120,24 +122,39 @@ class NotionClient:
 
 				# Clean timestamps on the already partially converted 'data'
 				data = self.block_holder.clean_timestamps(data) 
-				return data
+				
+				# Wrap in BlockDict for consistent return type
+				block_dict = BlockDict()
+				if isinstance(data, dict):
+					# For page details, we treat the page as a single "block" with an artificial ID
+					artificial_id = data.get('id', 0)  # Use the converted int ID if available
+					if isinstance(artificial_id, int):
+						block_dict.add_block(artificial_id, data)
+					else:
+						# Fallback: use 0 as artificial ID
+						block_dict.add_block(0, data)
+				
+				return block_dict
 
 		except ValueError as e:
 			log.error(e)
 			return str(e)
 		
 
-	async def get_block_children(self, uuid: Union[str, CustomUUID], block_tree: Optional[BlockTree] = None) -> dict:
+	async def get_block_children(self, uuid: Union[str, CustomUUID], block_tree: Optional[BlockTree] = None) -> Union[BlockDict, str]:
 		"""
 		This should be called only if we know that children have been already fetched.
 		"""
 		parent_uuid_obj = self.index.resolve_to_uuid(uuid)
 		if not parent_uuid_obj:
-			log.error(f"Could not convert {uuid} to CustomUUID in get_block_children")
-			return {}
+			error_msg = f"Could not convert {uuid} to CustomUUID in get_block_children"
+			log.error(error_msg)
+			return error_msg
 		
 		if block_tree is None:
-			log.error("block_tree is None in get_block_children")
+			error_msg = "block_tree is None in get_block_children"
+			log.error(error_msg)
+			return error_msg
 
 		# get_children_uuids returns List[CustomUUID]
 		children_custom_uuids = self.cache.get_children_uuids(str(parent_uuid_obj))
@@ -168,23 +185,28 @@ class NotionClient:
 		if block_tree is not None and children_custom_uuids:
 			block_tree.add_relationships(parent_uuid_obj, children_custom_uuids)
 		
-		# The final dictionary should map int_id to content, as per original logic
-		return children_content_dict
+		# Return BlockDict instead of regular dict
+		block_dict = BlockDict()
+		block_dict.update(children_content_dict)
+		return block_dict
 
 
 	async def get_block_content(self,
 							 block_id: Union[int, str, CustomUUID],
 							 get_children=False,
 							 start_cursor: Optional[Union[int, str, CustomUUID]] = None,
-							 block_tree: Optional[BlockTree] = None):
+							 block_tree: Optional[BlockTree] = None) -> Union[BlockDict, str]:
 		
 		if block_tree is None:
-			log.error("block_tree is None in get_block_content")
+			error_msg = "block_tree is None in get_block_content"
+			log.error(error_msg)
+			return error_msg
 
 		uuid_obj = self.index.resolve_to_uuid(block_id)
 		if uuid_obj is None:
-			log.error(f"Could not convert block_id {block_id} to UUID")
-			return None
+			error_msg = f"Could not convert block_id {block_id} to UUID"
+			log.error(error_msg)
+			return error_msg
 		
 		# cache_key should use the string representation of CustomUUID
 		current_cache_key_str = str(uuid_obj)
@@ -213,7 +235,16 @@ class NotionClient:
 					# Ensure we add the correct CustomUUID object to the tree
 					key_for_tree = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
 					block_tree.add_parent(key_for_tree)
-				return cached_content
+				
+				# Wrap cached content in BlockDict for consistent return type
+				block_dict = BlockDict()
+				if isinstance(cached_content, dict):
+					# Use a single artificial ID for the cached content
+					artificial_id = cached_content.get('id', 0) if 'id' in cached_content else 0
+					if not isinstance(artificial_id, int):
+						artificial_id = 0
+					block_dict.add_block(artificial_id, cached_content)
+				return block_dict
 			else:
 				if self.cache.get_children_fetched_for_block(current_cache_key_str):
 					# Ensure we pass the correct CustomUUID object for recursive call
@@ -226,7 +257,8 @@ class NotionClient:
 
 		if response.status_code != 200:
 			log.error(response.status_code)
-			return self.block_holder.clean_error_message(response.json())
+			error_dict = self.block_holder.clean_error_message(response.json())
+			return f"HTTP {response.status_code}: {error_dict.get('message', 'Unknown error')}"
 		else:
 			response_data_json = response.json()
 			if block_tree is not None:
@@ -276,50 +308,71 @@ class NotionClient:
 				final_data = await self.get_all_children_recursively(key_for_recursion_after_fetch, block_tree)
 				return final_data
 
-			return final_data
+			# Wrap final_data in BlockDict for consistent return type when get_children=False
+			block_dict = BlockDict()
+			if isinstance(final_data, dict):
+				# Use a single artificial ID for the final data
+				artificial_id = final_data.get('id', 0) if 'id' in final_data else 0
+				if not isinstance(artificial_id, int):
+					artificial_id = 0
+				block_dict.add_block(artificial_id, final_data)
+			return block_dict
 		
 	
-	async def get_all_children_recursively(self, block_identifier: Union[str, CustomUUID], block_tree: Optional[BlockTree] = None) -> dict:
+	async def get_all_children_recursively(self, block_identifier: Union[str, CustomUUID], block_tree: Optional[BlockTree] = None) -> Union[BlockDict, str]:
 		"""
 		Recursively fetch and flatten all children blocks for the given block identifier.
-		Returns a dictionary mapping each child block's id (int) to its content.
+		Returns a BlockDict mapping each child block's id (int) to its content.
 		"""
 		parent_uuid_obj = self.index.resolve_to_uuid(block_identifier)
 		if not parent_uuid_obj:
-			log.error(f"Could not convert {block_identifier} to CustomUUID in get_all_children_recursively")
-			return {}
+			error_msg = f"Could not convert {block_identifier} to CustomUUID in get_all_children_recursively"
+			log.error(error_msg)
+			return error_msg
 
 		if block_tree is None:
-			log.error("block_tree is None in get_all_children_recursively")
+			error_msg = "block_tree is None in get_all_children_recursively"
+			log.error(error_msg)
+			return error_msg
 
-		flat_children_by_int_id = {}
-		# get_block_children expects string or CustomUUID, returns dict {int_id: content}
-		immediate_children_content_map = await self.get_block_children(parent_uuid_obj, block_tree)
+		# Initialize the flat BlockDict to accumulate all children
+		flat_children_block_dict = BlockDict()
+		
+		# get_block_children now returns Union[BlockDict, str]
+		immediate_children_result = await self.get_block_children(parent_uuid_obj, block_tree)
+		
+		# Handle error case
+		if isinstance(immediate_children_result, str):
+			return immediate_children_result  # Return error string
+		
+		# immediate_children_result is now a BlockDict
+		immediate_children_content_map = immediate_children_result
 
-		if immediate_children_content_map:
-			# Extract CustomUUIDs of children to update block_tree
-			# This requires mapping int_ids from immediate_children_content_map back to CustomUUIDs
-			# We already have children_custom_uuids from the initial call to self.cache.get_children_uuids inside get_block_children
-			# For now, assume get_block_children populates block_tree correctly internally.
-			# The main goal here is to recurse.
-			pass # block_tree is updated within get_block_children
-
+		# Add immediate children to flat dict
 		for child_int_id, child_content in immediate_children_content_map.items():
-			flat_children_by_int_id[child_int_id] = child_content
+			flat_children_block_dict.add_block(child_int_id, child_content)
+			
 			# For recursion, we need the CustomUUID of the child.
 			# We get child_int_id from immediate_children_content_map. We need to convert this int_id back to CustomUUID.
 			child_uuid_obj_for_recursion = self.index.get_uuid(child_int_id) # get_uuid returns CustomUUID or None
 			if child_uuid_obj_for_recursion:
-				descendants_map = await self.get_all_children_recursively(child_uuid_obj_for_recursion, block_tree)
-				flat_children_by_int_id.update(descendants_map)
+				descendants_result = await self.get_all_children_recursively(child_uuid_obj_for_recursion, block_tree)
+				
+				# Handle error case from recursion
+				if isinstance(descendants_result, str):
+					log.error(f"Error in recursive call for child {child_int_id}: {descendants_result}")
+					continue  # Skip this child's descendants but continue with other children
+				
+				# descendants_result is a BlockDict, update our flat dict
+				flat_children_block_dict.update(descendants_result.to_dict())
 			else:
 				log.error(f"Could not find CustomUUID for int_id {child_int_id} during recursion")
 
-		return flat_children_by_int_id
+		return flat_children_block_dict
 
 
 	async def search_notion(self, query, filter_type=None,
-							start_cursor: Optional[Union[str, CustomUUID]] = None, sort="descending"):
+							start_cursor: Optional[Union[str, CustomUUID]] = None, sort="descending") -> Union[BlockDict, str]:
 
 		url = "https://api.notion.com/v1/search"
 		payload = {
@@ -342,7 +395,15 @@ class NotionClient:
 
 		cache_entry = self.cache.get_search_results(query, filter_type, str(start_cursor) if start_cursor else None)
 		if cache_entry is not None:
-			return cache_entry
+			# Wrap cached search results in BlockDict
+			block_dict = BlockDict()
+			if isinstance(cache_entry, dict) and "results" in cache_entry:
+				for i, result in enumerate(cache_entry["results"]):
+					result_id = result.get('id', i)  # Use result ID or index as fallback
+					if not isinstance(result_id, int):
+						result_id = i
+					block_dict.add_block(result_id, result)
+			return block_dict
 
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
@@ -353,7 +414,8 @@ class NotionClient:
 
 			if response.status_code != 200:
 				log.error(response.status_code)
-				return self.block_holder.clean_error_message(response_json)
+				error_dict = self.block_holder.clean_error_message(response_json)
+				return f"HTTP {response.status_code}: {error_dict.get('message', 'Unknown error')}"
 			
 			cache_key = self.cache.create_search_results_cache_key(query, filter_type, str(start_cursor) if start_cursor else None)
 			
@@ -390,14 +452,23 @@ class NotionClient:
 			# Max ttl for search results is 30 days
 			self.cache.add_search_results(query, data, filter_type, str(start_cursor) if start_cursor else None, ttl = 30 * 24 * 60 * 60)
 
-			return data
+			# Wrap search results in BlockDict
+			block_dict = BlockDict()
+			if isinstance(data, dict) and "results" in data:
+				for i, result in enumerate(data["results"]):
+					result_id = result.get('id', i)  # Use result ID or index as fallback
+					if not isinstance(result_id, int):
+						result_id = i
+					block_dict.add_block(result_id, result)
+			
+			return block_dict
 
 		except Exception as e:
 			log.error(f"Error processing search response: {str(e)}")
-			return {"error": str(e)}
+			return f"Error processing search response: {str(e)}"
 
 
-	async def query_database(self, database_id: Union[str, CustomUUID], filter=None, start_cursor: Optional[Union[str, CustomUUID]] = None):
+	async def query_database(self, database_id: Union[str, CustomUUID], filter=None, start_cursor: Optional[Union[str, CustomUUID]] = None) -> Union[BlockDict, str]:
 		db_id_str = str(database_id) # Ensure database_id is string for cache and URL
 		# FIXME: Verify if id is known in index but is NOT a database
 
@@ -417,7 +488,15 @@ class NotionClient:
 		cache_filter_key = json.dumps(filter_obj, sort_keys=True) if filter_obj else None
 		cache_entry = self.cache.get_database_query_results(db_id_str, cache_filter_key, str(start_cursor) if start_cursor else None)
 		if cache_entry is not None:
-			return cache_entry
+			# Wrap cached database query results in BlockDict
+			block_dict = BlockDict()
+			if isinstance(cache_entry, dict) and "results" in cache_entry:
+				for i, result in enumerate(cache_entry["results"]):
+					result_id = result.get('id', i)  # Use result ID or index as fallback
+					if not isinstance(result_id, int):
+						result_id = i
+					block_dict.add_block(result_id, result)
+			return block_dict
 
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
@@ -426,7 +505,7 @@ class NotionClient:
 		if response.status_code != 200:
 			error_message = self.block_holder.clean_error_message(response.json())
 			log.error(response.status_code, error_message)
-			return error_message
+			return f"HTTP {response.status_code}: {error_message.get('message', 'Unknown error')}"
 		else:
 			# TODO: Invalidate blocks recursively if they are not up to date
 			data = self.block_holder.convert_message(response.json(), clean_timestamps=False, convert_to_index_id=False)
@@ -435,7 +514,18 @@ class NotionClient:
 				if "last_edited_time" in block:
 					self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
 
-			return self.block_holder.convert_to_index_id(self.block_holder.clean_timestamps(data))
+			final_data = self.block_holder.convert_to_index_id(self.block_holder.clean_timestamps(data))
+			
+			# Wrap database query results in BlockDict
+			block_dict = BlockDict()
+			if isinstance(final_data, dict) and "results" in final_data:
+				for i, result in enumerate(final_data["results"]):
+					result_id = result.get('id', i)  # Use result ID or index as fallback
+					if not isinstance(result_id, int):
+						result_id = i
+					block_dict.add_block(result_id, result)
+			
+			return block_dict
 
 
 	def set_favourite(self, uuid: int | list[int], set: bool) -> str:

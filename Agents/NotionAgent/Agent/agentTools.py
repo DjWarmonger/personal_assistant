@@ -3,6 +3,7 @@ from langchain_core.pydantic_v1 import Field, validator
 
 from langfuse.decorators import observe
 from operations.notion_client import NotionClient
+from operations.blockDict import BlockDict
 from tz_common import log, JsonConverter
 from tz_common import CustomUUID
 from tz_common.tasks import AgentTask, AgentTaskList
@@ -23,7 +24,19 @@ class NotionSearchTool(ContextAwareTool):
 	async def _run(self, context: AgentState, query: str, **kwargs: Any) -> tuple[AgentState, str]:
 		log.flow(f"Searching Notion... {query}")
 		result = await client.search_notion(query)
-		return context, json_converter.remove_spaces(result)
+		
+		# Handle new BlockDict return type or error string
+		if isinstance(result, BlockDict):
+			result_to_return = result.to_dict()
+		elif isinstance(result, str):
+			# Handle error string
+			log.error(f"Error searching Notion: {result}")
+			result_to_return = {"error": result}
+		else:
+			# Handle other return types (fallback)
+			result_to_return = result
+		
+		return context, json_converter.remove_spaces(result_to_return)
 
 
 class NotionPageDetailsTool(ContextAwareTool):
@@ -44,10 +57,29 @@ class NotionPageDetailsTool(ContextAwareTool):
 			raise ValueError(f"Invalid page index: {notion_id}")
 		
 		visited_dict = dict(context["visitedBlocks"])
-		visited_dict[index] = result
+		
+		# Handle new BlockDict return type or error string
+		if isinstance(result, BlockDict):
+			# For page details, we may have a single item in BlockDict
+			result_dict = result.to_dict()
+			if result_dict:
+				# Use the first (and likely only) item's content
+				first_key = next(iter(result_dict.keys()))
+				visited_dict[index] = result_dict[first_key]
+			result_to_return = result_dict
+		elif isinstance(result, str):
+			# Handle error string
+			log.error(f"Error getting page details: {result}")
+			visited_dict[index] = {"error": result}
+			result_to_return = {"error": result}
+		else:
+			# Handle other return types (fallback)
+			visited_dict[index] = result
+			result_to_return = result
+		
 		context["visitedBlocks"] = list(visited_dict.items())
 
-		return context, json_converter.remove_spaces(result)
+		return context, json_converter.remove_spaces(result_to_return)
 
 
 class NotionGetChildrenTool(ContextAwareTool):
@@ -69,19 +101,33 @@ class NotionGetChildrenTool(ContextAwareTool):
 
 		visited_dict = dict(context["visitedBlocks"])
 
-		if type(result) == dict:
-			for id, content in result.items():
-				visited_dict[int(id)] = content
+		# Handle new BlockDict return type or error string
+		if isinstance(result, BlockDict):
+			for block_id, content in result.items():
+				visited_dict[int(block_id)] = content
+			# Convert BlockDict to regular dict for JSON serialization
+			result_to_return = result.to_dict()
+		elif isinstance(result, dict):
+			# Handle regular dict (fallback for other methods)
+			for block_id, content in result.items():
+				visited_dict[int(block_id)] = content
+			result_to_return = result
+		elif isinstance(result, str):
+			# Handle error string
+			log.error(f"Error getting children: {result}")
+			result_to_return = {"error": result}
 		else:
+			# Handle other return types
 			index = client.index.to_int(block_id)	
 			if index is not None:
 				visited_dict[index] = result
 			else:
 				log.error(f"Could not resolve index {block_id} to int")
+			result_to_return = result
 
 		context["visitedBlocks"] = list(visited_dict.items())
 
-		return context, json_converter.remove_spaces(result)
+		return context, json_converter.remove_spaces(result_to_return)
 
 
 class NotionGetBlockContentTool(ContextAwareTool):
@@ -112,10 +158,24 @@ class NotionGetBlockContentTool(ContextAwareTool):
 					raise ValueError(f"Invalid block index: {index}")
 
 		visited_dict = dict(context["visitedBlocks"])
-		visited_dict[index] = result
+		
+		# Handle new BlockDict return type or error string  
+		if isinstance(result, BlockDict):
+			# Convert BlockDict to regular dict for JSON serialization
+			visited_dict[index] = result.to_dict()
+			result_to_return = result.to_dict()
+		elif isinstance(result, str):
+			# Handle error string
+			log.error(f"Error getting block content: {result}")
+			result_to_return = {"error": result}
+		else:
+			# Handle regular dict or other return types
+			visited_dict[index] = result
+			result_to_return = result
+		
 		context["visitedBlocks"] = list(visited_dict.items())
 
-		return context, json_converter.remove_spaces(result)
+		return context, json_converter.remove_spaces(result_to_return)
 
 
 class NotionQueryDatabaseTool(ContextAwareTool):
@@ -136,7 +196,19 @@ class NotionQueryDatabaseTool(ContextAwareTool):
 		log.debug("Start cursor: ", start_cursor)
 		log.debug("filter:", str(filter))
 		result = await client.query_database(notion_id, filter, start_cursor)
-		return context, json_converter.remove_spaces(result)
+		
+		# Handle new BlockDict return type or error string
+		if isinstance(result, BlockDict):
+			result_to_return = result.to_dict()
+		elif isinstance(result, str):
+			# Handle error string
+			log.error(f"Error querying database: {result}")
+			result_to_return = {"error": result}
+		else:
+			# Handle other return types (fallback)
+			result_to_return = result
+		
+		return context, json_converter.remove_spaces(result_to_return)
 
 
 class ChangeFavourties(ContextAwareTool):
