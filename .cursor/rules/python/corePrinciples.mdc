@@ -11,6 +11,7 @@ alwaysApply: false
 - Opening curly bracket only at the beginning of line
 - Follow flake8 formatting
 - After every class or method definition leave 2 empty lines
+- Avoid empty lines with only whitespaces in it. Create empty lines with no tabs or spaces at all.
 
 ## Type Hints
 
