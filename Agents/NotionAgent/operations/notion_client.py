@@ -10,6 +10,7 @@ from .index import Index
 from .urlIndex import UrlIndex
 from .blockCache import BlockCache, ObjectType
 from .blockTree import BlockTree
+from .blockHolder import BlockHolder
 from tz_common.logs import log, LogLevel
 
 from .utils import Utils
@@ -46,6 +47,7 @@ class NotionClient:
 		self.index = Index(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.cache = BlockCache(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.url_index = UrlIndex()
+		self.block_holder = BlockHolder(self.index, self.url_index)
 
 		# TODO: Delete items from blockTree when cache is invalidated?
 
@@ -97,13 +99,13 @@ class NotionClient:
 
 			if response.status_code != 200:
 				log.error(response.status_code)
-				return self.clean_error_message(response.json())
+				return self.block_holder.clean_error_message(response.json())
 			else:
 				raw_data = response.json() # Get raw data first
 				original_response_id_str = raw_data.get("id") # Extract original ID string
 
 				# Now convert the message for general processing (this will convert 'id' to int)
-				data = self.convert_message(raw_data, clean_timestamps=False)
+				data = self.block_holder.convert_message(raw_data, clean_timestamps=False)
 				
 				# Use the original_response_id_str for operations needing CustomUUID
 				if original_response_id_str:
@@ -117,7 +119,7 @@ class NotionClient:
 						log.error(f"Failed to convert original id {original_response_id_str} to CustomUUID: {ve}")
 
 				# Clean timestamps on the already partially converted 'data'
-				data = self.clean_timestamps(data) 
+				data = self.block_holder.clean_timestamps(data) 
 				return data
 
 		except ValueError as e:
@@ -224,14 +226,14 @@ class NotionClient:
 
 		if response.status_code != 200:
 			log.error(response.status_code)
-			return self.clean_error_message(response.json())
+			return self.block_holder.clean_error_message(response.json())
 		else:
 			response_data_json = response.json()
 			if block_tree is not None:
 				key_for_tree_add = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
 				block_tree.add_parent(key_for_tree_add)
 
-			data_after_conversion = self.convert_message(response_data_json,
+			data_after_conversion = self.block_holder.convert_message(response_data_json,
 							   clean_type=False,
 							   clean_timestamps=False,
 							   convert_to_index_id=False)
@@ -248,7 +250,7 @@ class NotionClient:
 				children_id_strs = [item["id"] for item in data_after_conversion.get("results", [])]
 
 				for child_id_str, content_item in zip(children_id_strs, data_after_conversion.get("results", [])):
-					processed_content = self.convert_message(content_item)
+					processed_content = self.block_holder.convert_message(content_item)
 					self.cache.add_block(child_id_str, processed_content) # add_block expects string UUID
 
 				self.cache.add_parent_children_relationships(
@@ -260,9 +262,9 @@ class NotionClient:
 				if children_id_strs:
 					self.cache.add_children_fetched_for_block(current_cache_key_str)
 
-			final_data = self.clean_type(data_after_conversion)
-			final_data = self.clean_timestamps(final_data)
-			final_data = self.convert_to_index_id(final_data)
+			final_data = self.block_holder.clean_type(data_after_conversion)
+			final_data = self.block_holder.clean_timestamps(final_data)
+			final_data = self.block_holder.convert_to_index_id(final_data)
 			
 			# Use current_cache_key_str for adding to cache, as it includes start_cursor if present
 			self.cache.add_block(current_cache_key_str, final_data) 
@@ -351,7 +353,7 @@ class NotionClient:
 
 			if response.status_code != 200:
 				log.error(response.status_code)
-				return self.clean_error_message(response_json)
+				return self.block_holder.clean_error_message(response_json)
 			
 			cache_key = self.cache.create_search_results_cache_key(query, filter_type, str(start_cursor) if start_cursor else None)
 			
@@ -377,7 +379,7 @@ class NotionClient:
 				# TODO: Invalidate cache for all matching parent searches, not just one exact query
 
 			log.flow("Converting message")
-			data = self.convert_message(response_json)
+			data = self.block_holder.convert_message(response_json)
 
 			if len(data["results"]) > 0:
 				log.flow(f"Found {len(data['results'])} search results")
@@ -422,18 +424,18 @@ class NotionClient:
 		response = await client.post(url, headers=self.headers, json=payload)
 
 		if response.status_code != 200:
-			error_message = self.clean_error_message(response.json())
+			error_message = self.block_holder.clean_error_message(response.json())
 			log.error(response.status_code, error_message)
 			return error_message
 		else:
 			# TODO: Invalidate blocks recursively if they are not up to date
-			data = self.convert_message(response.json(), clean_timestamps=False, convert_to_index_id=False)
+			data = self.block_holder.convert_message(response.json(), clean_timestamps=False, convert_to_index_id=False)
 
 			for block in data["results"]:
 				if "last_edited_time" in block:
 					self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
 
-			return self.convert_to_index_id(self.clean_timestamps(data))
+			return self.block_holder.convert_to_index_id(self.block_holder.clean_timestamps(data))
 
 
 	def set_favourite(self, uuid: int | list[int], set: bool) -> str:
@@ -450,147 +452,7 @@ class NotionClient:
 		formatted_id = notion_id.replace("-", "")
 		
 		return f"{base_url}{formatted_id}"
-	
 
-	def convert_message(self,
-						message : dict | list,
-						clean_timestamps : bool = True,
-						clean_type : bool = True,
-						convert_to_index_id : bool = True,
-						convert_urls : bool = True) -> dict | list:
-
-		message = self.clean_response_details(message)
-		if convert_to_index_id:
-			message = self.convert_to_index_id(message)
-		if convert_urls:
-			message = self.convert_urls_to_id(message)
-		if clean_timestamps:
-			message = self.clean_timestamps(message)
-		if clean_type:
-			message = self.clean_type(message)
-		return message
-	
-
-	def clean_response_details(self, message):
-
-		def clean_object(obj):
-
-			if isinstance(obj, dict):
-				for key in list(obj.keys()):
-					if obj[key] is None:
-						del obj[key]
-					elif isinstance(obj[key], (dict, list)) and not obj[key]:
-						del obj[key]
-					elif key in ['icon', 'cover', 'bold', 'italic', 'strikethrough', 'underline', 'archived', 'in_trash', 'last_edited_by', 'created_by', 'annotations', 'plain_text']:
-						del obj[key]
-					elif isinstance(obj[key], (dict, list)):
-						clean_object(obj[key])
-			elif isinstance(obj, list):
-				for item in obj:
-					clean_object(item)
-		
-		clean_object(message)
-		if "request_id" in message:
-			del message["request_id"]
-
-		return message
-
-
-	def convert_to_index_id(self, message):
-
-		if isinstance(message, dict):
-			for key, value in message.items():
-				if key in ['id', 'next_cursor', 'page_id', 'database_id', 'block_id']:
-					# Property ids are short, ignore them
-					if isinstance(value, str) and CustomUUID.validate(value):
-						uuid_obj = CustomUUID.from_string(value)
-						int_id = self.index.add_uuid(uuid_obj) # add_uuid expects CustomUUID
-						message[key] = int_id
-					else:
-						# Silently ignore non-uuids or already converted ints
-						if isinstance(value, int):
-							pass # Already an int, do nothing
-						else:
-							# Silently ignore other non-UUID string cases
-							pass
-				else:
-					self.convert_to_index_id(value)
-		elif isinstance(message, list):
-			for item in message:
-				self.convert_to_index_id(item)
-
-		return message
-	
-
-	def convert_urls_to_id(self, message):
-
-		# TODO: Also handle internal Notions links:
-		# 'plain_text': 'Metaprompt', 'href': '/1399efeb667680939950d25093855de5'}
-
-		def convert_object(obj):
-			if isinstance(obj, dict):
-				for key in list(obj.keys()):
-					if key in ["url", "href", "content"] and isinstance(obj[key], str):
-						if self.url_index.is_url(obj[key]):
-							del obj[key]
-					elif isinstance(obj[key], (dict, list)):
-						convert_object(obj[key])
-			elif isinstance(obj, list):
-				for item in obj:
-					convert_object(item)
-
-		convert_object(message)
-		
-		return message
-	
-
-	def clean_timestamps(self, message):
-
-		def clean_object(obj):
-
-			if isinstance(obj, dict):
-				for key in list(obj.keys()):
-					if key in ["last_edited_time", "created_time"]:
-						del obj[key]
-					elif isinstance(obj[key], (dict, list)):
-						clean_object(obj[key])
-			elif isinstance(obj, list):
-				for item in obj:
-					clean_object(item)
-		
-		clean_object(message)
-		
-		return message
-	
-
-	def clean_type(self, message):
-
-		def clean_object(obj):
-
-			if isinstance(obj, dict):
-				for key in list(obj.keys()):
-					if key == "type" and isinstance(obj[key], str):
-						del obj[key]
-					elif isinstance(obj[key], (dict, list)):
-						clean_object(obj[key])
-			elif isinstance(obj, list):
-				for item in obj:
-					clean_object(item)
-		
-		clean_object(message)
-
-		return message
-
-
-	def clean_error_message(self, message):
-
-		if "object" in message:
-			del message["object"]
-		if "request_id" in message:
-			del message["request_id"]
-
-		return message
-	
 
 	def parse_filter(self, filter: Optional[dict | str]) -> dict:
 		"""
