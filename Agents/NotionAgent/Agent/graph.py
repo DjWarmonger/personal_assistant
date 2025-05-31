@@ -15,6 +15,7 @@ from .agents import notion_agent_runnable
 from .agentTools import tool_executor, client
 from .agentState import NotionAgentState
 from operations.blockTree import BlockTree
+from operations.blockDict import BlockDict
 
 # TODO: Add to other agents?
 langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
@@ -32,7 +33,7 @@ def notion_start(state: NotionAgentState) -> NotionAgentState:
 		"messages": state["messages"],
 		"actions": [],
 		"recentResults": [],
-		"visitedBlocks": {},
+		"visitedBlocks": BlockDict(),
 		"blockTree": BlockTree()
 		}
 
@@ -156,12 +157,12 @@ def clean_output(state: NotionAgentState):
 
 graph = StateGraph(NotionAgentState)
 
-graph.set_entry_point("notionAgentStart")
-
 graph.add_node("notionAgentStart", notion_start)
 graph.add_node("callNotionAgent", call_notion_agent)
 graph.add_node("checkNotionTools", check_and_call_tools_wrapper)
 graph.add_node("notionResponseCheck", clean_output)
+
+graph.set_entry_point("notionAgentStart")
 
 graph.add_edge("notionAgentStart", "callNotionAgent")
 graph.add_edge("callNotionAgent", "checkNotionTools")

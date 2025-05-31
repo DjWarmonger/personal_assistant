@@ -5,6 +5,7 @@ from pydantic import Field
 
 from tz_common.langchain_wrappers import AgentState
 from operations.blockTree import BlockTree
+from operations.blockDict import BlockDict
 
 
 class PlannerAgentState(AgentState):
@@ -12,14 +13,14 @@ class PlannerAgentState(AgentState):
 
 
 class NotionAgentState(AgentState):
-	visitedBlocks: list[tuple[int, str]] = Field(default_factory=list)
+	visitedBlocks: BlockDict = Field(default_factory=BlockDict)
 	blockTree: NotRequired[Any]  # BlockTree field for notion agent state
 	
 	# No need for init comments since we now explicitly declare blockTree
 
 
 class WriterAgentState(AgentState):
-	visitedBlocks: list[tuple[int, str]] = Field(default_factory=list)
+	visitedBlocks: BlockDict = Field(default_factory=BlockDict)
 	blockTree: NotRequired[Any]  # BlockTree field for writer agent state
 	
 	# No need for init comments since we now explicitly declare blockTree

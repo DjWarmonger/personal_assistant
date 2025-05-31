@@ -1,6 +1,6 @@
 from langchain_core.messages import AIMessage
 from langgraph.graph import StateGraph, END
-
+from enum import Enum
 
 from tz_common.logs import log
 from tz_common.tasks import TaskStatus, TaskRole
@@ -12,6 +12,8 @@ from .agentTools import planner_tool_executor, client
 from .agentState import PlannerAgentState, NotionAgentState, WriterAgentState
 from .graph import notion_agent
 from .writerGraph import writer_agent
+from operations.blockTree import BlockTree
+from operations.blockDict import BlockDict
 
 
 def planner_start(state: PlannerAgentState) -> PlannerAgentState:
@@ -100,7 +102,7 @@ def call_agents(state: PlannerAgentState) -> PlannerAgentState:
 		"actions": [],
 		"toolResults": [],
 		"recentResults": [],
-		"visitedBlocks": []
+		"visitedBlocks": BlockDict()
 	}
 
 	notion_agent_response = notion_agent.invoke(notion_agent_state)

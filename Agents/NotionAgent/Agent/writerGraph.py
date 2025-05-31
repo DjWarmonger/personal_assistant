@@ -60,7 +60,7 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 	else:
 		log.error("Block tree is empty")
 	
-	visitedBlocks = f"All visited blocks (id : content):\n" + '\n'.join([f"{key} : {value}" for (key, value) in state["visitedBlocks"]])
+	visitedBlocks = f"All visited blocks (id : content):\n" + '\n'.join([f"{key} : {value}" for key, value in state["visitedBlocks"].items()])
 
 	# TODO: Possibly reorder  visitedBlocks according to the block tree
 
@@ -73,7 +73,8 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 		messages_with_context.append(AIMessage(content=remaining_tasks))
 	if state["completedTasks"]:
 		messages_with_context.append(AIMessage(content=completed_tasks))
-	if state["visitedBlocks"]:
+	# TODO: Implement bool method that checks if visitedBlocks is empty
+	if len(state["visitedBlocks"]) > 0:
 		messages_with_context.append(AIMessage(content=visitedBlocks))
 	else:
 		raise ValueError("No block info in context")

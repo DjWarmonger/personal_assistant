@@ -56,8 +56,6 @@ class NotionPageDetailsTool(ContextAwareTool):
 		if index is None:
 			raise ValueError(f"Invalid page index: {notion_id}")
 		
-		visited_dict = dict(context["visitedBlocks"])
-		
 		# Handle new BlockDict return type or error string
 		if isinstance(result, BlockDict):
 			# For page details, we may have a single item in BlockDict
@@ -65,19 +63,17 @@ class NotionPageDetailsTool(ContextAwareTool):
 			if result_dict:
 				# Use the first (and likely only) item's content
 				first_key = next(iter(result_dict.keys()))
-				visited_dict[index] = result_dict[first_key]
+				context["visitedBlocks"].add_block(index, result_dict[first_key])
 			result_to_return = result_dict
 		elif isinstance(result, str):
 			# Handle error string
 			log.error(f"Error getting page details: {result}")
-			visited_dict[index] = {"error": result}
+			context["visitedBlocks"].add_block(index, {"error": result})
 			result_to_return = {"error": result}
 		else:
 			# Handle other return types (fallback)
-			visited_dict[index] = result
+			context["visitedBlocks"].add_block(index, result)
 			result_to_return = result
-		
-		context["visitedBlocks"] = list(visited_dict.items())
 
 		return context, json_converter.remove_spaces(result_to_return)
 
@@ -99,18 +95,17 @@ class NotionGetChildrenTool(ContextAwareTool):
 
 		result = await client.get_block_content(block_id=block_id, start_cursor=start_cursor, get_children=True, block_tree=context.get("blockTree"))
 
-		visited_dict = dict(context["visitedBlocks"])
-
 		# Handle new BlockDict return type or error string
 		if isinstance(result, BlockDict):
+			# Add all blocks from result to visitedBlocks
 			for block_id, content in result.items():
-				visited_dict[int(block_id)] = content
+				context["visitedBlocks"].add_block(int(block_id), content)
 			# Convert BlockDict to regular dict for JSON serialization
 			result_to_return = result.to_dict()
 		elif isinstance(result, dict):
 			# Handle regular dict (fallback for other methods)
 			for block_id, content in result.items():
-				visited_dict[int(block_id)] = content
+				context["visitedBlocks"].add_block(int(block_id), content)
 			result_to_return = result
 		elif isinstance(result, str):
 			# Handle error string
@@ -118,14 +113,12 @@ class NotionGetChildrenTool(ContextAwareTool):
 			result_to_return = {"error": result}
 		else:
 			# Handle other return types
-			index = client.index.to_int(block_id)	
-			if index is not None:
-				visited_dict[index] = result
+			index_int = client.index.to_int(block_id)	
+			if index_int is not None:
+				context["visitedBlocks"].add_block(index_int, result)
 			else:
 				log.error(f"Could not resolve index {block_id} to int")
 			result_to_return = result
-
-		context["visitedBlocks"] = list(visited_dict.items())
 
 		return context, json_converter.remove_spaces(result_to_return)
 
@@ -157,23 +150,20 @@ class NotionGetBlockContentTool(ContextAwareTool):
 				if index is None:
 					raise ValueError(f"Invalid block index: {index}")
 
-		visited_dict = dict(context["visitedBlocks"])
-		
 		# Handle new BlockDict return type or error string  
 		if isinstance(result, BlockDict):
 			# Convert BlockDict to regular dict for JSON serialization
-			visited_dict[index] = result.to_dict()
-			result_to_return = result.to_dict()
+			result_dict = result.to_dict()
+			context["visitedBlocks"].add_block(index, result_dict)
+			result_to_return = result_dict
 		elif isinstance(result, str):
 			# Handle error string
 			log.error(f"Error getting block content: {result}")
 			result_to_return = {"error": result}
 		else:
 			# Handle regular dict or other return types
-			visited_dict[index] = result
+			context["visitedBlocks"].add_block(index, result)
 			result_to_return = result
-		
-		context["visitedBlocks"] = list(visited_dict.items())
 
 		return context, json_converter.remove_spaces(result_to_return)
 
