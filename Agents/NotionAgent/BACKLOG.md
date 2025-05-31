@@ -33,19 +33,9 @@ Occurs with 'Add this page to favourites' test. Writer is activated without need
 
 - Check what kinds of tasks are generated
    - What agent ID they have
-   - Whcih agent are they passed to?
+   - Which agent are they passed to?
 - Check what Notion Agent can do once task is completed
 - Check what Planning Agent can do once task is completed
-
-
-## database error spam
-
-Tons of errors like this:
-```
-BlockCache: Error in _save_periodically(): Cannot operate on a closed database.
-```
-
-* Looks like it only occurs in unit tests
 
 ## Visit count for all blocks is 0
 

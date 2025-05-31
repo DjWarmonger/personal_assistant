@@ -29,9 +29,16 @@ class TestBlockCache(unittest.TestCase):
 
 	def tearDown(self):
 		# Close the connection and clean up
-		self.cache.stop_periodic_save() # Stop the save thread first
+		if hasattr(self.cache, '_is_closing'):
+			self.cache._is_closing = True
+		
+		# Stop the periodic save thread first
+		self.cache.stop_periodic_save()
+		
+		# Close the connection if it's still open
 		if self.cache.conn:
 			self.cache.conn.close()
+			self.cache.conn = None
 		# No need to delete a file if db_path is ':memory:'
 
 	def test_add_and_get_block(self):

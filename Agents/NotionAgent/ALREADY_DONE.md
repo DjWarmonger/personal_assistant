@@ -38,3 +38,6 @@
 ## Dashboard & Monitoring
 - ✅ Implemented cache metrics (hits, misses, expired) in `blockCache.py`
 - ✅ Added a non-interactive block in `dashboard.py` to display cache hits, misses, and ratio 
+
+## Bugfixes
+- ✅ Fixed database closure errors during unit tests - resolved "Cannot operate on a closed database" spam by coordinating shutdown sequence and adding safety checks to prevent operations on closed connections 

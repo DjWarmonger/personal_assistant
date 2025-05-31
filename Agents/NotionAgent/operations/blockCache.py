@@ -441,12 +441,25 @@ class BlockCache(TimedStorage):
 	def save(self):
 		# Override abstract method
 
-		with self.lock:
-			disk_conn = sqlite3.connect(self.db_path)
-			with disk_conn:
-				self.conn.backup(disk_conn)
-			log.flow("Block cache saved to disk")
-			self.clean()
+		# Check if we're in the process of closing or if connection is closed
+		if self._is_closing or not self.conn:
+			return
+
+		try:
+			with self.lock:
+				# Double-check connection is still valid
+				if not self.conn:
+					return
+					
+				disk_conn = sqlite3.connect(self.db_path)
+				with disk_conn:
+					self.conn.backup(disk_conn)
+				log.flow("Block cache saved to disk")
+				self.clean()
+		except sqlite3.Error as e:
+			# Don't log errors if we're already closing
+			if not self._is_closing:
+				log.error(f"Failed to save block cache: {e}")
 
 
 	def cleanup(self):
@@ -458,12 +471,24 @@ class BlockCache(TimedStorage):
 		if not self.save_enabled:
 			return
 
-		if not self._is_closing and self.conn:
-			try:
-				self._is_closing = True
+		# Prevent multiple cleanup calls
+		if self._is_closing:
+			return
+
+		try:
+			self._is_closing = True
+			
+			# Stop the periodic save thread first
+			self.stop_periodic_save()
+			
+			# Save one final time if connection is still valid
+			if self.conn:
 				self.save()  # Call the virtual save method
 				self.conn.close()
-			except Exception as e:
+				self.conn = None
+		except Exception as e:
+			# Only log if it's not a "closed database" error during shutdown
+			if "closed database" not in str(e).lower():
 				log.error(f"Cleanup failed: {e}")
 
 
