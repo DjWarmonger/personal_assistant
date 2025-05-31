@@ -142,8 +142,6 @@ async def test_get_children(notion_client):
 	if isinstance(result, str):
 		pytest.fail(f"Expected BlockDict, got error: {result}")
 
-	# FIXME: With no recursion only content of THIS block shoudl be returned, from API or from cache
-	
 	# Assume single key-value pair in BlockDict for get_children=False
 	assert isinstance(result, BlockDict)
 	result_dict = result.to_dict()
