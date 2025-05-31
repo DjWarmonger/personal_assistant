@@ -115,7 +115,11 @@ class NotionClient:
 						response_uuid = CustomUUID.from_string(original_response_id_str)
 						last_edited_time = raw_data.get("last_edited_time") # Get last_edited_time from raw_data too
 						if last_edited_time is not None:
-							self.cache.invalidate_page_if_expired(str(response_uuid), Utils.convert_date_to_timestamp(last_edited_time))
+							# Use correct invalidation method based on object type
+							if current_database_id is not None:
+								self.cache.invalidate_database_if_expired(str(response_uuid), Utils.convert_date_to_timestamp(last_edited_time))
+							else:
+								self.cache.invalidate_page_if_expired(str(response_uuid), Utils.convert_date_to_timestamp(last_edited_time))
 						self.index.visit_uuid(response_uuid)
 					except ValueError as ve:
 						log.error(f"Failed to convert original id {original_response_id_str} to CustomUUID: {ve}")
@@ -123,17 +127,16 @@ class NotionClient:
 				# Clean timestamps on the already partially converted 'data'
 				data = self.block_holder.clean_timestamps(data) 
 				
-				# Wrap in BlockDict for consistent return type
-				block_dict = BlockDict()
-				if isinstance(data, dict):
-					# For page details, we treat the page as a single "block" with an artificial ID
-					artificial_id = data.get('id', 0)  # Use the converted int ID if available
-					if isinstance(artificial_id, int):
-						block_dict.add_block(artificial_id, data)
-					else:
-						# Fallback: use 0 as artificial ID
-						block_dict.add_block(0, data)
+				# Cache the data using the appropriate method based on object type
+				if current_database_id is not None:
+					self.cache.add_database(response_uuid, data)
+				else:
+					self.cache.add_page(response_uuid, data)
 				
+				# Wrap in BlockDict for consistent return type
+				int_id = self.index.resolve_to_int(response_uuid)
+				block_dict = BlockDict()
+				block_dict.add_block(int_id, data)
 				return block_dict
 
 		except ValueError as e:
@@ -227,6 +230,7 @@ class NotionClient:
 			else:
 				log.error(f"Could not format start_cursor {start_cursor}")
 
+		block_dict = BlockDict()
 		cached_content = self.cache.get_block(current_cache_key_str) # get_block expects string
 
 		if cached_content is not None:
@@ -237,13 +241,7 @@ class NotionClient:
 					block_tree.add_parent(key_for_tree)
 				
 				# Wrap cached content in BlockDict for consistent return type
-				block_dict = BlockDict()
-				if isinstance(cached_content, dict):
-					# Use a single artificial ID for the cached content
-					artificial_id = cached_content.get('id', 0) if 'id' in cached_content else 0
-					if not isinstance(artificial_id, int):
-						artificial_id = 0
-					block_dict.add_block(artificial_id, cached_content)
+				block_dict.add_block(self.index.resolve_to_int(block_id), cached_content)
 				return block_dict
 			else:
 				if self.cache.get_children_fetched_for_block(current_cache_key_str):
@@ -300,22 +298,19 @@ class NotionClient:
 			
 			# Use current_cache_key_str for adding to cache, as it includes start_cursor if present
 			self.cache.add_block(current_cache_key_str, final_data) 
+			block_dict.add_block(self.index.resolve_to_int(block_id), final_data)
 
 			if get_children:
 				log.flow("Retrieving children recursively for block " + str(current_cache_key_str))
 				# Pass the original uuid_obj (or sc_uuid_obj if start_cursor was used) for recursion
 				key_for_recursion_after_fetch = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
 				final_data = await self.get_all_children_recursively(key_for_recursion_after_fetch, block_tree)
-				return final_data
+
+				if isinstance(final_data, BlockDict):
+					for child_int_id, child_content in final_data.items():
+						block_dict.add_block(child_int_id, child_content)
 
 			# Wrap final_data in BlockDict for consistent return type when get_children=False
-			block_dict = BlockDict()
-			if isinstance(final_data, dict):
-				# Use a single artificial ID for the final data
-				artificial_id = final_data.get('id', 0) if 'id' in final_data else 0
-				if not isinstance(artificial_id, int):
-					artificial_id = 0
-				block_dict.add_block(artificial_id, final_data)
 			return block_dict
 		
 	
@@ -421,24 +416,39 @@ class NotionClient:
 			
 			#log.common(response_json)
 
-			block_ids = [block["id"] for block in response_json["results"]]
+			# Process each result based on its object type
+			for result in response_json["results"]:
+				result_id = result["id"]
+				result_object_type = result.get("object", ObjectType.BLOCK.value)  # Default to block if not specified
+				last_edited_time = result.get("last_edited_time")
+				
+				if last_edited_time:
+					# Use appropriate invalidation method based on object type
+					if result_object_type == ObjectType.DATABASE.value:
+						self.cache.invalidate_database_if_expired(result_id, last_edited_time)
+					elif result_object_type == ObjectType.PAGE.value:
+						self.cache.invalidate_page_if_expired(result_id, last_edited_time)
+					else:  # block or unknown
+						self.cache.invalidate_block_if_expired(result_id, last_edited_time)
 
-			# TODO: Make sure children are actually blocks
-			# TODO: Handle pages or maybe db if they are not blocks
-
-			# TODO: Check if parent type set by AI is actually correct (was BLOCK)
-			self.cache.add_parent_children_relationships(
-				cache_key,
-				block_ids,
-				parent_type=ObjectType.SEARCH_RESULTS, # Corrected parent type
-				child_type=ObjectType.BLOCK)
-				# TODO: Invalidate cache is any children is modified. But not here, as we're going to add it to cache anyway.
-
-			# Invalidate each child with last_edited_time
-			for block in response_json["results"]:
-				self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
-
-				# TODO: Invalidate cache for all matching parent searches, not just one exact query
+			# Create parent-child relationships with proper object types
+			for result in response_json["results"]:
+				result_id = result["id"]
+				result_object_type = result.get("object", ObjectType.BLOCK.value)
+				
+				# Map object type string to ObjectType enum
+				if result_object_type == ObjectType.DATABASE.value:
+					child_type = ObjectType.DATABASE
+				elif result_object_type == ObjectType.PAGE.value:
+					child_type = ObjectType.PAGE
+				else:  # block or unknown
+					child_type = ObjectType.BLOCK
+				
+				self.cache.add_parent_child_relationship(
+					cache_key,
+					result_id,
+					parent_type=ObjectType.SEARCH_RESULTS,
+					child_type=child_type)
 
 			log.flow("Converting message")
 			data = self.block_holder.convert_message(response_json)
@@ -510,11 +520,15 @@ class NotionClient:
 			# TODO: Invalidate blocks recursively if they are not up to date
 			data = self.block_holder.convert_message(response.json(), clean_timestamps=False, convert_to_index_id=False)
 
-			for block in data["results"]:
-				if "last_edited_time" in block:
-					self.cache.invalidate_block_if_expired(block["id"], block["last_edited_time"])
+			# Database query results are pages, not blocks
+			for page in data["results"]:
+				if "last_edited_time" in page:
+					self.cache.invalidate_page_if_expired(page["id"], page["last_edited_time"])
 
 			final_data = self.block_holder.convert_to_index_id(self.block_holder.clean_timestamps(data))
+			
+			# Cache the database query results
+			self.cache.add_database_query_results(db_id_str, final_data, cache_filter_key, str(start_cursor) if start_cursor else None)
 			
 			# Wrap database query results in BlockDict
 			block_dict = BlockDict()

@@ -17,6 +17,7 @@ TEST_PAGE_UUID = "ef2f8a2c-12cc-473c-8b32-9f721070670c"
 TEST_BLOCK_UUID = "abf39c9f-7cbf-4cea-8d83-1e05e417e047"
 TEST_CHILD_BLOCK_UUID_1 = "fabdd1a3-cf08-49a5-819b-895819789359"
 TEST_CHILD_BLOCK_UUID_2 = "acde070d-8c4c-4f0d-9d8a-162843c10333"
+TEST_DATABASE_UUID = "12345678-1234-1234-1234-123456789abc"
 
 
 class TestBlockCache(unittest.TestCase):
@@ -237,6 +238,66 @@ class TestBlockCache(unittest.TestCase):
 		self.assertEqual(metrics["hits"], 1)
 		self.assertEqual(metrics["misses_expired"], 2)
 		self.assertEqual(metrics["misses_not_found"], 1)
+
+	def test_database_caching_with_correct_prefix(self):
+		"""Test that databases are cached with 'database:' prefix, not 'block:' prefix"""
+		
+		# Add a database to cache
+		test_content = {"object": "database", "title": "Test Database"}
+		self.cache.add_database(TEST_DATABASE_UUID, test_content)
+		
+		# Verify it's cached with the correct prefix
+		cache_key = self.cache.create_cache_key(str(TEST_DATABASE_UUID), ObjectType.DATABASE)
+		self.assertTrue(cache_key.startswith("database:"), 
+						f"Database should be cached with 'database:' prefix, got: {cache_key}")
+		
+		# Verify we can retrieve it as a database
+		retrieved_content = self.cache.get_database(TEST_DATABASE_UUID)
+		self.assertIsNotNone(retrieved_content, "Database content should be retrievable")
+		# Cache stores content as string representation
+		self.assertEqual(retrieved_content, str(test_content))
+		
+		# Verify it's NOT cached as a block (this was the original bug)
+		block_content = self.cache.get_block(TEST_DATABASE_UUID)
+		self.assertIsNone(block_content, 
+						  "Database should NOT be retrievable as a block")
+		
+		# Verify cache keys are different for same UUID with different object types
+		block_cache_key = self.cache.create_cache_key(str(TEST_DATABASE_UUID), ObjectType.BLOCK)
+		database_cache_key = self.cache.create_cache_key(str(TEST_DATABASE_UUID), ObjectType.DATABASE)
+		self.assertNotEqual(block_cache_key, database_cache_key,
+							"Block and database cache keys should be different for same UUID")
+		self.assertTrue(block_cache_key.startswith("block:"))
+		self.assertTrue(database_cache_key.startswith("database:"))
+
+
+	def test_database_invalidation_uses_correct_method(self):
+		"""Test that database invalidation uses invalidate_database_if_expired, not invalidate_block_if_expired"""
+		
+		# Add a database to cache
+		test_content = {"object": "database", "title": "Test Database"}
+		self.cache.add_database(TEST_DATABASE_UUID, test_content)
+		
+		# Verify it exists
+		self.assertIsNotNone(self.cache.get_database(TEST_DATABASE_UUID))
+		
+		# Invalidate using the correct database method
+		future_timestamp = "2999-01-01T00:00:00.000Z"
+		self.cache.invalidate_database_if_expired(TEST_DATABASE_UUID, future_timestamp)
+		
+		# Database should be gone
+		self.assertIsNone(self.cache.get_database(TEST_DATABASE_UUID))
+		
+		# Add database again
+		self.cache.add_database(TEST_DATABASE_UUID, test_content)
+		self.assertIsNotNone(self.cache.get_database(TEST_DATABASE_UUID))
+		
+		# Try invalidating with block method - should NOT affect the database
+		self.cache.invalidate_block_if_expired(TEST_DATABASE_UUID, future_timestamp)
+		
+		# Database should still exist because we used the wrong invalidation method
+		self.assertIsNotNone(self.cache.get_database(TEST_DATABASE_UUID),
+							 "Database should still exist when invalidated with block method")
 
 
 if __name__ == '__main__':

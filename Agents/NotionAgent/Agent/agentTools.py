@@ -31,7 +31,7 @@ class NotionSearchTool(ContextAwareTool):
 		elif isinstance(result, str):
 			# Handle error string
 			log.error(f"Error searching Notion: {result}")
-			result_to_return = {"error": result}
+			raise Exception(result)
 		else:
 			# Handle other return types (fallback)
 			result_to_return = result
@@ -69,7 +69,7 @@ class NotionPageDetailsTool(ContextAwareTool):
 			# Handle error string
 			log.error(f"Error getting page details: {result}")
 			context["visitedBlocks"].add_block(index, {"error": result})
-			result_to_return = {"error": result}
+			raise Exception(result)
 		else:
 			# Handle other return types (fallback)
 			context["visitedBlocks"].add_block(index, result)
@@ -110,15 +110,9 @@ class NotionGetChildrenTool(ContextAwareTool):
 		elif isinstance(result, str):
 			# Handle error string
 			log.error(f"Error getting children: {result}")
-			result_to_return = {"error": result}
+			raise Exception(result)
 		else:
-			# Handle other return types
-			index_int = client.index.to_int(block_id)	
-			if index_int is not None:
-				context["visitedBlocks"].add_block(index_int, result)
-			else:
-				log.error(f"Could not resolve index {block_id} to int")
-			result_to_return = result
+			raise TypeError(f"Unexpected return type: {type(result)}")
 
 		return context, json_converter.remove_spaces(result_to_return)
 
@@ -141,29 +135,20 @@ class NotionGetBlockContentTool(ContextAwareTool):
 							block_id=index,
 							start_cursor=start_cursor,
 							block_tree=context.get("blockTree"))
-		
-		if isinstance(index, str):
-			try:
-				index = int(index)
-			except ValueError:
-				index = client.index.to_int(index)
-				if index is None:
-					raise ValueError(f"Invalid block index: {index}")
 
 		# Handle new BlockDict return type or error string  
 		if isinstance(result, BlockDict):
 			# Convert BlockDict to regular dict for JSON serialization
 			result_dict = result.to_dict()
-			context["visitedBlocks"].add_block(index, result_dict)
+			for key, value in result_dict.items():
+				context["visitedBlocks"].add_block(key, value)
 			result_to_return = result_dict
 		elif isinstance(result, str):
 			# Handle error string
 			log.error(f"Error getting block content: {result}")
-			result_to_return = {"error": result}
+			raise Exception(result)
 		else:
-			# Handle regular dict or other return types
-			context["visitedBlocks"].add_block(index, result)
-			result_to_return = result
+			raise TypeError(f"Unexpected return type: {type(result)}")
 
 		return context, json_converter.remove_spaces(result_to_return)
 
@@ -193,7 +178,7 @@ class NotionQueryDatabaseTool(ContextAwareTool):
 		elif isinstance(result, str):
 			# Handle error string
 			log.error(f"Error querying database: {result}")
-			result_to_return = {"error": result}
+			raise Exception(result)
 		else:
 			# Handle other return types (fallback)
 			result_to_return = result

@@ -222,6 +222,31 @@ class BlockCache(TimedStorage):
 		self._add_block_internal(cache_key, content, ttl)
 
 
+	def add_database_query_results(self,
+								database_id: Union[str, CustomUUID],
+								content: str,
+								filter_str: Optional[str] = None,
+								start_cursor: Optional[Union[str, CustomUUID]] = None,
+								ttl: Optional[int] = None):
+
+		# Convert database_id to CustomUUID if it's a string
+		if isinstance(database_id, str):
+			db_uuid = CustomUUID.from_string(database_id)
+		else:
+			db_uuid = database_id
+		
+		# Convert start_cursor to CustomUUID if it's a string
+		start_cursor_uuid = None
+		if start_cursor is not None:
+			if isinstance(start_cursor, str):
+				start_cursor_uuid = CustomUUID.from_string(start_cursor)
+			else:
+				start_cursor_uuid = start_cursor
+
+		cache_key = self.create_database_query_results_cache_key(db_uuid, filter_str, start_cursor_uuid)
+		self._add_block_internal(cache_key, content, ttl)
+
+
 	def _invalidate_block_recursive(self, cache_key: str):
 
 		log.flow(f"Invalidating block {cache_key} and its children recursively")
