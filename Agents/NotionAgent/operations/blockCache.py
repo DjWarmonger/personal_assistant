@@ -54,11 +54,10 @@ class BlockCache(TimedStorage):
 		if object_type in [ObjectType.SEARCH_RESULTS, ObjectType.DATABASE_QUERY_RESULTS]:
 			# For these types, uuid_str might be a composite key, not a pure UUID
 			# We assume it's already in the desired format for the key part
-			key_part = uuid_str 
+			return uuid_str 
 		else:
 			uuid_obj = CustomUUID.from_string(uuid_str)
-			key_part = str(uuid_obj)
-		return f"{object_type.value}:{key_part}"
+			return str(uuid_obj)
 
 
 	def create_search_results_cache_key(self, query: str, filter_str: Optional[str] = None, start_cursor: Optional[CustomUUID] = None) -> str:
@@ -91,10 +90,12 @@ class BlockCache(TimedStorage):
 
 			self.cursor.execute('''
 				CREATE TABLE IF NOT EXISTS block_cache (
-					cache_key TEXT PRIMARY KEY,
+					cache_key TEXT NOT NULL,
+					object_type TEXT NOT NULL,
 					content TEXT,
 					timestamp TEXT,
-					ttl INTEGER
+					ttl INTEGER,
+					PRIMARY KEY (cache_key, object_type)
 				)
 			''')
 			
@@ -154,20 +155,20 @@ class BlockCache(TimedStorage):
 			self.set_dirty()
 
 
-	def _add_block_internal(self, cache_key: str, content: str, ttl: Optional[int] = None, parent_key: Optional[str] = None):
+	def _add_block_internal(self, cache_key: str, object_type: ObjectType, content: str, ttl: Optional[int] = None, parent_key: Optional[str] = None):
 		now = Utils.get_current_time_isoformat()
 
 		content = str(content)
 		
 		with self.lock:
 			# Check if the cache key already exists
-			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ?', (cache_key,))
+			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ? AND object_type = ?', (cache_key, object_type.value))
 			exists = self.cursor.fetchone() is not None
 			
 			self.cursor.execute('''
-				INSERT OR REPLACE INTO block_cache (cache_key, content, timestamp, ttl)
-				VALUES (?, ?, ?, ?)
-			''', (cache_key, content, now, ttl))
+				INSERT OR REPLACE INTO block_cache (cache_key, object_type, content, timestamp, ttl)
+				VALUES (?, ?, ?, ?, ?)
+			''', (cache_key, object_type.value, content, now, ttl))
 			
 			if parent_key:
 				self.cursor.execute('SELECT 1 FROM block_relationships WHERE parent_key = ? AND child_key = ?', (parent_key, cache_key))
@@ -196,17 +197,17 @@ class BlockCache(TimedStorage):
 		cache_key = self.create_cache_key(str(uuid), ObjectType.BLOCK)
 
 		parent_key = self.create_cache_key(str(parent_uuid), parent_type) if parent_uuid else None
-		self._add_block_internal(cache_key, content, ttl, parent_key)
+		self._add_block_internal(cache_key, ObjectType.BLOCK, content, ttl, parent_key)
 
 
 	def add_page(self, uuid: CustomUUID, content: str, ttl: Optional[int] = None):
 		cache_key = self.create_cache_key(str(uuid), ObjectType.PAGE)
-		self._add_block_internal(cache_key, content, ttl)
+		self._add_block_internal(cache_key, ObjectType.PAGE, content, ttl)
 
 
 	def add_database(self, uuid: CustomUUID, content: str, ttl: Optional[int] = None):
 		cache_key = self.create_cache_key(str(uuid), ObjectType.DATABASE)
-		self._add_block_internal(cache_key, content, ttl)
+		self._add_block_internal(cache_key, ObjectType.DATABASE, content, ttl)
 
 
 	def add_search_results(self,
@@ -219,7 +220,7 @@ class BlockCache(TimedStorage):
 		# TODO: Use ttl for search results?
 
 		cache_key = self.create_search_results_cache_key(query, filter_str, start_cursor)
-		self._add_block_internal(cache_key, content, ttl)
+		self._add_block_internal(cache_key, ObjectType.SEARCH_RESULTS, content, ttl)
 
 
 	def add_database_query_results(self,
@@ -244,7 +245,7 @@ class BlockCache(TimedStorage):
 				start_cursor_uuid = start_cursor
 
 		cache_key = self.create_database_query_results_cache_key(db_uuid, filter_str, start_cursor_uuid)
-		self._add_block_internal(cache_key, content, ttl)
+		self._add_block_internal(cache_key, ObjectType.DATABASE_QUERY_RESULTS, content, ttl)
 
 
 	def _invalidate_block_recursive(self, cache_key: str):
@@ -303,10 +304,10 @@ class BlockCache(TimedStorage):
 			self._invalidate_block_recursive(parent_key)
 
 
-	def check_if_expired(self, cache_key: str, last_update_time: str) -> bool:
+	def check_if_expired(self, cache_key: str, object_type: ObjectType, last_update_time: str) -> bool:
 
 		with self.lock:
-			self.cursor.execute('SELECT timestamp FROM block_cache WHERE cache_key = ?', (cache_key,))
+			self.cursor.execute('SELECT timestamp FROM block_cache WHERE cache_key = ? AND object_type = ?', (cache_key, object_type.value))
 			result = self.cursor.fetchone()
 			if result:
 				return result[0] < last_update_time
@@ -320,7 +321,7 @@ class BlockCache(TimedStorage):
 
 		# First check if the block exists at all
 		with self.lock:
-			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ?', (cache_key,))
+			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ? AND object_type = ?', (cache_key, ObjectType.BLOCK.value))
 			exists = self.cursor.fetchone() is not None
 		
 		if not exists:
@@ -328,7 +329,7 @@ class BlockCache(TimedStorage):
 			self._increment_metric('misses_not_found')
 			return False
 
-		expired = self.check_if_expired(cache_key, last_update_time)
+		expired = self.check_if_expired(cache_key, ObjectType.BLOCK, last_update_time)
 
 		if expired:
 			# Block exists but is expired, count as a miss_expired
@@ -348,7 +349,7 @@ class BlockCache(TimedStorage):
 
 		# First check if the page exists at all
 		with self.lock:
-			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ?', (cache_key,))
+			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ? AND object_type = ?', (cache_key, ObjectType.PAGE.value))
 			exists = self.cursor.fetchone() is not None
 		
 		if not exists:
@@ -356,7 +357,7 @@ class BlockCache(TimedStorage):
 			self._increment_metric('misses_not_found')
 			return
 			
-		expired = self.check_if_expired(cache_key, last_update_time)
+		expired = self.check_if_expired(cache_key, ObjectType.PAGE, last_update_time)
 
 		# Invalidate all blocks under this page
 		if expired:
@@ -367,8 +368,8 @@ class BlockCache(TimedStorage):
 		# Use the internal method to directly invalidate the page itself
 		# This should happen unconditionally when timestamp is newer than stored
 		with self.lock:
-			if self.check_if_expired(cache_key, last_update_time):
-				self.cursor.execute('DELETE FROM block_cache WHERE cache_key = ?', (cache_key,))
+			if self.check_if_expired(cache_key, ObjectType.PAGE, last_update_time):
+				self.cursor.execute('DELETE FROM block_cache WHERE cache_key = ? AND object_type = ?', (cache_key, ObjectType.PAGE.value))
 				self.cursor.execute('DELETE FROM block_relationships WHERE parent_key = ? OR child_key = ?', (cache_key, cache_key))
 				self.remove_children_fetched_for_block(cache_key)
 				self.conn.commit()
@@ -379,14 +380,14 @@ class BlockCache(TimedStorage):
 			self._invalidate_parent_search_or_query(cache_key)
 
 
-	def _get_block_internal(self, cache_key: str) -> Optional[str]:
+	def _get_block_internal(self, cache_key: str, object_type: ObjectType) -> Optional[str]:
 		"""
 		Returns the content of the block if it is not expired,
 		otherwise deletes it and returns None
 		"""
 
 		with self.lock:
-			self.cursor.execute('SELECT content, timestamp, ttl FROM block_cache WHERE cache_key = ?', (cache_key,))
+			self.cursor.execute('SELECT content, timestamp, ttl FROM block_cache WHERE cache_key = ? AND object_type = ?', (cache_key, object_type.value))
 			result = self.cursor.fetchone()
 
 			if result is not None:
@@ -401,14 +402,14 @@ class BlockCache(TimedStorage):
 						# Increment miss count for expired items
 						self._increment_metric('misses_expired')
 
-						self.cursor.execute('DELETE FROM block_cache WHERE cache_key = ?', (cache_key,))
+						self.cursor.execute('DELETE FROM block_cache WHERE cache_key = ? AND object_type = ?', (cache_key, object_type.value))
 						self.conn.commit()
 						self.set_dirty()
 						return None
 
 				# Increment hit count
 				self._increment_metric('hits')
-				#log.debug(f"Returning cached {cache_key.split(':')[1]}")
+				#log.debug(f"Returning cached {cache_key}")
 				return content
 			else:
 				# Increment miss count for not found items
@@ -418,27 +419,27 @@ class BlockCache(TimedStorage):
 
 	def get_block(self, uuid: CustomUUID) -> Optional[str]:
 		cache_key = self.create_cache_key(str(uuid), ObjectType.BLOCK)
-		return self._get_block_internal(cache_key)
+		return self._get_block_internal(cache_key, ObjectType.BLOCK)
 
 
 	def get_page(self, uuid: CustomUUID) -> Optional[str]:
 		cache_key = self.create_cache_key(str(uuid), ObjectType.PAGE)
-		return self._get_block_internal(cache_key)
+		return self._get_block_internal(cache_key, ObjectType.PAGE)
 
 
 	def get_database(self, uuid: CustomUUID) -> Optional[str]:
 		cache_key = self.create_cache_key(str(uuid), ObjectType.DATABASE)
-		return self._get_block_internal(cache_key)
+		return self._get_block_internal(cache_key, ObjectType.DATABASE)
 
 
 	def get_search_results(self, query: str, filter_str: Optional[str] = None, start_cursor: Optional[CustomUUID] = None) -> Optional[str]:
 		cache_key = self.create_search_results_cache_key(query, filter_str, start_cursor)
-		return self._get_block_internal(cache_key)
+		return self._get_block_internal(cache_key, ObjectType.SEARCH_RESULTS)
 
 
 	def get_database_query_results(self, database_id: CustomUUID, filter_str: Optional[str] = None, start_cursor: Optional[CustomUUID] = None) -> Optional[str]:
 		cache_key = self.create_database_query_results_cache_key(database_id, filter_str, start_cursor)
-		return self._get_block_internal(cache_key)
+		return self._get_block_internal(cache_key, ObjectType.DATABASE_QUERY_RESULTS)
 
 
 	def get_metrics(self) -> Dict[str, int]:
@@ -459,8 +460,8 @@ class BlockCache(TimedStorage):
 			self.cursor.execute('SELECT child_key FROM block_relationships WHERE parent_key = ?', (cache_key,))
 			children_keys = self.cursor.fetchall()
 
-		# Use Utils.strip_cache_prefix which returns CustomUUID
-		return [Utils.strip_cache_prefix(child_key_tuple[0]) for child_key_tuple in children_keys]
+		# Convert clean cache keys directly to CustomUUID objects
+		return [CustomUUID.from_string(child_key_tuple[0]) for child_key_tuple in children_keys]
 
 
 	def save(self):
@@ -528,10 +529,10 @@ class BlockCache(TimedStorage):
 			log.flow("No existing block cache file found. Starting with an empty cache.")
 
 
-	def get_blocks_updated_since(self, timestamp: str) -> List[Tuple[str, str, str]]:
+	def get_blocks_updated_since(self, timestamp: str) -> List[Tuple[str, str, str, str]]:
 		with self.lock:
 			self.cursor.execute('''
-				SELECT uuid, content, timestamp
+				SELECT cache_key, object_type, content, timestamp
 				FROM block_cache
 				WHERE timestamp > ?
 				ORDER BY timestamp DESC
@@ -539,11 +540,11 @@ class BlockCache(TimedStorage):
 			return self.cursor.fetchall()
 
 
-	def _invalidate_block_internal(self, cache_key: str, timestamp: str):
+	def _invalidate_block_internal(self, cache_key: str, object_type: ObjectType, timestamp: str):
 		
 		# First check if the block exists
 		with self.lock:
-			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ?', (cache_key,))
+			self.cursor.execute('SELECT 1 FROM block_cache WHERE cache_key = ? AND object_type = ?', (cache_key, object_type.value))
 			exists = self.cursor.fetchone() is not None
 			
 		if not exists:
@@ -551,14 +552,14 @@ class BlockCache(TimedStorage):
 			self._increment_metric('misses_not_found')
 			return
 			
-		if self.check_if_expired(cache_key, timestamp):
+		if self.check_if_expired(cache_key, object_type, timestamp):
 			# Block exists but is expired, count as a miss_expired
 			self._increment_metric('misses_expired')
 			
 			with self.lock:
 				self.cursor.execute('''
-					DELETE FROM block_cache WHERE cache_key = ?
-				''', (cache_key,))
+					DELETE FROM block_cache WHERE cache_key = ? AND object_type = ?
+				''', (cache_key, object_type.value))
 				self.conn.commit()
 				self.set_dirty()
 			log.debug(f"Invalidated item {cache_key} due to expiration")
@@ -569,7 +570,7 @@ class BlockCache(TimedStorage):
 
 	def invalidate_database_if_expired(self, uuid: CustomUUID, timestamp: str):
 		cache_key = self.create_cache_key(str(uuid), ObjectType.DATABASE)
-		self._invalidate_block_internal(cache_key, timestamp)
+		self._invalidate_block_internal(cache_key, ObjectType.DATABASE, timestamp)
 
 
 	def remove_unused_blocks(self):

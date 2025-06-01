@@ -239,17 +239,17 @@ class TestBlockCache(unittest.TestCase):
 		self.assertEqual(metrics["misses_expired"], 2)
 		self.assertEqual(metrics["misses_not_found"], 1)
 
-	def test_database_caching_with_correct_prefix(self):
-		"""Test that databases are cached with 'database:' prefix, not 'block:' prefix"""
+	def test_database_caching_with_object_type(self):
+		"""Test that databases are cached with correct object type, separate from blocks"""
 		
 		# Add a database to cache
 		test_content = {"object": "database", "title": "Test Database"}
 		self.cache.add_database(TEST_DATABASE_UUID, test_content)
 		
-		# Verify it's cached with the correct prefix
+		# Verify cache key is clean (no prefix)
 		cache_key = self.cache.create_cache_key(str(TEST_DATABASE_UUID), ObjectType.DATABASE)
-		self.assertTrue(cache_key.startswith("database:"), 
-						f"Database should be cached with 'database:' prefix, got: {cache_key}")
+		self.assertFalse(":" in cache_key, 
+						f"Cache key should not contain prefixes, got: {cache_key}")
 		
 		# Verify we can retrieve it as a database
 		retrieved_content = self.cache.get_database(TEST_DATABASE_UUID)
@@ -262,13 +262,22 @@ class TestBlockCache(unittest.TestCase):
 		self.assertIsNone(block_content, 
 						  "Database should NOT be retrievable as a block")
 		
-		# Verify cache keys are different for same UUID with different object types
+		# Verify cache keys are the same for same UUID (since we removed prefixes)
+		# but object types differentiate them in the database
 		block_cache_key = self.cache.create_cache_key(str(TEST_DATABASE_UUID), ObjectType.BLOCK)
 		database_cache_key = self.cache.create_cache_key(str(TEST_DATABASE_UUID), ObjectType.DATABASE)
-		self.assertNotEqual(block_cache_key, database_cache_key,
-							"Block and database cache keys should be different for same UUID")
-		self.assertTrue(block_cache_key.startswith("block:"))
-		self.assertTrue(database_cache_key.startswith("database:"))
+		self.assertEqual(block_cache_key, database_cache_key,
+						"Cache keys should be the same for same UUID (no prefixes)")
+		
+		# But they should be stored separately due to object_type column
+		# Add the same UUID as a block
+		self.cache.add_block(TEST_DATABASE_UUID, "block_content")
+		
+		# Both should be retrievable independently
+		self.assertIsNotNone(self.cache.get_database(TEST_DATABASE_UUID))
+		self.assertIsNotNone(self.cache.get_block(TEST_DATABASE_UUID))
+		self.assertNotEqual(self.cache.get_database(TEST_DATABASE_UUID), 
+						   self.cache.get_block(TEST_DATABASE_UUID))
 
 
 	def test_database_invalidation_uses_correct_method(self):
