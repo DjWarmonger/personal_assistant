@@ -452,6 +452,40 @@ class BlockCache(TimedStorage):
 			return {metric_type: count for metric_type, count in results}
 
 
+	def verify_object_type_or_raise(self, uuid: CustomUUID, expected_type: ObjectType) -> None:
+		"""
+		Verify that the given UUID exists in cache with the expected object type.
+		If the UUID exists with a different object type, raise ValueError.
+		If the UUID doesn't exist at all, this method does nothing (no error).
+		
+		Args:
+			uuid: The UUID to check
+			expected_type: The expected ObjectType
+			
+		Raises:
+			ValueError: If the UUID exists in cache but with a different object type
+		"""
+		cache_key = self.create_cache_key(str(uuid), expected_type)
+		
+		with self.lock:
+			# Check if this UUID exists with any object type
+			self.cursor.execute('SELECT object_type FROM block_cache WHERE cache_key = ?', (cache_key,))
+			results = self.cursor.fetchall()
+			
+			if results:
+				# Get all object types for this UUID
+				existing_types = [result[0] for result in results]
+				
+				# If the expected type is not among the existing types, raise error
+
+				# FIXME: Modify message to only present integer id to Agent
+				if expected_type.value not in existing_types:
+					existing_types_str = ", ".join(existing_types)
+					raise ValueError(
+						f"UUID {uuid} expected to be {expected_type.value} but it exists in cache with object type(s) [{existing_types_str}] "
+					)
+
+
 	def get_children_uuids(self, uuid: CustomUUID) -> List[CustomUUID]:
 		cache_key = self.create_cache_key(str(uuid), ObjectType.BLOCK)
 

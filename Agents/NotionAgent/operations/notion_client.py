@@ -480,7 +480,23 @@ class NotionClient:
 
 	async def query_database(self, database_id: Union[str, CustomUUID], filter=None, start_cursor: Optional[Union[str, CustomUUID]] = None) -> Union[BlockDict, str]:
 		db_id_str = str(database_id) # Ensure database_id is string for cache and URL
-		# FIXME: Verify if id is known in index but is NOT a database
+		
+		# Verify if id is known in cache but is NOT a database
+		db_uuid = CustomUUID.from_string(db_id_str)
+		self.cache.verify_object_type_or_raise(db_uuid, ObjectType.DATABASE)
+
+		# FIXME: Agent doesn't stop after error and continues to call this tool for non-database
+
+		"""
+		# FIXME: Modify message to only present integer id to Agent
+		try:
+			self.cache.verify_object_type_or_raise(db_uuid, ObjectType.DATABASE)
+		except ValueError as e:
+			int_id = self.index.resolve_to_int(db_id_str)
+			
+			log.error(str(e))
+			raise ValueError(f"Database {int_id} was expected to be a database but it is a different type")
+		"""
 
 		filter_obj = self.parse_filter(filter)
 
