@@ -58,12 +58,19 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 			processed_results = {}
 			for result in results:
 				if isinstance(result, Exception):
-					error_message = str(result)
-					log.error(f"Call tool failed: {error_message}")
-					# Get the action from the task that failed
-					failed_action = result.__context__.args[0]  # Access the action from the task
-					failed_action.fail(error_message)
-					processed_results[failed_action.to_tool_call_string()] = (failed_action, error_message)
+					# Get the action from the exception context
+					failed_action = result.args[0] if result.args else None
+					# Get the actual error message (skip the action part)
+					actual_error = result.args[1] if len(result.args) > 1 else str(result)
+					
+					if failed_action:
+						error_message = f"Tool '{failed_action.to_tool_call_string()}' failed: {actual_error}"
+						log.error(f"Call tool failed: {error_message}")
+						failed_action.fail(actual_error)
+						processed_results[failed_action.to_tool_call_string()] = (failed_action, actual_error)
+					else:
+						error_message = str(result)
+						log.error(f"Call tool failed: {error_message}")
 				else:
 					action, (_, message) = result
 					action.complete("Tool call succeeded")

@@ -34,9 +34,14 @@ class AgentAction(BaseModel):
 
 	@classmethod
 	def from_tool_call(cls, tool_name: str, tool_call_id: str, args: dict) -> "AgentAction":
+		# Clean up args description by removing "equals" from date filters
+		args_str = str(args)
+		# Remove "equals": from date filters to make them more readable
+		args_str = args_str.replace('"equals":', '').replace("'equals':", '')
+		
 		return cls(
 			id=tool_call_id,
-			description=f"{tool_name} ({tool_call_id}) with args: {args}",
+			description=f"{tool_name} ({tool_call_id}) with args: {args_str}",
 			# These fields are required by the model but not provided in tool calls
 			# FIXME: Get from state/context
 			task_id="",
@@ -84,6 +89,33 @@ class AgentAction(BaseModel):
 	def __str__(self) -> str:
 		return f"{self.status.name:10} {self.id} - {self.description[:200]}{'...' if len(self.description) > 200 else ''}"
 	
+
+	def __repr__(self) -> str:
+		"""Provide a clean representation excluding empty fields for error messages."""
+		fields = []
+		
+		# Always include id and status
+		fields.append(f"id='{self.id}'")
+		fields.append(f"status={self.status.name}")
+		
+		# Only include non-empty fields
+		if self.task_id:
+			fields.append(f"task_id='{self.task_id}'")
+		if self.agent_id:
+			fields.append(f"agent_id='{self.agent_id}'")
+		if self.description:
+			# Truncate long descriptions
+			desc = self.description[:100] + '...' if len(self.description) > 100 else self.description
+			fields.append(f"description='{desc}'")
+		if self.related_messages:
+			fields.append(f"related_messages={len(self.related_messages)} items")
+		if self.related_documents:
+			fields.append(f"related_documents={len(self.related_documents)} items")
+		if self.resolution:
+			fields.append(f"resolution='{self.resolution}'")
+		
+		return f"AgentAction({', '.join(fields)})"
+
 
 	def __hash__(self):
 		return hash(self.id)
