@@ -309,6 +309,78 @@ class TestBlockCache(unittest.TestCase):
 							 "Database should still exist when invalidated with block method")
 
 
+	def test_verify_object_type_or_raise_no_conflict(self):
+		"""Test that verify_object_type_or_raise doesn't raise when object type matches"""
+		
+		# Add a database to cache
+		test_content = {"object": "database", "title": "Test Database"}
+		self.cache.add_database(TEST_DATABASE_UUID, test_content)
+		
+		# Verify with correct type - should not raise
+		try:
+			self.cache.verify_object_type_or_raise(TEST_DATABASE_UUID, ObjectType.DATABASE)
+		except ValueError:
+			self.fail("verify_object_type_or_raise raised ValueError when it shouldn't have")
+
+
+	def test_verify_object_type_or_raise_with_conflict(self):
+		"""Test that verify_object_type_or_raise raises ValueError when object type conflicts"""
+		
+		# Add a database to cache
+		test_content = {"object": "database", "title": "Test Database"}
+		self.cache.add_database(TEST_DATABASE_UUID, test_content)
+		
+		# Verify with wrong type - should raise ValueError
+		with self.assertRaises(ValueError) as context:
+			self.cache.verify_object_type_or_raise(TEST_DATABASE_UUID, ObjectType.BLOCK)
+		
+		# Check error message contains useful information
+		error_message = str(context.exception)
+		self.assertIn("database", error_message)
+		self.assertIn("block", error_message)
+		self.assertIn(str(TEST_DATABASE_UUID), error_message)
+
+
+	def test_verify_object_type_or_raise_nonexistent_uuid(self):
+		"""Test that verify_object_type_or_raise doesn't raise for non-existent UUIDs"""
+		
+		# Try to verify a UUID that doesn't exist - should not raise
+		non_existent_uuid = "00000000-0000-0000-0000-000000000000"
+		try:
+			self.cache.verify_object_type_or_raise(non_existent_uuid, ObjectType.DATABASE)
+		except ValueError:
+			self.fail("verify_object_type_or_raise raised ValueError for non-existent UUID")
+
+
+	def test_verify_object_type_or_raise_multiple_types(self):
+		"""Test verify_object_type_or_raise when same UUID exists with multiple object types"""
+		
+		# Add same UUID as both database and block
+		self.cache.add_database(TEST_DATABASE_UUID, {"object": "database", "title": "Test Database"})
+		self.cache.add_block(TEST_DATABASE_UUID, "block_content")
+		
+		# Verify with database type - should not raise
+		try:
+			self.cache.verify_object_type_or_raise(TEST_DATABASE_UUID, ObjectType.DATABASE)
+		except ValueError:
+			self.fail("verify_object_type_or_raise raised ValueError when database type exists")
+		
+		# Verify with block type - should not raise
+		try:
+			self.cache.verify_object_type_or_raise(TEST_DATABASE_UUID, ObjectType.BLOCK)
+		except ValueError:
+			self.fail("verify_object_type_or_raise raised ValueError when block type exists")
+		
+		# Verify with page type - should raise since page doesn't exist
+		with self.assertRaises(ValueError) as context:
+			self.cache.verify_object_type_or_raise(TEST_DATABASE_UUID, ObjectType.PAGE)
+		
+		error_message = str(context.exception)
+		self.assertIn("database", error_message)
+		self.assertIn("block", error_message)
+		self.assertIn("page", error_message)
+
+
 if __name__ == '__main__':
 	unittest.main()
 
