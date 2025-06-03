@@ -17,7 +17,7 @@ class TestBlockHolder(unittest.TestCase):
 		"""Set up test fixtures before each test method."""
 		self.index = Index(load_from_disk=False, run_on_start=False)
 		self.url_index = UrlIndex()
-		self.block_holder = BlockHolder(self.index, self.url_index)
+		self.block_holder = BlockHolder(self.url_index)
 
 
 	def test_clean_response_details(self):
@@ -121,6 +121,7 @@ class TestBlockHolder(unittest.TestCase):
 	def test_convert_to_index_id(self):
 		"""Test conversion of UUIDs to index IDs."""
 		uuid_str = "12345678-1234-1234-1234-123456789abc"
+		uuid_obj = CustomUUID.from_string(uuid_str)
 		message = {
 			"id": uuid_str,
 			"page_id": uuid_str,
@@ -128,11 +129,16 @@ class TestBlockHolder(unittest.TestCase):
 			"short_id": "abc123"  # Should not be converted
 		}
 		
-		result = self.block_holder.convert_to_index_id(message)
+		# Create UUID to int mapping
+		uuid_to_int_map = {uuid_obj: 42}
+		
+		result = self.block_holder.convert_to_index_id(message, uuid_to_int_map)
 		
 		# Should convert valid UUIDs to integers
 		self.assertIsInstance(result["id"], int)
+		self.assertEqual(result["id"], 42)
 		self.assertIsInstance(result["page_id"], int)
+		self.assertEqual(result["page_id"], 42)
 		
 		# Should keep non-UUID fields unchanged
 		self.assertEqual(result["content"], "test content")
@@ -142,6 +148,7 @@ class TestBlockHolder(unittest.TestCase):
 	def test_convert_message_integration(self):
 		"""Test the main convert_message method with all options."""
 		uuid_str = "12345678-1234-1234-1234-123456789abc"
+		uuid_obj = CustomUUID.from_string(uuid_str)
 		message = {
 			"id": uuid_str,
 			"type": "block",
@@ -151,10 +158,14 @@ class TestBlockHolder(unittest.TestCase):
 			"request_id": "req-123"
 		}
 		
-		result = self.block_holder.convert_message(message)
+		# Create UUID to int mapping
+		uuid_to_int_map = {uuid_obj: 42}
+		
+		result = self.block_holder.convert_message(message, uuid_to_int_map=uuid_to_int_map)
 		
 		# Should have converted UUID to int
 		self.assertIsInstance(result["id"], int)
+		self.assertEqual(result["id"], 42)
 		
 		# Should have removed cleaned fields
 		self.assertNotIn("type", result)

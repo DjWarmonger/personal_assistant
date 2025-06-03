@@ -131,8 +131,15 @@ class NotionGetBlockContentTool(ContextAwareTool):
 		cursor_info = f" start cursor: {start_cursor}" if start_cursor is not None else ""
 		log.flow(f"Retrieving content of Notion block... {index}{cursor_info}")
 		
+		block_id = client.index.resolve_to_uuid(index)
+		
+		if block_id is None:
+			error_msg = f"Could not resolve index {index} to UUID. Index may not exist in the index."
+			log.error(error_msg)
+			raise ValueError(error_msg)
+		
 		result = await client.get_block_content(get_children=False,
-							block_id=index,
+							block_id=block_id,
 							start_cursor=start_cursor,
 							block_tree=context.get("blockTree"))
 

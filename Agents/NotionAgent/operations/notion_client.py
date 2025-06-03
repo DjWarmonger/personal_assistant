@@ -12,6 +12,7 @@ from .blockCache import BlockCache, ObjectType
 from .blockTree import BlockTree
 from .blockHolder import BlockHolder
 from .blockDict import BlockDict
+from .blockManager import BlockManager
 from tz_common.logs import log, LogLevel
 
 from .utils import Utils
@@ -48,7 +49,8 @@ class NotionClient:
 		self.index = Index(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.cache = BlockCache(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.url_index = UrlIndex()
-		self.block_holder = BlockHolder(self.index, self.url_index)
+		self.block_holder = BlockHolder(self.url_index)
+		self.block_manager = BlockManager(self.index, self.cache, self.block_holder)
 
 		# TODO: Delete items from blockTree when cache is invalidated?
 
@@ -81,13 +83,29 @@ class NotionClient:
 
 		try:
 			if current_page_id is not None:
-				# Example: check cache, etc.
-				pass 
+				# Check cache for page
+				cache_entry = self.cache.get_page(current_page_id)
+				if cache_entry is not None:
+					# Parse JSON string back to dictionary
+					cache_data = self.block_manager.parse_cache_content(cache_entry)
+					
+					# Wrap cached content in BlockDict
+					int_id = self.index.resolve_to_int(current_page_id)
+					block_dict = BlockDict()
+					block_dict.add_block(int_id, cache_data)
+					return block_dict
 
 			if current_database_id is not None:
-				cache_entry = self.cache.get_database(str(current_database_id))
+				cache_entry = self.cache.get_database(current_database_id)
 				if cache_entry is not None:
-					return cache_entry
+					# Parse JSON string back to dictionary
+					cache_data = self.block_manager.parse_cache_content(cache_entry)
+					
+					# Wrap cached content in BlockDict
+					int_id = self.index.resolve_to_int(current_database_id)
+					block_dict = BlockDict()
+					block_dict.add_block(int_id, cache_data)
+					return block_dict
 
 			url_segment = str(current_page_id) if current_page_id else str(current_database_id)
 			url_type = "pages" if current_page_id else "databases"
@@ -106,9 +124,6 @@ class NotionClient:
 				raw_data = response.json() # Get raw data first
 				original_response_id_str = raw_data.get("id") # Extract original ID string
 
-				# Now convert the message for general processing (this will convert 'id' to int)
-				data = self.block_holder.convert_message(raw_data, clean_timestamps=False)
-				
 				# Use the original_response_id_str for operations needing CustomUUID
 				if original_response_id_str:
 					try:
@@ -117,26 +132,34 @@ class NotionClient:
 						if last_edited_time is not None:
 							# Use correct invalidation method based on object type
 							if current_database_id is not None:
-								self.cache.invalidate_database_if_expired(str(response_uuid), Utils.convert_date_to_timestamp(last_edited_time))
+								self.cache.invalidate_database_if_expired(response_uuid, Utils.convert_date_to_timestamp(last_edited_time))
 							else:
-								self.cache.invalidate_page_if_expired(str(response_uuid), Utils.convert_date_to_timestamp(last_edited_time))
+								self.cache.invalidate_page_if_expired(response_uuid, Utils.convert_date_to_timestamp(last_edited_time))
 						self.index.visit_uuid(response_uuid)
 					except ValueError as ve:
 						log.error(f"Failed to convert original id {original_response_id_str} to CustomUUID: {ve}")
 
-				# Clean timestamps on the already partially converted 'data'
-				data = self.block_holder.clean_timestamps(data) 
+				# Determine object type
+				object_type = ObjectType.DATABASE if current_database_id is not None else ObjectType.PAGE
 				
-				# Cache the data using the appropriate method based on object type
-				if current_database_id is not None:
-					self.cache.add_database(response_uuid, data)
-				else:
-					self.cache.add_page(response_uuid, data)
+				# Use BlockManager to process and store the data
+				main_int_id = self.block_manager.process_and_store_block(raw_data, object_type)
 				
 				# Wrap in BlockDict for consistent return type
-				int_id = self.index.resolve_to_int(response_uuid)
 				block_dict = BlockDict()
-				block_dict.add_block(int_id, data)
+				# Get the processed data from cache to return
+				target_uuid = current_database_id if current_database_id else current_page_id
+				if object_type == ObjectType.DATABASE:
+					processed_data = self.cache.get_database(target_uuid)
+				else:
+					processed_data = self.cache.get_page(target_uuid)
+				
+				if processed_data:
+					# Parse JSON string back to dictionary
+					cache_data = self.block_manager.parse_cache_content(processed_data)
+					
+					block_dict.add_block(main_int_id, cache_data)
+				
 				return block_dict
 
 		except ValueError as e:
@@ -211,8 +234,8 @@ class NotionClient:
 			log.error(error_msg)
 			return error_msg
 		
-		# cache_key should use the string representation of CustomUUID
-		current_cache_key_str = str(uuid_obj)
+		# For cache operations, we need the actual UUID object
+		current_cache_uuid = uuid_obj
 		url_uuid_str = str(uuid_obj) # For the API URL
 
 		if block_tree is not None:
@@ -226,14 +249,17 @@ class NotionClient:
 			if sc_uuid_obj:
 				sc_formatted_uuid = sc_uuid_obj.to_formatted() # Pass CustomUUID here
 				url += f"&start_cursor={sc_formatted_uuid}"
-				current_cache_key_str = sc_formatted_uuid # Update cache key if start_cursor is used
+				current_cache_uuid = sc_uuid_obj # Update cache UUID if start_cursor is used
 			else:
 				log.error(f"Could not format start_cursor {start_cursor}")
 
 		block_dict = BlockDict()
-		cached_content = self.cache.get_block(current_cache_key_str) # get_block expects string
+		cached_content = self.cache.get_block(current_cache_uuid) # get_block expects CustomUUID
 
 		if cached_content is not None:
+			# Parse JSON string back to dictionary
+			cache_data = self.block_manager.parse_cache_content(cached_content)
+			
 			if not get_children:
 				if block_tree is not None:
 					# Ensure we add the correct CustomUUID object to the tree
@@ -241,9 +267,11 @@ class NotionClient:
 					block_tree.add_parent(key_for_tree)
 				
 				# Wrap cached content in BlockDict for consistent return type
-				block_dict.add_block(self.index.resolve_to_int(block_id), cached_content)
+				block_dict.add_block(self.index.resolve_to_int(block_id), cache_data)
 				return block_dict
 			else:
+				# Check if children were fetched using cache key string
+				current_cache_key_str = str(current_cache_uuid)
 				if self.cache.get_children_fetched_for_block(current_cache_key_str):
 					# Ensure we pass the correct CustomUUID object for recursive call
 					key_for_recursion = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
@@ -263,54 +291,53 @@ class NotionClient:
 				key_for_tree_add = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
 				block_tree.add_parent(key_for_tree_add)
 
-			data_after_conversion = self.block_holder.convert_message(response_data_json,
-							   clean_type=False,
-							   clean_timestamps=False,
-							   convert_to_index_id=False)
-			
-			if "results" not in data_after_conversion:
+			if "results" not in response_data_json:
 				log.error(f"No key 'results' when retrieving children for block {url_uuid_str}")
+				# Return empty BlockDict if no results
+				return block_dict
 			else:
+				# Invalidate expired children blocks
 				for block_item in response_data_json.get("results", []):
 					block_item_id_str = block_item.get("id")
 					block_item_last_edited = block_item.get("last_edited_time")
 					if block_item_id_str and block_item_last_edited:
-						self.cache.invalidate_block_if_expired(block_item_id_str, block_item_last_edited)
+						block_item_uuid = CustomUUID.from_string(block_item_id_str)
+						self.cache.invalidate_block_if_expired(block_item_uuid, block_item_last_edited)
 
-				children_id_strs = [item["id"] for item in data_after_conversion.get("results", [])]
-
-				for child_id_str, content_item in zip(children_id_strs, data_after_conversion.get("results", [])):
-					processed_content = self.block_holder.convert_message(content_item)
-					self.cache.add_block(child_id_str, processed_content) # add_block expects string UUID
-
-				self.cache.add_parent_children_relationships(
-					current_cache_key_str, # parent is identified by its cache key string
-					children_id_strs,    # children are list of string IDs from response
-					parent_type=ObjectType.BLOCK,
-					child_type=ObjectType.BLOCK)
-				
-				if children_id_strs:
-					self.cache.add_children_fetched_for_block(current_cache_key_str)
-
-			final_data = self.block_holder.clean_type(data_after_conversion)
-			final_data = self.block_holder.clean_timestamps(final_data)
-			final_data = self.block_holder.convert_to_index_id(final_data)
-			
-			# Use current_cache_key_str for adding to cache, as it includes start_cursor if present
-			self.cache.add_block(current_cache_key_str, final_data) 
-			block_dict.add_block(self.index.resolve_to_int(block_id), final_data)
-
-			if get_children:
-				log.flow("Retrieving children recursively for block " + str(current_cache_key_str))
-				# Pass the original uuid_obj (or sc_uuid_obj if start_cursor was used) for recursion
-				key_for_recursion_after_fetch = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
-				final_data = await self.get_all_children_recursively(key_for_recursion_after_fetch, block_tree)
-
-				if isinstance(final_data, BlockDict):
-					for child_int_id, child_content in final_data.items():
+				if not get_children:
+					# Return raw children response as a single "list" object
+					# Process and clean the response but keep it as a single block
+					processed_response = self.block_holder.convert_message(
+						response_data_json,
+						clean_timestamps=True,
+						clean_type=True,
+						convert_to_index_id=False,  # Don't convert UUIDs for raw response
+						convert_urls=True
+					)
+					
+					# Use integer ID for the list object (could be the parent block ID)
+					list_block_id = self.index.resolve_to_int(uuid_obj)
+					block_dict.add_block(list_block_id, processed_response)
+				else:
+					# Use BlockManager to process children response into individual blocks
+					children_block_dict = self.block_manager.process_children_response(
+						response_data_json, current_cache_uuid, ObjectType.BLOCK
+					)
+					
+					# Add all children to the result
+					for child_int_id, child_content in children_block_dict.items():
 						block_dict.add_block(child_int_id, child_content)
 
-			# Wrap final_data in BlockDict for consistent return type when get_children=False
+			if get_children:
+				log.flow("Retrieving children recursively for block " + str(current_cache_uuid))
+				# Pass the original uuid_obj (or sc_uuid_obj if start_cursor was used) for recursion
+				key_for_recursion_after_fetch = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
+				children_result = await self.get_all_children_recursively(key_for_recursion_after_fetch, block_tree)
+
+				if isinstance(children_result, BlockDict):
+					for child_int_id, child_content in children_result.items():
+						block_dict.add_block(child_int_id, child_content)
+
 			return block_dict
 		
 	
@@ -387,13 +414,20 @@ class NotionClient:
 			custom_uuid_obj = self.index.resolve_to_uuid(start_cursor)
 			payload["start_cursor"] = custom_uuid_obj.to_formatted() if custom_uuid_obj else None
 
+		# Convert start_cursor to CustomUUID for cache lookup
+		start_cursor_uuid = None
+		if start_cursor is not None:
+			start_cursor_uuid = self.index.resolve_to_uuid(start_cursor)
 
-		cache_entry = self.cache.get_search_results(query, filter_type, str(start_cursor) if start_cursor else None)
+		cache_entry = self.cache.get_search_results(query, filter_type, start_cursor_uuid)
 		if cache_entry is not None:
+			# Parse JSON string back to dictionary
+			cache_data = self.block_manager.parse_cache_content(cache_entry)
+			
 			# Wrap cached search results in BlockDict
 			block_dict = BlockDict()
-			if isinstance(cache_entry, dict) and "results" in cache_entry:
-				for i, result in enumerate(cache_entry["results"]):
+			if isinstance(cache_data, dict) and "results" in cache_data:
+				for i, result in enumerate(cache_data["results"]):
 					result_id = result.get('id', i)  # Use result ID or index as fallback
 					if not isinstance(result_id, int):
 						result_id = i
@@ -412,65 +446,35 @@ class NotionClient:
 				error_dict = self.block_holder.clean_error_message(response_json)
 				return f"HTTP {response.status_code}: {error_dict.get('message', 'Unknown error')}"
 			
-			cache_key = self.cache.create_search_results_cache_key(query, filter_type, str(start_cursor) if start_cursor else None)
-			
-			#log.common(response_json)
-
-			# Process each result based on its object type
+			# Process each result based on its object type for cache invalidation
 			for result in response_json["results"]:
 				result_id = result["id"]
 				result_object_type = result.get("object", ObjectType.BLOCK.value)  # Default to block if not specified
 				last_edited_time = result.get("last_edited_time")
 				
-				if last_edited_time:
+				if last_edited_time and result_id:
+					result_uuid = CustomUUID.from_string(result_id)
 					# Use appropriate invalidation method based on object type
 					if result_object_type == ObjectType.DATABASE.value:
-						self.cache.invalidate_database_if_expired(result_id, last_edited_time)
+						self.cache.invalidate_database_if_expired(result_uuid, last_edited_time)
 					elif result_object_type == ObjectType.PAGE.value:
-						self.cache.invalidate_page_if_expired(result_id, last_edited_time)
+						self.cache.invalidate_page_if_expired(result_uuid, last_edited_time)
 					else:  # block or unknown
-						self.cache.invalidate_block_if_expired(result_id, last_edited_time)
+						self.cache.invalidate_block_if_expired(result_uuid, last_edited_time)
 
-			# Create parent-child relationships with proper object types
-			for result in response_json["results"]:
-				result_id = result["id"]
-				result_object_type = result.get("object", ObjectType.BLOCK.value)
-				
-				# Map object type string to ObjectType enum
-				if result_object_type == ObjectType.DATABASE.value:
-					child_type = ObjectType.DATABASE
-				elif result_object_type == ObjectType.PAGE.value:
-					child_type = ObjectType.PAGE
-				else:  # block or unknown
-					child_type = ObjectType.BLOCK
-				
-				self.cache.add_parent_child_relationship(
-					cache_key,
-					result_id,
-					parent_type=ObjectType.SEARCH_RESULTS,
-					child_type=child_type)
+			log.flow("Processing search results with BlockManager")
+			
+			# Use BlockManager to process and store search results
+			ttl = 30 * 24 * 60 * 60  # 30 days
+			block_dict = self.block_manager.process_and_store_search_results(
+				query, response_json, filter_type, start_cursor_uuid, ttl
+			)
 
-			log.flow("Converting message")
-			data = self.block_holder.convert_message(response_json)
-
-			if len(data["results"]) > 0:
-				log.flow(f"Found {len(data['results'])} search results")
+			if len(response_json.get("results", [])) > 0:
+				log.flow(f"Found {len(response_json['results'])} search results")
 			else:
 				log.flow("No search results found for this query")
 
-
-			# Max ttl for search results is 30 days
-			self.cache.add_search_results(query, data, filter_type, str(start_cursor) if start_cursor else None, ttl = 30 * 24 * 60 * 60)
-
-			# Wrap search results in BlockDict
-			block_dict = BlockDict()
-			if isinstance(data, dict) and "results" in data:
-				for i, result in enumerate(data["results"]):
-					result_id = result.get('id', i)  # Use result ID or index as fallback
-					if not isinstance(result_id, int):
-						result_id = i
-					block_dict.add_block(result_id, result)
-			
 			return block_dict
 
 		except Exception as e:
@@ -479,10 +483,13 @@ class NotionClient:
 
 
 	async def query_database(self, database_id: Union[str, CustomUUID], filter=None, start_cursor: Optional[Union[str, CustomUUID]] = None) -> Union[BlockDict, str]:
-		db_id_str = str(database_id) # Ensure database_id is string for cache and URL
+		# Convert database_id to CustomUUID
+		if isinstance(database_id, str):
+			db_uuid = CustomUUID.from_string(database_id)
+		else:
+			db_uuid = database_id
 		
 		# Verify if id is known in cache but is NOT a database
-		db_uuid = CustomUUID.from_string(db_id_str)
 		self.cache.verify_object_type_or_raise(db_uuid, ObjectType.DATABASE)
 
 		# FIXME: Agent doesn't stop after error and continues to call this tool for non-database
@@ -500,7 +507,7 @@ class NotionClient:
 
 		filter_obj = self.parse_filter(filter)
 
-		url = f"https://api.notion.com/v1/databases/{db_id_str}/query"
+		url = f"https://api.notion.com/v1/databases/{str(db_uuid)}/query"
 		payload = {
 			"page_size": self.page_size,
 		}
@@ -510,14 +517,22 @@ class NotionClient:
 			custom_uuid_obj = self.index.resolve_to_uuid(start_cursor)
 			payload["start_cursor"] = custom_uuid_obj.to_formatted() if custom_uuid_obj else None
 
+		# Convert start_cursor to CustomUUID for cache lookup
+		start_cursor_uuid = None
+		if start_cursor is not None:
+			start_cursor_uuid = self.index.resolve_to_uuid(start_cursor)
+
 		# Use a consistent key for caching that reflects the actual filter object used
 		cache_filter_key = json.dumps(filter_obj, sort_keys=True) if filter_obj else None
-		cache_entry = self.cache.get_database_query_results(db_id_str, cache_filter_key, str(start_cursor) if start_cursor else None)
+		cache_entry = self.cache.get_database_query_results(db_uuid, cache_filter_key, start_cursor_uuid)
 		if cache_entry is not None:
+			# Parse JSON string back to dictionary
+			cache_data = self.block_manager.parse_cache_content(cache_entry)
+			
 			# Wrap cached database query results in BlockDict
 			block_dict = BlockDict()
-			if isinstance(cache_entry, dict) and "results" in cache_entry:
-				for i, result in enumerate(cache_entry["results"]):
+			if isinstance(cache_data, dict) and "results" in cache_data:
+				for i, result in enumerate(cache_data["results"]):
 					result_id = result.get('id', i)  # Use result ID or index as fallback
 					if not isinstance(result_id, int):
 						result_id = i
@@ -533,27 +548,22 @@ class NotionClient:
 			log.error(response.status_code, error_message)
 			return f"HTTP {response.status_code}: {error_message.get('message', 'Unknown error')}"
 		else:
-			# TODO: Invalidate blocks recursively if they are not up to date
-			data = self.block_holder.convert_message(response.json(), clean_timestamps=False, convert_to_index_id=False)
-
-			# Database query results are pages, not blocks
-			for page in data["results"]:
-				if "last_edited_time" in page:
-					self.cache.invalidate_page_if_expired(page["id"], page["last_edited_time"])
-
-			final_data = self.block_holder.convert_to_index_id(self.block_holder.clean_timestamps(data))
+			response_json = response.json()
 			
-			# Cache the database query results
-			self.cache.add_database_query_results(db_id_str, final_data, cache_filter_key, str(start_cursor) if start_cursor else None)
+			# Database query results are pages, not blocks - invalidate if needed
+			for page in response_json.get("results", []):
+				page_id = page.get("id")
+				last_edited_time = page.get("last_edited_time")
+				if page_id and last_edited_time:
+					page_uuid = CustomUUID.from_string(page_id)
+					self.cache.invalidate_page_if_expired(page_uuid, last_edited_time)
+
+			log.flow("Processing database query results with BlockManager")
 			
-			# Wrap database query results in BlockDict
-			block_dict = BlockDict()
-			if isinstance(final_data, dict) and "results" in final_data:
-				for i, result in enumerate(final_data["results"]):
-					result_id = result.get('id', i)  # Use result ID or index as fallback
-					if not isinstance(result_id, int):
-						result_id = i
-					block_dict.add_block(result_id, result)
+			# Use BlockManager to process and store database query results
+			block_dict = self.block_manager.process_and_store_database_query_results(
+				db_uuid, response_json, cache_filter_key, start_cursor_uuid
+			)
 			
 			return block_dict
 

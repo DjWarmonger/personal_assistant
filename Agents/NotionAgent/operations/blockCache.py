@@ -478,7 +478,6 @@ class BlockCache(TimedStorage):
 				
 				# If the expected type is not among the existing types, raise error
 
-				# FIXME: Modify message to only present integer id to Agent
 				if expected_type.value not in existing_types:
 					existing_types_str = ", ".join(existing_types)
 					raise ValueError(
