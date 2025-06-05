@@ -38,11 +38,11 @@
 
 ### BlockManager Updates
 
-- [ ]  **Update caching logic in BlockManager**:
-    - [ ]  `process_and_store_block()`: Store data with only UUID conversion, no filtering
-    - [ ]  `process_and_store_search_results()`: Store raw results with UUID conversion only
-    - [ ]  `process_and_store_database_query_results()`: Store raw results with UUID conversion only
-    - [ ]  Add new method `get_filtered_block_content(uuid, filter_options)` for retrieving with dynamic filtering
+- [✅]  **Update caching logic in BlockManager**:
+    - [✅]  `process_and_store_block()`: Store data with only UUID conversion, no filtering
+    - [✅]  `process_and_store_search_results()`: Store raw results with UUID conversion only
+    - [✅]  `process_and_store_database_query_results()`: Store raw results with UUID conversion only
+    - [✅]  Add new method `get_filtered_block_content(uuid, filter_options)` for retrieving with dynamic filtering
 
 ### Dynamic Filtering on Retrieval
 
@@ -75,7 +75,7 @@
 
 - [ ]  **Gradual migration approach**:
     - [✅]  Phase 1: Implement filtering system alongside existing system
-    - [ ]  Phase 2: Update BlockManager to store unfiltered data
+    - [✅]  Phase 2: Update BlockManager to store unfiltered data
     - [ ]  Phase 3: Update NotionClient to use dynamic filtering
     - [ ]  Phase 4: Update agent tools
     - [ ]  Phase 5: Remove old filtering logic
