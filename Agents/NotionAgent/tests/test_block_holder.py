@@ -14,22 +14,120 @@ from tz_common import CustomUUID
 
 class TestBlockHolder(unittest.TestCase):
 
+	# Test data constants
+	TEST_UUID_1 = "12345678-1234-1234-1234-123456789abc"
+	TEST_UUID_2 = "87654321-4321-4321-4321-210987654321"
+	TEST_TIMESTAMP = "2023-01-01T00:00:00Z"
+	
+	# Common field values
+	COMMON_FIELDS = {
+		"content": "test content",
+		"last_edited_time": TEST_TIMESTAMP,
+		"created_time": TEST_TIMESTAMP,
+		"icon": "some-icon",
+		"bold": True,
+		"italic": False,
+		"archived": False,
+		"request_id": "req-123",
+		"plain_text": "plain text"
+	}
+	
+	# Error message template
+	ERROR_MESSAGE_TEMPLATE = {
+		"object": "error",
+		"status": 404,
+		"code": "object_not_found",
+		"message": "Could not find object",
+		"request_id": "req-123"
+	}
+	
+	# Base message template
+	BASE_MESSAGE_TEMPLATE = {
+		"id": "test-id",
+		**COMMON_FIELDS
+	}
+
 	def setUp(self):
 		"""Set up test fixtures before each test method."""
 		self.index = Index(load_from_disk=False, run_on_start=False)
 		self.url_index = UrlIndex()
 		self.block_holder = BlockHolder(self.url_index)
 
+	def _create_error_message(self, **overrides):
+		"""Helper method to create error message with optional overrides."""
+		message = copy.deepcopy(self.ERROR_MESSAGE_TEMPLATE)
+		message.update(overrides)
+		return message
+
+	def _create_base_message(self, **overrides):
+		"""Helper method to create base message with optional overrides."""
+		message = copy.deepcopy(self.BASE_MESSAGE_TEMPLATE)
+		message.update(overrides)
+		return message
+
+	def _create_uuid_message(self, uuid_str=None, **overrides):
+		"""Helper method to create message with UUID fields."""
+		if uuid_str is None:
+			uuid_str = self.TEST_UUID_1
+		
+		message = {
+			"id": uuid_str,
+			"page_id": uuid_str,
+			"content": "test content",
+			"short_id": "abc123"
+		}
+		message.update(overrides)
+		return message
+
+	def _create_nested_message(self, **overrides):
+		"""Helper method to create message with nested structure."""
+		message = self._create_base_message()
+		message["nested"] = {
+			"last_edited_time": self.TEST_TIMESTAMP,
+			"text": "nested text",
+			"strikethrough": True
+		}
+		message.update(overrides)
+		return message
+
+	def _create_metadata_message(self, **overrides):
+		"""Helper method to create message with metadata fields."""
+		message = self._create_base_message()
+		message.update({
+			"last_edited_by": {"id": "user-123"},
+			"annotations": {"bold": True}
+		})
+		message.update(overrides)
+		return message
+
+	def _create_empty_values_message(self, **overrides):
+		"""Helper method to create message with empty values."""
+		message = self._create_base_message()
+		message.update({
+			"null_field": None,
+			"empty_dict": {},
+			"empty_list": [],
+			"valid_dict": {"key": "value"},
+			"valid_list": ["item"]
+		})
+		message.update(overrides)
+		return message
+
+	def _create_type_message(self, **overrides):
+		"""Helper method to create message with type fields."""
+		message = {
+			"id": "test-id",
+			"type": "block",
+			"content": {
+				"type": "paragraph",
+				"text": "test text"
+			}
+		}
+		message.update(overrides)
+		return message
 
 	def test_clean_error_message(self):
-		"""Test cleaning of error messages."""
-		message = {
-			"object": "error",
-			"status": 404,
-			"code": "object_not_found",
-			"message": "Could not find object",
-			"request_id": "req-123"
-		}
+		message = self._create_error_message()
 		
 		result = self.block_holder.clean_error_message(message)
 		
@@ -42,18 +140,9 @@ class TestBlockHolder(unittest.TestCase):
 		self.assertIn("code", result)
 		self.assertIn("message", result)
 
-
-	# New tests for the filtering system
 	def test_convert_uuids_to_int(self):
-		"""Test the new UUID conversion method."""
-		uuid_str = "12345678-1234-1234-1234-123456789abc"
-		uuid_obj = CustomUUID.from_string(uuid_str)
-		message = {
-			"id": uuid_str,
-			"page_id": uuid_str,
-			"content": "test content",
-			"short_id": "abc123"
-		}
+		uuid_obj = CustomUUID.from_string(self.TEST_UUID_1)
+		message = self._create_uuid_message()
 		
 		uuid_to_int_map = {uuid_obj: 42}
 		result = self.block_holder.convert_uuids_to_int(copy.deepcopy(message), uuid_to_int_map)
@@ -66,19 +155,8 @@ class TestBlockHolder(unittest.TestCase):
 		self.assertEqual(result["content"], "test content")
 		self.assertEqual(result["short_id"], "abc123")
 
-
 	def test_apply_timestamp_filters(self):
-		"""Test timestamp filtering."""
-		message = {
-			"id": "test-id",
-			"content": "test content",
-			"last_edited_time": "2023-01-01T00:00:00Z",
-			"created_time": "2023-01-01T00:00:00Z",
-			"nested": {
-				"last_edited_time": "2023-01-01T00:00:00Z",
-				"text": "nested text"
-			}
-		}
+		message = self._create_nested_message()
 		
 		result = self.block_holder.apply_filters(copy.deepcopy(message), [FilteringOptions.TIMESTAMPS])
 		
@@ -92,24 +170,9 @@ class TestBlockHolder(unittest.TestCase):
 		self.assertIn("content", result)
 		self.assertIn("text", result["nested"])
 
-
 	def test_apply_metadata_filters(self):
-		"""Test metadata filtering."""
-		message = {
-			"id": "test-id",
-			"content": "test content",
-			"icon": "some-icon",
-			"bold": True,
-			"italic": False,
-			"archived": False,
-			"last_edited_by": {"id": "user-123"},
-			"annotations": {"bold": True},
-			"plain_text": "plain text",
-			"nested": {
-				"strikethrough": True,
-				"text": "nested text"
-			}
-		}
+		message = self._create_metadata_message()
+		message["nested"] = {"strikethrough": True, "text": "nested text"}
 		
 		result = self.block_holder.apply_filters(copy.deepcopy(message), [FilteringOptions.METADATA])
 		
@@ -128,18 +191,8 @@ class TestBlockHolder(unittest.TestCase):
 		self.assertIn("content", result)
 		self.assertIn("text", result["nested"])
 
-
 	def test_apply_empty_values_filters(self):
-		"""Test empty values filtering."""
-		message = {
-			"id": "test-id",
-			"content": "test content",
-			"null_field": None,
-			"empty_dict": {},
-			"empty_list": [],
-			"valid_dict": {"key": "value"},
-			"valid_list": ["item"]
-		}
+		message = self._create_empty_values_message()
 		
 		result = self.block_holder.apply_filters(copy.deepcopy(message), [FilteringOptions.EMPTY_VALUES])
 		
@@ -154,17 +207,8 @@ class TestBlockHolder(unittest.TestCase):
 		self.assertIn("valid_dict", result)
 		self.assertIn("valid_list", result)
 
-
 	def test_apply_type_filters(self):
-		"""Test type field filtering."""
-		message = {
-			"id": "test-id",
-			"type": "block",
-			"content": {
-				"type": "paragraph",
-				"text": "test text"
-			}
-		}
+		message = self._create_type_message()
 		
 		result = self.block_holder.apply_filters(copy.deepcopy(message), [FilteringOptions.TYPE_FIELDS])
 		
@@ -176,15 +220,8 @@ class TestBlockHolder(unittest.TestCase):
 		self.assertIn("id", result)
 		self.assertIn("text", result["content"])
 
-
 	def test_apply_system_fields_filters(self):
-		"""Test system fields filtering."""
-		message = {
-			"id": "test-id",
-			"content": "test content",
-			"request_id": "req-123",
-			"other_field": "keep this"
-		}
+		message = self._create_base_message(other_field="keep this")
 		
 		result = self.block_holder.apply_filters(copy.deepcopy(message), [FilteringOptions.SYSTEM_FIELDS])
 		
@@ -196,18 +233,12 @@ class TestBlockHolder(unittest.TestCase):
 		self.assertIn("content", result)
 		self.assertIn("other_field", result)
 
-
 	def test_apply_minimal_filters(self):
-		"""Test MINIMAL composite filter."""
-		message = {
-			"id": "test-id",
+		message = self._create_base_message()
+		message.update({
 			"type": "block",  # Should NOT be removed by MINIMAL
-			"content": "test content",
-			"last_edited_time": "2023-01-01T00:00:00Z",  # Should be removed
-			"icon": "some-icon",  # Should be removed
-			"null_field": None,  # Should be removed
-			"request_id": "req-123"  # Should NOT be removed by MINIMAL
-		}
+			"null_field": None  # Should be removed
+		})
 		
 		result = self.block_holder.apply_filters(copy.deepcopy(message), [FilteringOptions.MINIMAL])
 		
@@ -222,18 +253,12 @@ class TestBlockHolder(unittest.TestCase):
 		self.assertIn("type", result)  # Not removed by MINIMAL
 		self.assertIn("request_id", result)  # Not removed by MINIMAL
 
-
 	def test_apply_agent_optimized_filters(self):
-		"""Test AGENT_OPTIMIZED composite filter."""
-		message = {
-			"id": "test-id",
+		message = self._create_base_message()
+		message.update({
 			"type": "block",
-			"content": "test content",
-			"last_edited_time": "2023-01-01T00:00:00Z",
-			"icon": "some-icon",
-			"null_field": None,
-			"request_id": "req-123"
-		}
+			"null_field": None
+		})
 		
 		result = self.block_holder.apply_filters(copy.deepcopy(message), [FilteringOptions.AGENT_OPTIMIZED])
 		
@@ -248,17 +273,12 @@ class TestBlockHolder(unittest.TestCase):
 		self.assertIn("id", result)
 		self.assertIn("content", result)
 
-
 	def test_multiple_filter_options(self):
-		"""Test applying multiple individual filter options."""
-		message = {
-			"id": "test-id",
+		message = self._create_base_message()
+		message.update({
 			"type": "block",
-			"content": "test content",
-			"last_edited_time": "2023-01-01T00:00:00Z",
-			"icon": "some-icon",
 			"null_field": None
-		}
+		})
 		
 		result = self.block_holder.apply_filters(
 			copy.deepcopy(message), 
