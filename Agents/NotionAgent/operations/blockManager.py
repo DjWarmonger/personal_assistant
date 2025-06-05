@@ -46,7 +46,7 @@ class BlockManager:
 								parent_type: ObjectType = ObjectType.BLOCK) -> int:
 		"""
 		Process raw Notion API data and store it in cache with proper relationships.
-		PHASE 2: Now stores unfiltered data with only UUID conversion.
+		Stores unfiltered data with only UUID conversion.
 		
 		Args:
 			raw_data: Raw JSON data from Notion API
@@ -77,7 +77,7 @@ class BlockManager:
 			# Fallback: add to index if not found
 			main_int_id = self.index.add_uuid(main_uuid)
 		
-		# PHASE 2 CHANGE: Store unfiltered data with only UUID conversion
+		# Store unfiltered data with only UUID conversion
 		# Convert UUIDs to int IDs but don't apply any filtering
 		processed_data = self.block_holder.convert_uuids_to_int(raw_data.copy(), uuid_to_int_map)
 		
@@ -104,47 +104,6 @@ class BlockManager:
 		return main_int_id
 
 
-	def get_filtered_block_content(self, 
-								  uuid: CustomUUID, 
-								  object_type: ObjectType,
-								  filter_options: List[FilteringOptions] = None) -> Optional[dict]:
-		"""
-		Retrieve block content from cache and apply dynamic filtering.
-		PHASE 2: New method for retrieving filtered content.
-		
-		Args:
-			uuid: UUID of the block to retrieve
-			object_type: Type of object (BLOCK, PAGE, DATABASE)
-			filter_options: List of filtering options to apply
-			
-		Returns:
-			Filtered block content or None if not found
-		"""
-		if filter_options is None:
-			filter_options = [FilteringOptions.AGENT_OPTIMIZED]
-		
-		# Get unfiltered content from cache
-		if object_type == ObjectType.BLOCK:
-			cache_content = self.cache.get_block(uuid)
-		elif object_type == ObjectType.PAGE:
-			cache_content = self.cache.get_page(uuid)
-		elif object_type == ObjectType.DATABASE:
-			cache_content = self.cache.get_database(uuid)
-		else:
-			raise ValueError(f"Unsupported object type: {object_type}")
-		
-		if cache_content is None:
-			return None
-		
-		# Parse cached content
-		unfiltered_data = self.parse_cache_content(cache_content)
-		
-		# Apply dynamic filtering
-		filtered_data = self.block_holder.apply_filters(unfiltered_data.copy(), filter_options)
-		
-		return filtered_data
-
-
 	def process_and_store_search_results(self,
 										query: str,
 										raw_results: dict,
@@ -153,10 +112,10 @@ class BlockManager:
 										ttl: Optional[int] = None) -> BlockDict:
 		"""
 		Process search results and store them in cache.
-		PHASE 2: Now stores unfiltered results with only UUID conversion.
+		Stores unfiltered results with only UUID conversion.
 		
 		Returns:
-			BlockDict containing the processed results with default filtering applied
+			BlockDict containing the processed results (unfiltered)
 		"""
 		# Store original result data for relationship creation before processing
 		original_results = []
@@ -178,7 +137,7 @@ class BlockManager:
 			int_id = self.index.add_uuid(uuid_obj)
 			uuid_to_int_map[uuid_obj] = int_id
 		
-		# PHASE 2 CHANGE: Store unfiltered data with only UUID conversion
+		# Store unfiltered data with only UUID conversion
 		unfiltered_data = self.block_holder.convert_uuids_to_int(raw_results.copy(), uuid_to_int_map)
 		
 		# Store search results in cache (cache expects string content)
@@ -216,13 +175,10 @@ class BlockManager:
 				self.cache.conn.commit()
 				self.cache.set_dirty()
 		
-		# PHASE 2 CHANGE: Apply filtering for return data
-		filtered_data = self.block_holder.apply_filters(unfiltered_data.copy(), [FilteringOptions.AGENT_OPTIMIZED])
-		
-		# Convert to BlockDict for return
+		# Convert to BlockDict for return (unfiltered)
 		block_dict = BlockDict()
-		if isinstance(filtered_data, dict) and "results" in filtered_data:
-			for i, result in enumerate(filtered_data["results"]):
+		if isinstance(unfiltered_data, dict) and "results" in unfiltered_data:
+			for i, result in enumerate(unfiltered_data["results"]):
 				result_id = result.get('id', i)
 				if not isinstance(result_id, int):
 					result_id = i
@@ -238,10 +194,10 @@ class BlockManager:
 												start_cursor: Optional[CustomUUID] = None) -> BlockDict:
 		"""
 		Process database query results and store them in cache.
-		PHASE 2: Now stores unfiltered results with only UUID conversion.
+		Stores unfiltered results with only UUID conversion.
 		
 		Returns:
-			BlockDict containing the processed results with default filtering applied
+			BlockDict containing the processed results (unfiltered)
 		"""
 		# Convert database_id to CustomUUID if needed
 		if isinstance(database_id, str):
@@ -258,7 +214,7 @@ class BlockManager:
 			int_id = self.index.add_uuid(uuid_obj)
 			uuid_to_int_map[uuid_obj] = int_id
 		
-		# PHASE 2 CHANGE: Store unfiltered data with only UUID conversion
+		# Store unfiltered data with only UUID conversion
 		unfiltered_data = self.block_holder.convert_uuids_to_int(raw_results.copy(), uuid_to_int_map)
 		
 		# Convert processed data to string for cache storage
@@ -267,13 +223,10 @@ class BlockManager:
 		# Store database query results in cache
 		self.cache.add_database_query_results(db_uuid, unfiltered_data_str, filter_str, start_cursor)
 		
-		# PHASE 2 CHANGE: Apply filtering for return data
-		filtered_data = self.block_holder.apply_filters(unfiltered_data.copy(), [FilteringOptions.AGENT_OPTIMIZED])
-		
-		# Convert to BlockDict for return
+		# Convert to BlockDict for return (unfiltered)
 		block_dict = BlockDict()
-		if isinstance(filtered_data, dict) and "results" in filtered_data:
-			for i, result in enumerate(filtered_data["results"]):
+		if isinstance(unfiltered_data, dict) and "results" in unfiltered_data:
+			for i, result in enumerate(unfiltered_data["results"]):
 				result_id = result.get('id', i)
 				if not isinstance(result_id, int):
 					result_id = i
@@ -288,7 +241,7 @@ class BlockManager:
 							  parent_type: ObjectType = ObjectType.BLOCK) -> List[CustomUUID]:
 		"""
 		Process a batch of children blocks and store them in cache.
-		PHASE 2: Now stores unfiltered children data.
+		Stores unfiltered children data.
 		
 		Returns:
 			List of children UUIDs
@@ -356,66 +309,3 @@ class BlockManager:
 					block_dict.add_block(child_int_id, unfiltered_data)
 		
 		return block_dict
-
-
-	# Legacy method - keep for backward compatibility during migration
-	def process_and_store_block_legacy(self, 
-								raw_data: dict, 
-								object_type: ObjectType, 
-								parent_uuid: Optional[CustomUUID] = None,
-								parent_type: ObjectType = ObjectType.BLOCK) -> int:
-		"""
-		LEGACY METHOD - Process raw Notion API data using old filtering approach.
-		Kept for backward compatibility during migration.
-		"""
-		# Extract all UUIDs from the raw data
-		all_uuids = self.block_holder.extract_all_uuids(raw_data)
-		
-		# Register all UUIDs with the index and create mapping
-		uuid_to_int_map = {}
-		for uuid_obj in all_uuids:
-			int_id = self.index.add_uuid(uuid_obj)
-			uuid_to_int_map[uuid_obj] = int_id
-		
-		# Get the main object's UUID and int ID
-		main_uuid_str = raw_data.get('id')
-		if not main_uuid_str:
-			raise ValueError("Raw data missing 'id' field")
-		
-		main_uuid = CustomUUID.from_string(main_uuid_str)
-		main_int_id = uuid_to_int_map.get(main_uuid)
-		if main_int_id is None:
-			# Fallback: add to index if not found
-			main_int_id = self.index.add_uuid(main_uuid)
-		
-		# Process and clean the data using legacy BlockHolder method
-		processed_data = self.block_holder.convert_message(
-			raw_data,
-			clean_timestamps=True,
-			clean_type=True,
-			convert_to_index_id=True,
-			convert_urls=True,
-			uuid_to_int_map=uuid_to_int_map
-		)
-		
-		# Convert processed data to string for cache storage
-		processed_data_str = json.dumps(processed_data) if isinstance(processed_data, dict) else str(processed_data)
-		
-		# Store in cache based on object type
-		if object_type == ObjectType.BLOCK:
-			self.cache.add_block(main_uuid, processed_data_str, parent_uuid=parent_uuid, parent_type=parent_type)
-		elif object_type == ObjectType.PAGE:
-			self.cache.add_page(main_uuid, processed_data_str)
-		elif object_type == ObjectType.DATABASE:
-			self.cache.add_database(main_uuid, processed_data_str)
-		else:
-			raise ValueError(f"Unsupported object type: {object_type}")
-		
-		# Add parent-child relationship if parent exists
-		if parent_uuid is not None:
-			self.cache.add_parent_child_relationship(
-				parent_uuid, main_uuid, parent_type, object_type
-			)
-		
-		log.debug(f"Processed and stored {object_type.value} {main_int_id} (legacy)")
-		return main_int_id 

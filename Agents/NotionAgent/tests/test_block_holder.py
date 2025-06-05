@@ -21,82 +21,6 @@ class TestBlockHolder(unittest.TestCase):
 		self.block_holder = BlockHolder(self.url_index)
 
 
-	def test_clean_response_details(self):
-		"""Test cleaning of response details."""
-		message = {
-			"id": "test-id",
-			"content": "test content",
-			"icon": "some-icon",
-			"bold": True,
-			"request_id": "req-123",
-			"nested": {
-				"italic": False,
-				"text": "nested text"
-			}
-		}
-		
-		result = self.block_holder.clean_response_details(message)
-		
-		# Should remove icon, bold, request_id, and nested italic
-		self.assertNotIn("icon", result)
-		self.assertNotIn("bold", result)
-		self.assertNotIn("request_id", result)
-		self.assertNotIn("italic", result["nested"])
-		
-		# Should keep id, content, and nested text
-		self.assertIn("id", result)
-		self.assertIn("content", result)
-		self.assertIn("text", result["nested"])
-
-
-	def test_clean_timestamps(self):
-		"""Test removal of timestamp fields."""
-		message = {
-			"id": "test-id",
-			"content": "test content",
-			"last_edited_time": "2023-01-01T00:00:00Z",
-			"created_time": "2023-01-01T00:00:00Z",
-			"nested": {
-				"last_edited_time": "2023-01-01T00:00:00Z",
-				"text": "nested text"
-			}
-		}
-		
-		result = self.block_holder.clean_timestamps(message)
-		
-		# Should remove all timestamp fields
-		self.assertNotIn("last_edited_time", result)
-		self.assertNotIn("created_time", result)
-		self.assertNotIn("last_edited_time", result["nested"])
-		
-		# Should keep other fields
-		self.assertIn("id", result)
-		self.assertIn("content", result)
-		self.assertIn("text", result["nested"])
-
-
-	def test_clean_type(self):
-		"""Test removal of type fields."""
-		message = {
-			"id": "test-id",
-			"type": "block",
-			"content": {
-				"type": "paragraph",
-				"text": "test text"
-			}
-		}
-		
-		result = self.block_holder.clean_type(message)
-		
-		# Should remove all type fields
-		self.assertNotIn("type", result)
-		self.assertNotIn("type", result["content"])
-		
-		# Should keep other fields
-		self.assertIn("id", result)
-		self.assertIn("text", result["content"])
-
-
 	def test_clean_error_message(self):
 		"""Test cleaning of error messages."""
 		message = {
@@ -117,65 +41,6 @@ class TestBlockHolder(unittest.TestCase):
 		self.assertIn("status", result)
 		self.assertIn("code", result)
 		self.assertIn("message", result)
-
-
-	def test_convert_to_index_id(self):
-		"""Test conversion of UUIDs to index IDs."""
-		uuid_str = "12345678-1234-1234-1234-123456789abc"
-		uuid_obj = CustomUUID.from_string(uuid_str)
-		message = {
-			"id": uuid_str,
-			"page_id": uuid_str,
-			"content": "test content",
-			"short_id": "abc123"  # Should not be converted
-		}
-		
-		# Create UUID to int mapping
-		uuid_to_int_map = {uuid_obj: 42}
-		
-		result = self.block_holder.convert_to_index_id(message, uuid_to_int_map)
-		
-		# Should convert valid UUIDs to integers
-		self.assertIsInstance(result["id"], int)
-		self.assertEqual(result["id"], 42)
-		self.assertIsInstance(result["page_id"], int)
-		self.assertEqual(result["page_id"], 42)
-		
-		# Should keep non-UUID fields unchanged
-		self.assertEqual(result["content"], "test content")
-		self.assertEqual(result["short_id"], "abc123")
-
-
-	def test_convert_message_integration(self):
-		"""Test the main convert_message method with all options."""
-		uuid_str = "12345678-1234-1234-1234-123456789abc"
-		uuid_obj = CustomUUID.from_string(uuid_str)
-		message = {
-			"id": uuid_str,
-			"type": "block",
-			"content": "test content",
-			"last_edited_time": "2023-01-01T00:00:00Z",
-			"icon": "some-icon",
-			"request_id": "req-123"
-		}
-		
-		# Create UUID to int mapping
-		uuid_to_int_map = {uuid_obj: 42}
-		
-		result = self.block_holder.convert_message(message, uuid_to_int_map=uuid_to_int_map)
-		
-		# Should have converted UUID to int
-		self.assertIsInstance(result["id"], int)
-		self.assertEqual(result["id"], 42)
-		
-		# Should have removed cleaned fields
-		self.assertNotIn("type", result)
-		self.assertNotIn("last_edited_time", result)
-		self.assertNotIn("icon", result)
-		self.assertNotIn("request_id", result)
-		
-		# Should keep content
-		self.assertIn("content", result)
 
 
 	# New tests for the filtering system
@@ -382,58 +247,6 @@ class TestBlockHolder(unittest.TestCase):
 		# Should keep essential fields
 		self.assertIn("id", result)
 		self.assertIn("content", result)
-
-
-	def test_new_vs_legacy_filtering_equivalence(self):
-		"""Test that new filtering system produces same results as legacy system."""
-		uuid_str = "12345678-1234-1234-1234-123456789abc"
-		uuid_obj = CustomUUID.from_string(uuid_str)
-		
-		# Create a comprehensive test message
-		message = {
-			"id": uuid_str,
-			"type": "block",
-			"content": "test content",
-			"last_edited_time": "2023-01-01T00:00:00Z",
-			"created_time": "2023-01-01T00:00:00Z",
-			"icon": "some-icon",
-			"bold": True,
-			"italic": False,
-			"archived": False,
-			"last_edited_by": {"id": "user-123"},
-			"annotations": {"bold": True},
-			"plain_text": "plain text",
-			"null_field": None,
-			"empty_dict": {},
-			"request_id": "req-123",
-			"url": "https://example.com",
-			"nested": {
-				"type": "paragraph",
-				"last_edited_time": "2023-01-01T00:00:00Z",
-				"strikethrough": True,
-				"text": "nested text"
-			}
-		}
-		
-		uuid_to_int_map = {uuid_obj: 42}
-		
-		# Test legacy system
-		legacy_result = self.block_holder.convert_message(
-			copy.deepcopy(message),
-			clean_timestamps=True,
-			clean_type=True,
-			convert_to_index_id=True,
-			convert_urls=True,
-			uuid_to_int_map=uuid_to_int_map
-		)
-		
-		# Test new system with equivalent filtering
-		new_message = copy.deepcopy(message)
-		new_message = self.block_holder.convert_uuids_to_int(new_message, uuid_to_int_map)
-		new_result = self.block_holder.apply_filters(new_message, [FilteringOptions.AGENT_OPTIMIZED])
-		
-		# Results should be equivalent
-		self.assertEqual(legacy_result, new_result)
 
 
 	def test_multiple_filter_options(self):

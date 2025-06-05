@@ -140,66 +140,20 @@ class TestBlockManager(unittest.TestCase):
 		# URL should be preserved (not removed in unfiltered data)
 		self.assertIn("url", cached_data)
 
-	def test_get_filtered_block_content_applies_filtering(self):
-		"""Test that get_filtered_block_content applies filtering correctly."""
-		uuid_obj = CustomUUID.from_string(self.TEST_UUID_1)
-		raw_data = self._create_block_data()
-		
-		# Store unfiltered data
-		int_id = self.block_manager.process_and_store_block(raw_data, ObjectType.BLOCK)
-		
-		# Get filtered content with AGENT_OPTIMIZED filtering
-		filtered_content = self.block_manager.get_filtered_block_content(
-			uuid_obj, ObjectType.BLOCK, [FilteringOptions.AGENT_OPTIMIZED]
-		)
-		
-		self.assertIsNotNone(filtered_content)
-		
-		# Verify filtering was applied
-		self.assertEqual(filtered_content["id"], int_id)  # ID preserved
-		self.assertEqual(filtered_content["content"], self.COMMON_FIELDS["content"])  # Content preserved
-		self.assertNotIn("type", filtered_content)  # Type field removed
-		self.assertNotIn("last_edited_time", filtered_content)  # Timestamp removed
-		self.assertNotIn("icon", filtered_content)  # Icon removed
-		self.assertNotIn("bold", filtered_content)  # Style annotation removed
-		self.assertNotIn("request_id", filtered_content)  # System field removed
 
-	def test_get_filtered_block_content_with_minimal_filtering(self):
-		"""Test get_filtered_block_content with MINIMAL filtering."""
-		uuid_obj = CustomUUID.from_string(self.TEST_UUID_1)
-		raw_data = self._create_block_data()
-		
-		# Store unfiltered data
-		int_id = self.block_manager.process_and_store_block(raw_data, ObjectType.BLOCK)
-		
-		# Get filtered content with MINIMAL filtering
-		filtered_content = self.block_manager.get_filtered_block_content(
-			uuid_obj, ObjectType.BLOCK, [FilteringOptions.MINIMAL]
-		)
-		
-		self.assertIsNotNone(filtered_content)
-		
-		# Verify MINIMAL filtering was applied
-		self.assertEqual(filtered_content["id"], int_id)  # ID preserved
-		self.assertEqual(filtered_content["content"], self.COMMON_FIELDS["content"])  # Content preserved
-		self.assertIn("type", filtered_content)  # Type field preserved (not in MINIMAL)
-		self.assertNotIn("last_edited_time", filtered_content)  # Timestamp removed
-		self.assertNotIn("icon", filtered_content)  # Icon removed
-		self.assertIn("request_id", filtered_content)  # System field preserved (not in MINIMAL)
-
-	def test_process_and_store_search_results_stores_unfiltered_returns_filtered(self):
-		"""Test that search results are stored unfiltered but returned filtered."""
+	def test_process_and_store_search_results_stores_and_returns_unfiltered(self):
+		"""Test that search results are stored and returned unfiltered (filtering moved to agentTools)."""
 		raw_results = self._create_search_results()
 		
 		# Process and store search results
 		block_dict = self.block_manager.process_and_store_search_results("test query", raw_results)
 		
-		# Verify returned data is filtered
+		# Verify returned data is unfiltered (filtering now happens in agentTools)
 		self.assertGreater(len(block_dict), 0)
 		for block_id, block_content in block_dict.items():
-			self.assertNotIn("type", block_content)  # Type should be filtered out
-			self.assertNotIn("last_edited_time", block_content)  # Timestamp should be filtered out
-			self.assertNotIn("icon", block_content)  # Icon should be filtered out
+			self.assertIn("type", block_content)  # Type should be preserved
+			self.assertIn("last_edited_time", block_content)  # Timestamp should be preserved
+			self.assertIn("icon", block_content)  # Icon should be preserved
 		
 		# Verify unfiltered data is stored in cache
 		cached_content = self.cache.get_search_results("test query")
@@ -215,6 +169,7 @@ class TestBlockManager(unittest.TestCase):
 		self.assertEqual(first_result["last_edited_time"], self.TEST_TIMESTAMP)  # Timestamp preserved
 		self.assertEqual(first_result["title"], "Test Page")  # Title preserved
 		self.assertEqual(first_result["icon"], "page-icon")  # Icon preserved in cache
+
 
 	def test_process_children_response_returns_unfiltered_data(self):
 		"""Test that process_children_response returns unfiltered data (filtering moved to agentTools)."""
@@ -250,67 +205,6 @@ class TestBlockManager(unittest.TestCase):
 		self.assertEqual(cached_data["created_time"], self.TEST_TIMESTAMP)  # Timestamp preserved
 		self.assertEqual(cached_data["icon"], "child-icon")  # Icon preserved
 		self.assertEqual(cached_data["bold"], True)  # Style annotation preserved
-
-	def test_legacy_vs_new_storage_difference(self):
-		"""Test that new storage method stores more data than legacy method."""
-		uuid_obj = CustomUUID.from_string(self.TEST_UUID_1)
-		raw_data = self._create_block_data()
-		
-		# Test new method (stores unfiltered)
-		int_id_new = self.block_manager.process_and_store_block(copy.deepcopy(raw_data), ObjectType.BLOCK)
-		cached_new = self.cache.get_block(uuid_obj)
-		cached_data_new = self.block_manager.parse_cache_content(cached_new)
-		
-		# Clear cache and test legacy method
-		self.cache = BlockCache(load_from_disk=False, run_on_start=False)
-		self.block_manager.cache = self.cache
-		
-		int_id_legacy = self.block_manager.process_and_store_block_legacy(copy.deepcopy(raw_data), ObjectType.BLOCK)
-		cached_legacy = self.cache.get_block(uuid_obj)
-		cached_data_legacy = self.block_manager.parse_cache_content(cached_legacy)
-		
-		# Both should have same int ID
-		self.assertEqual(int_id_new, int_id_legacy)
-		
-		# New method should preserve more fields
-		self.assertIn("type", cached_data_new)
-		self.assertNotIn("type", cached_data_legacy)  # Legacy filters out type
-		
-		self.assertIn("last_edited_time", cached_data_new)
-		self.assertNotIn("last_edited_time", cached_data_legacy)  # Legacy filters out timestamps
-		
-		self.assertIn("icon", cached_data_new)
-		self.assertNotIn("icon", cached_data_legacy)  # Legacy filters out icons
-		
-		self.assertIn("request_id", cached_data_new)
-		self.assertNotIn("request_id", cached_data_legacy)  # Legacy filters out system fields
-
-	def test_get_filtered_block_content_nonexistent_block(self):
-		"""Test get_filtered_block_content with non-existent block."""
-		uuid_obj = CustomUUID.from_string(self.TEST_UUID_1)
-		
-		result = self.block_manager.get_filtered_block_content(uuid_obj, ObjectType.BLOCK)
-		
-		self.assertIsNone(result)
-
-	def test_get_filtered_block_content_different_object_types(self):
-		"""Test get_filtered_block_content with different object types."""
-		page_uuid = CustomUUID.from_string(self.TEST_UUID_1)
-		page_data = self._create_page_data()
-		
-		# Store as page
-		self.block_manager.process_and_store_block(page_data, ObjectType.PAGE)
-		
-		# Retrieve with filtering
-		filtered_content = self.block_manager.get_filtered_block_content(
-			page_uuid, ObjectType.PAGE, [FilteringOptions.AGENT_OPTIMIZED]
-		)
-		
-		self.assertIsNotNone(filtered_content)
-		self.assertEqual(filtered_content["title"], "Test Page")
-		self.assertNotIn("type", filtered_content)  # Filtered out
-		self.assertNotIn("last_edited_time", filtered_content)  # Filtered out
-		self.assertNotIn("icon", filtered_content)  # Filtered out
 
 
 if __name__ == '__main__':

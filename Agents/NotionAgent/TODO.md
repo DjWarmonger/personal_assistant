@@ -87,9 +87,13 @@
     - [✅]  Phase 2: Update BlockManager to store unfiltered data
     - [✅]  Phase 3: Update NotionClient to use dynamic filtering
     - [✅]  Phase 4: Update agent tools
-    - [ ]  Phase 5: Remove old filtering logic
-    - [ ]  Phase 6: Clear cache to remove old filtered data
-
+    		- [✅]  Phase 5: Remove old filtering logic
+		- [✅]  Removed legacy methods from `BlockHolder`: `convert_message()`, `clean_response_details()`, `convert_to_index_id()`, `convert_urls_to_id()`, `clean_timestamps()`, `clean_type()`
+		- [✅]  Removed legacy method from `BlockManager`: `process_and_store_block_legacy()`, `get_filtered_block_content()`
+		- [✅]  Updated method docstrings to remove phase references
+		- [✅]  Removed legacy tests and updated remaining tests
+		- [✅]  All 77 tests passing
+	- [ ]  Phase 6: Clear cache to remove old filtered data
 
 
 - [ ]  **Aktualizacja testów** → test, powtarzać do skutku
