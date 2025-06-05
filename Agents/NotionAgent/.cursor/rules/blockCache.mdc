@@ -1,13 +1,67 @@
 ---
 description: Database and Storage features
-globs: Agents/NotionAgent/Agent/*.py
+globs: operations/*.py,Agents/NotionAgent/operations/*.py
 alwaysApply: false
 ---
-- Cache all blocks along with parent-child relationships.
-- Do not cache entire pages; instead, check modification date to invalidate outdated cache entries.
-- Implement Time-To-Live (TTL) for cached blocks.
+## Block Handling and Data Flow
 
-### Cache Updates
+The processing and management of Notion blocks, their identifiers (UUIDs and integer IDs), and caching are handled by a set of specialized classes: `Index`, `BlockCache`, `BlockHolder`, and `BlockManager`. Understanding their roles is crucial for further development.
 
-- Check page modification timestamps.
-- If an item in search/database results is outdated, remove relevant cache entries.
+### Class Responsibilities
+
+1.  **`Index`**:
+    *   **Primary Role**: Manages the mapping between Notion's string-based UUIDs and the system's internal integer IDs.
+    *   Assigns a unique integer ID to each encountered UUID.
+    *   Tracks visited pages/blocks and user-defined "favourites."
+    *   Provides methods to resolve integer IDs back to UUIDs and vice-versa.
+
+# TODO: Make sure that cache stores a single instance of unfiltered block data, and filtering only occurs dynamically when blocks are read (from cache or directly from Notion)
+
+2.  **`BlockCache`**:
+    *   **Primary Role**: Stores Notion object data (pages, blocks, databases, search results) to minimize redundant API calls.
+    *   **Keying**: Uses Notion UUIDs as the primary keys for storing and retrieving cached items.
+    *   **Content**: Stores content as JSON strings. The structure of this JSON is the "processed" version after `BlockHolder` and `BlockManager` have cleaned it and converted internal UUIDs to integer IDs (where appropriate for agent consumption).
+    *   Manages Time-To-Live (TTL) for cached data and handles invalidation based on Notion's `last_edited_time`.
+    *   Maintains parent-child relationships between Notion objects, also using UUIDs to define these relationships.
+
+3.  **`BlockHolder`**:
+    *   **Primary Role**: A stateless utility class for low-level, atomic operations on Notion data structures.
+    *   Extracts all UUIDs found within a given JSON payload.
+    *   Cleans raw API responses by removing unnecessary fields (e.g., `last_edited_by`, `created_by`, styling annotations).
+    *   Converts specific UUIDs within a data structure to their integer ID representation based on a mapping provided by `BlockManager`.
+    *   Handles the conversion or removal of URLs within block content.
+    *   It does *not* interact with the `Index` or `BlockCache` directly.
+
+4.  **`BlockManager`**:
+    *   **Primary Role**: Orchestrates the data processing pipeline when new Notion data is fetched or needs to be stored/retrieved. It acts as the central coordinator between `NotionClient`, `Index`, `BlockCache`, and `BlockHolder`.
+    *   Receives raw data from `NotionClient` (e.g., after an API call).
+    *   Uses `BlockHolder.extract_all_uuids()` to identify all UUIDs in the payload.
+    *   Registers these UUIDs with `self.index.add_uuid()` to ensure they have an integer ID and to build a temporary `uuid_to_int_map`.
+    *   Uses `BlockHolder.convert_message()` to clean the raw data and convert relevant UUIDs to their integer IDs using the `uuid_to_int_map`. This processed data is what agents will typically interact with.
+    *   Stores the processed data (as a JSON string) into `BlockCache`, using the main object's UUID as the cache key.
+    *   Establishes parent-child relationships in `BlockCache` using the UUIDs of the involved objects.
+    *   Retrieves data from cache and uses `parse_cache_content()` to convert JSON strings back to dictionaries.
+
+### Data Flow & Interaction Summary
+
+1.  `NotionClient` fetches raw data from the Notion API.
+2.  `NotionClient` passes this raw data to `BlockManager`.
+3.  `BlockManager`:
+    a.  Extracts all UUIDs (via `BlockHolder`).
+    b.  Ensures all UUIDs are in `Index` and gets their int IDs, creating a `uuid_to_int_map`.
+    c.  Processes the raw data (via `BlockHolder`) to clean it and convert internal UUIDs to int IDs using the map.
+    d.  Stores the processed JSON string in `BlockCache` (keyed by the primary object's UUID).
+    e.  Records any parent-child relationships in `BlockCache` (using UUIDs).
+4.  When data is requested, if `NotionClient` finds it in `BlockCache` (via `BlockManager`), the stored JSON string is parsed back into a dictionary by `BlockManager.parse_cache_content()` and returned.
+
+### Guidelines for Future Development
+
+*   **Decoupling**: Maintain the separation of concerns. `NotionClient` should delegate data processing and caching logic to `BlockManager`. Avoid direct calls from `NotionClient` to `BlockHolder` or `BlockCache` for complex processing tasks.
+*   **Stateless `BlockHolder`**: `BlockHolder` methods should remain pure and stateless, operating only on the data passed to them.
+*   **`Index` as Source of Truth for IDs**: All UUID-to-integer ID conversions should ultimately rely on the `Index`.
+*   **`BlockCache` UUID-centric**: The cache's internal structure (keys, relationships) should continue to be based on UUIDs. The integer IDs are an abstraction layer primarily for agent consumption, managed by `BlockManager`.
+*   **Extensibility**:
+    *   If new types of data cleaning or atomic transformations are needed, add them to `BlockHolder`.
+    *   If new orchestration logic for processing or caching specific Notion object types is required, implement it in `BlockManager`.
+    *   New API interactions or high-level fetching strategies belong in `NotionClient`.
+*   **Consistency**: Ensure that data passed to agents consistently uses integer IDs for identifiable Notion objects, while internal systems like `BlockCache` use UUIDs for reliability and direct mapping to Notion's identifiers.
