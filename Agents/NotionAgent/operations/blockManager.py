@@ -325,38 +325,35 @@ class BlockManager:
 	def process_children_response(self,
 								 response_data: dict,
 								 parent_uuid: CustomUUID,
-								 parent_type: ObjectType = ObjectType.BLOCK,
-								 filter_options: List[FilteringOptions] = None) -> BlockDict:
+								 parent_type: ObjectType = ObjectType.BLOCK) -> BlockDict:
 		"""
 		Process a children response from Notion API and return BlockDict with all children.
-		PHASE 2: Now applies dynamic filtering when returning children.
+		Now returns unfiltered children data.
 		
 		Args:
 			response_data: Raw response from /blocks/{id}/children endpoint
 			parent_uuid: UUID of the parent block
 			parent_type: Type of the parent object
-			filter_options: Filtering options to apply to returned children
 			
 		Returns:
-			BlockDict containing all processed children with applied filtering
+			BlockDict containing all processed children (unfiltered)
 		"""
-		if filter_options is None:
-			filter_options = [FilteringOptions.AGENT_OPTIMIZED]
 		
 		children_data = response_data.get("results", [])
 		
 		# Process all children (stores unfiltered data in cache)
 		children_uuids = self.process_children_batch(children_data, parent_uuid, parent_type)
 		
-		# Create BlockDict with all children, applying filtering
+		# Create BlockDict with all children (unfiltered)
 		block_dict = BlockDict()
 		for child_uuid in children_uuids:
-			# Get filtered content using the new method
-			filtered_content = self.get_filtered_block_content(child_uuid, ObjectType.BLOCK, filter_options)
-			if filtered_content:
+			# Get unfiltered content from cache
+			cached_content = self.cache.get_block(child_uuid)
+			if cached_content:
+				unfiltered_data = self.parse_cache_content(cached_content)
 				child_int_id = self.index.resolve_to_int(child_uuid)
 				if child_int_id is not None:
-					block_dict.add_block(child_int_id, filtered_content)
+					block_dict.add_block(child_int_id, unfiltered_data)
 		
 		return block_dict
 

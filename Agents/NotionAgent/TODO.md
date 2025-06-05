@@ -57,10 +57,19 @@
 
 ### Tool Integration
 
-- [ ]  **Update agent tools to use filtering**:
-    - [ ]  Agent tools should request `FilteringOptions.AGENT_OPTIMIZED` by default
-    - [ ]  Some tools may need less aggressive filtering (e.g., `FilteringOptions.MINIMAL`)
-    - [ ]  Writer agent tools might need different filtering options than navigation tools
+- [✅]  **Update agent tools to use filtering**:
+    - [✅]  Agent tools should request `FilteringOptions.AGENT_OPTIMIZED` by default
+    - [✅]  Some tools may need less aggressive filtering (e.g., `FilteringOptions.MINIMAL`)
+    - [✅]  Writer agent tools might need different filtering options than navigation tools
+
+### Filtering Optimization
+
+- [✅]  **Centralized filtering in agentTools.py**:
+    - [✅]  Removed `filter_options` parameters from all NotionClient methods
+    - [✅]  NotionClient now returns unfiltered data only
+    - [✅]  All filtering now happens once in `handle_client_response()` in agentTools.py
+    - [✅]  Converted all result types to BlockDict before applying filtering
+    - [✅]  Updated tests to reflect new architecture
 
 ### Testing and Validation
 
@@ -77,7 +86,7 @@
     - [✅]  Phase 1: Implement filtering system alongside existing system
     - [✅]  Phase 2: Update BlockManager to store unfiltered data
     - [✅]  Phase 3: Update NotionClient to use dynamic filtering
-    - [ ]  Phase 4: Update agent tools
+    - [✅]  Phase 4: Update agent tools
     - [ ]  Phase 5: Remove old filtering logic
     - [ ]  Phase 6: Clear cache to remove old filtered data
 
@@ -97,10 +106,35 @@ This is actually a page and not a database
 
 ## Call tool failed
 
+* 1
+
 Call tool failed: Tool 'NotionGetChildren (ICqo3V3hdKzMWHS2OvivvwOx)' failed: Object of type BlockDict is not JSON serializable
 Call tool failed: Tool 'NotionGetChildren (Sbk369h10ulmTsXrBd0GPlV0)' failed: Object of type BlockDict is not JSON serializable
 Call tool failed: Tool 'NotionGetChildren (5Optk6YOkqBbURb70el6FB7g)' failed: Object of type BlockDict is not JSON serializable
 Call tool failed: Tool 'NotionGetChildren (CYOqVjp8mLscehBfsFhhFsIg)' failed: Object of type BlockDict is not JSON serializable
+
+2 *
+
+Calling tool: NotionGetChildren (DiYrgCyrZk9Bk8NW7mLLai8D)
+input_args:{'index': '4fa780c8df7746ff83500cd7d504c3d7'}
+Retrieving children of Notion block... 4fa780c8df7746ff83500cd7d504c3d7
+Updating relationship: 4fa780c8df7746ff83500cd7d504c3d7 -> 2039efeb6676804c8007f9612d70eb06
+Processed and stored block 22
+Updating relationship: 4fa780c8df7746ff83500cd7d504c3d7 -> 1f89efeb6676804ea715ec129630f1d4
+Processed and stored block 23
+Updating relationship: 4fa780c8df7746ff83500cd7d504c3d7 -> 1b19efeb6676806082bbe87ca38fc713
+Processed and stored block 24
+Updating relationship: 4fa780c8df7746ff83500cd7d504c3d7 -> 2089efeb667680afb111e683c1707d4c
+Processed and stored block 25
+Updating relationship: 4fa780c8df7746ff83500cd7d504c3d7 -> 2079efeb66768056bb6bd7f781706fac
+Processed and stored block 26
+Updating relationship: 4fa780c8df7746ff83500cd7d504c3d7 -> 2089efeb667680129c88e1cff5b5e3a0
+Processed and stored block 27
+Updating relationship: 4fa780c8df7746ff83500cd7d504c3d7 -> 2099efeb667680ebac43cd879acfb8c1
+Processed and stored block 28
+Added parent-children relationships: 4fa780c8df7746ff83500cd7d504c3d7 -> 7 children
+Retrieving children recursively for block 4fa780c8df7746ff83500cd7d504c3d7
+Call tool failed: Tool 'NotionGetChildren (DiYrgCyrZk9Bk8NW7mLLai8D)' failed: Object of type BlockDict is not JSON serializable
 
 ## Notion Agent uses page id as task id for CompleteTask
 

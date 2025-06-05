@@ -216,26 +216,25 @@ class TestBlockManager(unittest.TestCase):
 		self.assertEqual(first_result["title"], "Test Page")  # Title preserved
 		self.assertEqual(first_result["icon"], "page-icon")  # Icon preserved in cache
 
-	def test_process_children_response_applies_dynamic_filtering(self):
-		"""Test that process_children_response applies dynamic filtering."""
+	def test_process_children_response_returns_unfiltered_data(self):
+		"""Test that process_children_response returns unfiltered data (filtering moved to agentTools)."""
 		parent_uuid = CustomUUID.from_string(self.TEST_UUID_1)
 		response_data = self._create_children_response()
 		
-		# Process children response with MINIMAL filtering
+		# Process children response (no filtering applied here anymore)
 		block_dict = self.block_manager.process_children_response(
-			response_data, parent_uuid, ObjectType.BLOCK, [FilteringOptions.MINIMAL]
+			response_data, parent_uuid, ObjectType.BLOCK
 		)
 		
-		# Verify children are returned with filtering applied
+		# Verify children are returned WITHOUT filtering applied
 		self.assertGreater(len(block_dict), 0)
 		for block_id, block_content in block_dict.items():
-			# MINIMAL filtering should remove timestamps, icons, style annotations, empty values
-			self.assertNotIn("last_edited_time", block_content)  # Timestamp removed
-			self.assertNotIn("created_time", block_content)  # Timestamp removed
-			self.assertNotIn("icon", block_content)  # Icon removed
-			self.assertNotIn("bold", block_content)  # Style annotation removed
-			# But should preserve type and object fields
-			self.assertIn("type", block_content)  # Type preserved (not in MINIMAL)
+			# All fields should be preserved (unfiltered)
+			self.assertIn("last_edited_time", block_content)  # Timestamp preserved
+			self.assertIn("created_time", block_content)  # Timestamp preserved
+			self.assertIn("icon", block_content)  # Icon preserved
+			self.assertIn("bold", block_content)  # Style annotation preserved
+			self.assertIn("type", block_content)  # Type preserved
 			self.assertIn("object", block_content)  # Object preserved
 		
 		# Verify unfiltered data is stored in cache

@@ -13,6 +13,15 @@ class BlockDict(BaseModel):
 		description="Mapping of integer block IDs to their content dictionaries"
 	)
 
+	class Config:
+		# Enable JSON serialization by allowing the model to be converted to dict
+		arbitrary_types_allowed = True
+
+
+	def dict(self, **kwargs):
+		"""Override dict() method to return the blocks directly for JSON serialization."""
+		return self.blocks
+
 
 	def __getitem__(self, key: int) -> Dict[str, Any]:
 		"""Allow dictionary-style access to blocks."""

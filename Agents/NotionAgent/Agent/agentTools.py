@@ -4,6 +4,7 @@ from langchain_core.pydantic_v1 import Field, validator
 from langfuse.decorators import observe
 from operations.notion_client import NotionClient
 from operations.blockDict import BlockDict
+from operations.blockHolder import FilteringOptions
 from tz_common import log, JsonConverter
 from tz_common import CustomUUID
 from tz_common.tasks import AgentTask, AgentTaskList
@@ -11,6 +12,66 @@ from tz_common.langchain_wrappers import ContextAwareTool, AgentState, AddTaskTo
 
 client = NotionClient()
 json_converter = JsonConverter()
+
+
+def handle_client_response(result, context: AgentState, operation_name: str, 
+						  add_to_visited: bool = True, visited_block_id: Optional[int] = None) -> str:
+	"""
+	Helper function to handle client responses consistently across all tools.
+	
+	Args:
+		result: The result from a NotionClient method (BlockDict, str, or dict)
+		context: The agent state context
+		operation_name: Name of the operation for error logging
+		add_to_visited: Whether to add blocks to visitedBlocks context
+		visited_block_id: Specific block ID to use when adding single block to visited
+		
+	Returns:
+		JSON string representation of the result
+		
+	Raises:
+		Exception: If result is an error string
+		TypeError: If result is an unexpected type
+	"""
+	# Handle error strings first
+	if isinstance(result, str):
+		log.error(f"Error in {operation_name}: {result}")
+		raise Exception(result)
+	
+	# Convert all result types to BlockDict
+	block_dict = BlockDict()
+	
+	if isinstance(result, BlockDict):
+		# Already a BlockDict, use as-is
+		block_dict = result
+	elif isinstance(result, dict):
+		# Convert regular dict to BlockDict
+		for block_id, content in result.items():
+			block_dict.add_block(int(block_id), content)
+	else:
+		log.error(f"Unexpected type of client response: {type(result)}", str(result))
+		raise TypeError(f"Unexpected type: {type(result)}")
+	
+	# Apply filtering to all blocks in the BlockDict once
+	filtered_result_dict = {}
+	for block_id, content in block_dict.items():
+		# Apply AGENT_OPTIMIZED filtering to each block
+		filtered_content = client.block_holder.apply_filters(content.copy(), [FilteringOptions.AGENT_OPTIMIZED])
+		filtered_result_dict[block_id] = filtered_content
+	
+	# Add to visited blocks if requested
+	if add_to_visited:
+		if visited_block_id is not None:
+			# Add single block with specific ID (for page details)
+			if filtered_result_dict:
+				first_key = next(iter(filtered_result_dict.keys()))
+				context["visitedBlocks"].add_block(visited_block_id, filtered_result_dict[first_key])
+		else:
+			# Add all blocks from result to visitedBlocks
+			for block_id, content in filtered_result_dict.items():
+				context["visitedBlocks"].add_block(int(block_id), content)
+	
+	return json_converter.remove_spaces(filtered_result_dict)
 
 
 class NotionSearchTool(ContextAwareTool):
@@ -25,18 +86,7 @@ class NotionSearchTool(ContextAwareTool):
 		log.flow(f"Searching Notion... {query}")
 		result = await client.search_notion(query)
 		
-		# Handle new BlockDict return type or error string
-		if isinstance(result, BlockDict):
-			result_to_return = result.to_dict()
-		elif isinstance(result, str):
-			# Handle error string
-			log.error(f"Error searching Notion: {result}")
-			raise Exception(result)
-		else:
-			# Handle other return types (fallback)
-			result_to_return = result
-		
-		return context, json_converter.remove_spaces(result_to_return)
+		return context, handle_client_response(result, context, "search_notion", add_to_visited=False)
 
 
 class NotionPageDetailsTool(ContextAwareTool):
@@ -56,26 +106,7 @@ class NotionPageDetailsTool(ContextAwareTool):
 		if index is None:
 			raise ValueError(f"Invalid page index: {notion_id}")
 		
-		# Handle new BlockDict return type or error string
-		if isinstance(result, BlockDict):
-			# For page details, we may have a single item in BlockDict
-			result_dict = result.to_dict()
-			if result_dict:
-				# Use the first (and likely only) item's content
-				first_key = next(iter(result_dict.keys()))
-				context["visitedBlocks"].add_block(index, result_dict[first_key])
-			result_to_return = result_dict
-		elif isinstance(result, str):
-			# Handle error string
-			log.error(f"Error getting page details: {result}")
-			context["visitedBlocks"].add_block(index, {"error": result})
-			raise Exception(result)
-		else:
-			# Handle other return types (fallback)
-			context["visitedBlocks"].add_block(index, result)
-			result_to_return = result
-
-		return context, json_converter.remove_spaces(result_to_return)
+		return context, handle_client_response(result, context, "get_notion_page_details", visited_block_id=index)
 
 
 class NotionGetChildrenTool(ContextAwareTool):
@@ -95,26 +126,7 @@ class NotionGetChildrenTool(ContextAwareTool):
 
 		result = await client.get_block_content(block_id=block_id, start_cursor=start_cursor, get_children=True, block_tree=context.get("blockTree"))
 
-		# Handle new BlockDict return type or error string
-		if isinstance(result, BlockDict):
-			# Add all blocks from result to visitedBlocks
-			for block_id, content in result.items():
-				context["visitedBlocks"].add_block(int(block_id), content)
-			# Convert BlockDict to regular dict for JSON serialization
-			result_to_return = result.to_dict()
-		elif isinstance(result, dict):
-			# Handle regular dict (fallback for other methods)
-			for block_id, content in result.items():
-				context["visitedBlocks"].add_block(int(block_id), content)
-			result_to_return = result
-		elif isinstance(result, str):
-			# Handle error string
-			log.error(f"Error getting children: {result}")
-			raise Exception(result)
-		else:
-			raise TypeError(f"Unexpected return type: {type(result)}")
-
-		return context, json_converter.remove_spaces(result_to_return)
+		return context, handle_client_response(result, context, "get_block_content")
 
 
 class NotionGetBlockContentTool(ContextAwareTool):
@@ -143,21 +155,7 @@ class NotionGetBlockContentTool(ContextAwareTool):
 							start_cursor=start_cursor,
 							block_tree=context.get("blockTree"))
 
-		# Handle new BlockDict return type or error string  
-		if isinstance(result, BlockDict):
-			# Convert BlockDict to regular dict for JSON serialization
-			result_dict = result.to_dict()
-			for key, value in result_dict.items():
-				context["visitedBlocks"].add_block(key, value)
-			result_to_return = result_dict
-		elif isinstance(result, str):
-			# Handle error string
-			log.error(f"Error getting block content: {result}")
-			raise Exception(result)
-		else:
-			raise TypeError(f"Unexpected return type: {type(result)}")
-
-		return context, json_converter.remove_spaces(result_to_return)
+		return context, handle_client_response(result, context, "get_block_content")
 
 
 class NotionQueryDatabaseTool(ContextAwareTool):
@@ -179,18 +177,7 @@ class NotionQueryDatabaseTool(ContextAwareTool):
 		log.debug("filter:", str(filter))
 		result = await client.query_database(notion_id, filter, start_cursor)
 		
-		# Handle new BlockDict return type or error string
-		if isinstance(result, BlockDict):
-			result_to_return = result.to_dict()
-		elif isinstance(result, str):
-			# Handle error string
-			log.error(f"Error querying database: {result}")
-			raise Exception(result)
-		else:
-			# Handle other return types (fallback)
-			result_to_return = result
-		
-		return context, json_converter.remove_spaces(result_to_return)
+		return context, handle_client_response(result, context, "query_database", add_to_visited=False)
 
 
 class ChangeFavourties(ContextAwareTool):
