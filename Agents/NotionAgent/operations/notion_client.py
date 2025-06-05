@@ -81,6 +81,8 @@ class NotionClient:
 		elif database_id is not None:
 			current_database_id = self.index.resolve_to_uuid(database_id)
 
+		block_dict = BlockDict()
+
 		try:
 			if current_page_id is not None:
 				# Check cache for unfiltered content
@@ -89,7 +91,6 @@ class NotionClient:
 					# Parse and wrap cached content in BlockDict
 					unfiltered_data = self.block_manager.parse_cache_content(cached_content)
 					int_id = self.index.resolve_to_int(current_page_id)
-					block_dict = BlockDict()
 					block_dict.add_block(int_id, unfiltered_data)
 					return block_dict
 
@@ -100,7 +101,6 @@ class NotionClient:
 					# Parse and wrap cached content in BlockDict
 					unfiltered_data = self.block_manager.parse_cache_content(cached_content)
 					int_id = self.index.resolve_to_int(current_database_id)
-					block_dict = BlockDict()
 					block_dict.add_block(int_id, unfiltered_data)
 					return block_dict
 
@@ -150,7 +150,6 @@ class NotionClient:
 					cached_content = self.cache.get_page(target_uuid)
 				
 				# Wrap in BlockDict for consistent return type
-				block_dict = BlockDict()
 				if cached_content:
 					unfiltered_data = self.block_manager.parse_cache_content(cached_content)
 					block_dict.add_block(main_int_id, unfiltered_data)
@@ -564,22 +563,6 @@ class NotionClient:
 			)
 			
 			return block_dict
-
-
-	def set_favourite(self, uuid: int | list[int], set: bool) -> str:
-
-		message = self.index.set_favourite_int(uuid, set)
-		return message
-
-
-	def _generate_notion_url(self, notion_id):
-		if notion_id is None:
-			return None
-		
-		base_url = "https://www.notion.so/"
-		formatted_id = notion_id.replace("-", "")
-		
-		return f"{base_url}{formatted_id}"
 
 
 	def parse_filter(self, filter: Optional[dict | str]) -> dict:
