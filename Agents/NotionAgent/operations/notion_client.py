@@ -10,7 +10,7 @@ from .index import Index
 from .urlIndex import UrlIndex
 from .blockCache import BlockCache, ObjectType
 from .blockTree import BlockTree
-from .blockHolder import BlockHolder
+from .blockHolder import BlockHolder, FilteringOptions
 from .blockDict import BlockDict
 from .blockManager import BlockManager
 from tz_common.logs import log, LogLevel
@@ -69,7 +69,11 @@ class NotionClient:
 		pass
 
 
-	async def get_notion_page_details(self, page_id: Optional[Union[str, CustomUUID]] = None, database_id: Optional[Union[str, CustomUUID]] = None) -> Union[BlockDict, str]:
+	async def get_notion_page_details(self, page_id: Optional[Union[str, CustomUUID]] = None, database_id: Optional[Union[str, CustomUUID]] = None, filter_options: Optional[list[FilteringOptions]] = None) -> Union[BlockDict, str]:
+
+		# Set default filtering options if none provided
+		if filter_options is None:
+			filter_options = [FilteringOptions.AGENT_OPTIMIZED]
 
 		current_page_id: Optional[CustomUUID] = None
 		current_database_id: Optional[CustomUUID] = None
@@ -83,28 +87,27 @@ class NotionClient:
 
 		try:
 			if current_page_id is not None:
-				# Check cache for page
-				cache_entry = self.cache.get_page(current_page_id)
-				if cache_entry is not None:
-					# Parse JSON string back to dictionary
-					cache_data = self.block_manager.parse_cache_content(cache_entry)
-					
-					# Wrap cached content in BlockDict
+				# Use BlockManager's new filtered retrieval method
+				filtered_content = self.block_manager.get_filtered_block_content(
+					current_page_id, ObjectType.PAGE, filter_options
+				)
+				if filtered_content is not None:
+					# Wrap filtered content in BlockDict
 					int_id = self.index.resolve_to_int(current_page_id)
 					block_dict = BlockDict()
-					block_dict.add_block(int_id, cache_data)
+					block_dict.add_block(int_id, filtered_content)
 					return block_dict
 
 			if current_database_id is not None:
-				cache_entry = self.cache.get_database(current_database_id)
-				if cache_entry is not None:
-					# Parse JSON string back to dictionary
-					cache_data = self.block_manager.parse_cache_content(cache_entry)
-					
-					# Wrap cached content in BlockDict
+				# Use BlockManager's new filtered retrieval method
+				filtered_content = self.block_manager.get_filtered_block_content(
+					current_database_id, ObjectType.DATABASE, filter_options
+				)
+				if filtered_content is not None:
+					# Wrap filtered content in BlockDict
 					int_id = self.index.resolve_to_int(current_database_id)
 					block_dict = BlockDict()
-					block_dict.add_block(int_id, cache_data)
+					block_dict.add_block(int_id, filtered_content)
 					return block_dict
 
 			url_segment = str(current_page_id) if current_page_id else str(current_database_id)
@@ -142,23 +145,19 @@ class NotionClient:
 				# Determine object type
 				object_type = ObjectType.DATABASE if current_database_id is not None else ObjectType.PAGE
 				
-				# Use BlockManager to process and store the data
+				# Use BlockManager to process and store the data (stores unfiltered)
 				main_int_id = self.block_manager.process_and_store_block(raw_data, object_type)
+				
+				# Get filtered data for return using BlockManager's new method
+				target_uuid = current_database_id if current_database_id else current_page_id
+				filtered_content = self.block_manager.get_filtered_block_content(
+					target_uuid, object_type, filter_options
+				)
 				
 				# Wrap in BlockDict for consistent return type
 				block_dict = BlockDict()
-				# Get the processed data from cache to return
-				target_uuid = current_database_id if current_database_id else current_page_id
-				if object_type == ObjectType.DATABASE:
-					processed_data = self.cache.get_database(target_uuid)
-				else:
-					processed_data = self.cache.get_page(target_uuid)
-				
-				if processed_data:
-					# Parse JSON string back to dictionary
-					cache_data = self.block_manager.parse_cache_content(processed_data)
-					
-					block_dict.add_block(main_int_id, cache_data)
+				if filtered_content:
+					block_dict.add_block(main_int_id, filtered_content)
 				
 				return block_dict
 
@@ -221,7 +220,12 @@ class NotionClient:
 							 block_id: Union[int, str, CustomUUID],
 							 get_children=False,
 							 start_cursor: Optional[Union[int, str, CustomUUID]] = None,
-							 block_tree: Optional[BlockTree] = None) -> Union[BlockDict, str]:
+							 block_tree: Optional[BlockTree] = None,
+							 filter_options: Optional[list[FilteringOptions]] = None) -> Union[BlockDict, str]:
+		
+		# Set default filtering options if none provided
+		if filter_options is None:
+			filter_options = [FilteringOptions.AGENT_OPTIMIZED]
 		
 		if block_tree is None:
 			error_msg = "block_tree is None in get_block_content"
@@ -254,20 +258,21 @@ class NotionClient:
 				log.error(f"Could not format start_cursor {start_cursor}")
 
 		block_dict = BlockDict()
-		cached_content = self.cache.get_block(current_cache_uuid) # get_block expects CustomUUID
+		
+		# Use BlockManager's filtered retrieval method for cached content
+		filtered_content = self.block_manager.get_filtered_block_content(
+			current_cache_uuid, ObjectType.BLOCK, filter_options
+		)
 
-		if cached_content is not None:
-			# Parse JSON string back to dictionary
-			cache_data = self.block_manager.parse_cache_content(cached_content)
-			
+		if filtered_content is not None:
 			if not get_children:
 				if block_tree is not None:
 					# Ensure we add the correct CustomUUID object to the tree
 					key_for_tree = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
 					block_tree.add_parent(key_for_tree)
 				
-				# Wrap cached content in BlockDict for consistent return type
-				block_dict.add_block(self.index.resolve_to_int(block_id), cache_data)
+				# Wrap filtered content in BlockDict for consistent return type
+				block_dict.add_block(self.index.resolve_to_int(block_id), filtered_content)
 				return block_dict
 			else:
 				# Check if children were fetched using cache key string
@@ -275,7 +280,7 @@ class NotionClient:
 				if self.cache.get_children_fetched_for_block(current_cache_key_str):
 					# Ensure we pass the correct CustomUUID object for recursive call
 					key_for_recursion = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
-					return await self.get_all_children_recursively(key_for_recursion, block_tree)
+					return await self.get_all_children_recursively(key_for_recursion, block_tree, filter_options)
 
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
@@ -306,22 +311,16 @@ class NotionClient:
 
 				if not get_children:
 					# Return raw children response as a single "list" object
-					# Process and clean the response but keep it as a single block
-					processed_response = self.block_holder.convert_message(
-						response_data_json,
-						clean_timestamps=True,
-						clean_type=True,
-						convert_to_index_id=False,  # Don't convert UUIDs for raw response
-						convert_urls=True
-					)
+					# Apply filtering to the response
+					filtered_response = self.block_holder.apply_filters(response_data_json.copy(), filter_options)
 					
 					# Use integer ID for the list object (could be the parent block ID)
 					list_block_id = self.index.resolve_to_int(uuid_obj)
-					block_dict.add_block(list_block_id, processed_response)
+					block_dict.add_block(list_block_id, filtered_response)
 				else:
-					# Use BlockManager to process children response into individual blocks
+					# Use BlockManager to process children response into individual blocks with filtering
 					children_block_dict = self.block_manager.process_children_response(
-						response_data_json, current_cache_uuid, ObjectType.BLOCK
+						response_data_json, current_cache_uuid, ObjectType.BLOCK, filter_options
 					)
 					
 					# Add all children to the result
@@ -332,7 +331,7 @@ class NotionClient:
 				log.flow("Retrieving children recursively for block " + str(current_cache_uuid))
 				# Pass the original uuid_obj (or sc_uuid_obj if start_cursor was used) for recursion
 				key_for_recursion_after_fetch = sc_uuid_obj if start_cursor is not None and sc_uuid_obj else uuid_obj
-				children_result = await self.get_all_children_recursively(key_for_recursion_after_fetch, block_tree)
+				children_result = await self.get_all_children_recursively(key_for_recursion_after_fetch, block_tree, filter_options)
 
 				if isinstance(children_result, BlockDict):
 					for child_int_id, child_content in children_result.items():
@@ -341,11 +340,15 @@ class NotionClient:
 			return block_dict
 		
 	
-	async def get_all_children_recursively(self, block_identifier: Union[str, CustomUUID], block_tree: Optional[BlockTree] = None) -> Union[BlockDict, str]:
+	async def get_all_children_recursively(self, block_identifier: Union[str, CustomUUID], block_tree: Optional[BlockTree] = None, filter_options: Optional[list[FilteringOptions]] = None) -> Union[BlockDict, str]:
 		"""
 		Recursively fetch and flatten all children blocks for the given block identifier.
 		Returns a BlockDict mapping each child block's id (int) to its content.
 		"""
+		# Set default filtering options if none provided
+		if filter_options is None:
+			filter_options = [FilteringOptions.AGENT_OPTIMIZED]
+		
 		parent_uuid_obj = self.index.resolve_to_uuid(block_identifier)
 		if not parent_uuid_obj:
 			error_msg = f"Could not convert {block_identifier} to CustomUUID in get_all_children_recursively"
@@ -378,7 +381,7 @@ class NotionClient:
 			# We get child_int_id from immediate_children_content_map. We need to convert this int_id back to CustomUUID.
 			child_uuid_obj_for_recursion = self.index.get_uuid(child_int_id) # get_uuid returns CustomUUID or None
 			if child_uuid_obj_for_recursion:
-				descendants_result = await self.get_all_children_recursively(child_uuid_obj_for_recursion, block_tree)
+				descendants_result = await self.get_all_children_recursively(child_uuid_obj_for_recursion, block_tree, filter_options)
 				
 				# Handle error case from recursion
 				if isinstance(descendants_result, str):
@@ -394,7 +397,11 @@ class NotionClient:
 
 
 	async def search_notion(self, query, filter_type=None,
-							start_cursor: Optional[Union[str, CustomUUID]] = None, sort="descending") -> Union[BlockDict, str]:
+							start_cursor: Optional[Union[str, CustomUUID]] = None, sort="descending", filter_options: Optional[list[FilteringOptions]] = None) -> Union[BlockDict, str]:
+
+		# Set default filtering options if none provided
+		if filter_options is None:
+			filter_options = [FilteringOptions.AGENT_OPTIMIZED]
 
 		url = "https://api.notion.com/v1/search"
 		payload = {
@@ -421,13 +428,16 @@ class NotionClient:
 
 		cache_entry = self.cache.get_search_results(query, filter_type, start_cursor_uuid)
 		if cache_entry is not None:
-			# Parse JSON string back to dictionary
+			# Parse JSON string back to dictionary (this is unfiltered data)
 			cache_data = self.block_manager.parse_cache_content(cache_entry)
 			
-			# Wrap cached search results in BlockDict
+			# Apply dynamic filtering to cached search results
+			filtered_data = self.block_holder.apply_filters(cache_data.copy(), filter_options)
+			
+			# Wrap filtered search results in BlockDict
 			block_dict = BlockDict()
-			if isinstance(cache_data, dict) and "results" in cache_data:
-				for i, result in enumerate(cache_data["results"]):
+			if isinstance(filtered_data, dict) and "results" in filtered_data:
+				for i, result in enumerate(filtered_data["results"]):
 					result_id = result.get('id', i)  # Use result ID or index as fallback
 					if not isinstance(result_id, int):
 						result_id = i
@@ -482,7 +492,11 @@ class NotionClient:
 			return f"Error processing search response: {str(e)}"
 
 
-	async def query_database(self, database_id: Union[str, CustomUUID], filter=None, start_cursor: Optional[Union[str, CustomUUID]] = None) -> Union[BlockDict, str]:
+	async def query_database(self, database_id: Union[str, CustomUUID], filter=None, start_cursor: Optional[Union[str, CustomUUID]] = None, filter_options: Optional[list[FilteringOptions]] = None) -> Union[BlockDict, str]:
+		# Set default filtering options if none provided
+		if filter_options is None:
+			filter_options = [FilteringOptions.AGENT_OPTIMIZED]
+		
 		# Convert database_id to CustomUUID
 		if isinstance(database_id, str):
 			db_uuid = CustomUUID.from_string(database_id)
@@ -526,13 +540,16 @@ class NotionClient:
 		cache_filter_key = json.dumps(filter_obj, sort_keys=True) if filter_obj else None
 		cache_entry = self.cache.get_database_query_results(db_uuid, cache_filter_key, start_cursor_uuid)
 		if cache_entry is not None:
-			# Parse JSON string back to dictionary
+			# Parse JSON string back to dictionary (this is unfiltered data)
 			cache_data = self.block_manager.parse_cache_content(cache_entry)
 			
-			# Wrap cached database query results in BlockDict
+			# Apply dynamic filtering to cached database query results
+			filtered_data = self.block_holder.apply_filters(cache_data.copy(), filter_options)
+			
+			# Wrap filtered database query results in BlockDict
 			block_dict = BlockDict()
-			if isinstance(cache_data, dict) and "results" in cache_data:
-				for i, result in enumerate(cache_data["results"]):
+			if isinstance(filtered_data, dict) and "results" in filtered_data:
+				for i, result in enumerate(filtered_data["results"]):
 					result_id = result.get('id', i)  # Use result ID or index as fallback
 					if not isinstance(result_id, int):
 						result_id = i

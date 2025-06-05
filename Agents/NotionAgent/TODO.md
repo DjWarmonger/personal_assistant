@@ -46,14 +46,14 @@
 
 ### Dynamic Filtering on Retrieval
 
-- [ ]  **Update retrieval methods to apply filtering dynamically**:
-    - [ ]  Modify `NotionClient` methods to accept filtering options:
-        - [ ]  `get_notion_page_details(filter_options=FilteringOptions.AGENT_OPTIMIZED)`
-        - [ ]  `get_block_content(filter_options=FilteringOptions.AGENT_OPTIMIZED)`
-        - [ ]  `search_notion(filter_options=FilteringOptions.AGENT_OPTIMIZED)`
-        - [ ]  `query_database(filter_options=FilteringOptions.AGENT_OPTIMIZED)`
-    - [ ]  Apply filtering when retrieving from cache or returning fresh API data
-    - [ ]  Ensure agents receive filtered data as before (backward compatibility)
+- [✅]  **Update retrieval methods to apply filtering dynamically**:
+    - [✅]  Modify `NotionClient` methods to accept filtering options:
+        - [✅]  `get_notion_page_details(filter_options=FilteringOptions.AGENT_OPTIMIZED)`
+        - [✅]  `get_block_content(filter_options=FilteringOptions.AGENT_OPTIMIZED)`
+        - [✅]  `search_notion(filter_options=FilteringOptions.AGENT_OPTIMIZED)`
+        - [✅]  `query_database(filter_options=FilteringOptions.AGENT_OPTIMIZED)`
+    - [✅]  Apply filtering when retrieving from cache or returning fresh API data
+    - [✅]  Ensure agents receive filtered data as before (backward compatibility)
 
 ### Tool Integration
 
@@ -76,7 +76,7 @@
 - [ ]  **Gradual migration approach**:
     - [✅]  Phase 1: Implement filtering system alongside existing system
     - [✅]  Phase 2: Update BlockManager to store unfiltered data
-    - [ ]  Phase 3: Update NotionClient to use dynamic filtering
+    - [✅]  Phase 3: Update NotionClient to use dynamic filtering
     - [ ]  Phase 4: Update agent tools
     - [ ]  Phase 5: Remove old filtering logic
     - [ ]  Phase 6: Clear cache to remove old filtered data
