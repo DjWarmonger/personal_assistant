@@ -25,8 +25,21 @@ This document explains when and how to update README, TODO, BACKLOG, ALREADY_DON
 
 Notes are scratchpad for future guidelines optimized for AI coding agent.
 
-After a task has been completed or issue has been solved and confirmed to work, add new .md report to .notes folder. Write there notes regarding faced problems and technical issues that took multiple rounds and clarifications to resolve. Note user complaints and technical obstacles. Write down unforseen problems, missing or inaccessible data or context unlikely to be deduced by coding agent alone.
-Keep notes distinct and separate from each other to help splitting or reordering by human supervisor. Prefer concise form over excessive formatting.
+* Proceed only after a task has been completed or issue has been solved and confirmed to work
+* Add new .md report to .notes folder.
+* Write there notes regarding faced problems and technical issues that took multiple rounds and clarifications to resolve. In particular:
+- Note user complaints and interventions.
+- Note technical obstacles.
+- Write down unforseen problems
+- Write down missing or inaccessible data or context unlikely to be deduced by coding agent alone.
+
+## Note standards
+
+* Focus on helpful advice which can help coding agent do better next time. Prefer applicable guidelines over just documenting past events.
+* Keep notes distinct and separate from each other to help splitting or reordering by human supervisor.
+* Prefer concise form over excessive formatting.
+- Avoid bold text (double **).
+- Use hashes (#) to mark sections and titles.
 
 ## Use this format
 
