@@ -1,0 +1,15 @@
+## Database closure errors during unit tests
+
+* Issue: Unit tests were generating spam errors like "BlockCache: Error in _save_periodically(): Cannot operate on a closed database" and "Cleanup failed: Cannot operate on closed database". The errors occurred because the periodic save thread and atexit cleanup were trying to access the database connection after it was already closed in the test tearDown method.
+
+* Resolution: Fixed the shutdown coordination by:
+  - Added `_is_closing` flag checks in critical database methods (`save`, `_add_block_internal`, `_get_block_internal`, `_increment_metric`)
+  - Modified `cleanup()` method to properly sequence: stop periodic save thread → save final data → close connection
+  - Updated test `tearDown()` to coordinate shutdown with defensive `hasattr(self.cache, '_is_closing')` check to handle race conditions during object initialization
+  - Added exception filtering to suppress "closed database" errors during shutdown
+
+* Prevention: 
+  - Always coordinate shutdown sequence: stop background threads before closing resources
+  - Use defensive programming patterns like `hasattr()` checks when accessing attributes that might not exist due to race conditions
+  - Add safety checks in methods that access shared resources to prevent operations on closed/invalid connections
+  - In tests, ensure proper cleanup order: set closing flag → stop threads → close connections 
