@@ -154,10 +154,35 @@ class NotionClient:
 - [x] Ensure rate limiting still works correctly
 
 ### Step 2: Create CacheOrchestrator
-- [ ] Create `cacheOrchestrator.py` 
-- [ ] Move cache invalidation logic from `NotionClient`
-- [ ] Implement generic cache-or-fetch pattern
-- [ ] Update cache-related tests
+- [x] Create `cacheOrchestrator.py` 
+- [x] Move cache invalidation logic from `NotionClient`
+- [x] Implement generic cache-or-fetch pattern
+- [x] Update cache-related tests
+- [x] **DESIGN ISSUE IDENTIFIED**: CacheOrchestrator uses placeholder ID 0 for all cached items
+- [x] **FIX COMPLETED**: Added Index dependency to CacheOrchestrator for proper UUID-to-integer conversion
+
+### Step 2.1: Fix CacheOrchestrator Design Issue
+**Problem**: CacheOrchestrator returns placeholder ID `0` for all cached items, breaking BlockDict contracts and creating inconsistent IDs between cache hits/misses.
+
+**Root Cause**: CacheOrchestrator was designed to be independent of Index, but BlockDict requires meaningful integer IDs from Index's UUID-to-integer mapping.
+
+**Solution**: Add Index dependency to CacheOrchestrator for proper UUID-to-integer conversion.
+
+**Benefits**:
+- ✅ Consistent IDs between cache hits and cache misses  
+- ✅ Proper BlockDict contracts with unique integer IDs
+- ✅ Architectural coherence - CacheOrchestrator can fulfill BlockDict requirements
+- ✅ No breaking changes to public API
+
+**Implementation Tasks**:
+- [x] Add Index parameter to CacheOrchestrator constructor
+- [x] Replace placeholder ID `0` with proper `Index.to_int()` calls in:
+  - [x] `get_or_fetch_page()` method (line 44)
+  - [x] `get_or_fetch_database()` method (line 94) 
+  - [x] `get_or_fetch_block()` method (line 134)
+- [x] Update CacheOrchestrator tests to provide Index dependency
+- [x] Add error handling for failed UUID-to-int conversions
+- [x] Verify all tests pass with proper integer IDs
 
 ### Step 3: Create Utility Classes
 - [ ] Create `filterParser.py`, `errorHandler.py`, `responseProcessor.py`
@@ -177,7 +202,7 @@ class NotionClient:
 - [ ] Update all existing references to maintain API compatibility
 - [ ] Ensure all tests still pass
 
-### Step 6: Clean Up and Optimize
+### Step 6: Clean Up
 - [ ] Remove duplicate code and unused imports
 - [ ] Add comprehensive documentation
 - [ ] Verify success metrics
@@ -226,6 +251,12 @@ operations/
 │   └── responseProcessor.py  # Response utilities
 └── [existing files unchanged]
 ```
+
+## Current Status
+- Step 1 (NotionAPIClient): ✅ Complete
+- Step 2 (CacheOrchestrator): ✅ Complete (design issue fixed)
+- Step 2.1 (Fix CacheOrchestrator Design Issue): ✅ Complete
+- Next: Step 3 (Create Utility Classes)
 
 ## Success Metrics
 - [ ] `NotionClient` reduced from 625 to ~150 lines
