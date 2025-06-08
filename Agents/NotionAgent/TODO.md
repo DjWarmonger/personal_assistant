@@ -185,10 +185,17 @@ class NotionClient:
 - [x] Verify all tests pass with proper integer IDs
 
 ### Step 3: Create Utility Classes
-- [ ] Create `filterParser.py`, `errorHandler.py`, `responseProcessor.py`
-- [ ] Move `parse_filter()` method to `FilterParser`
-- [ ] Move error handling logic to `ErrorHandler`
-- [ ] Create utility tests
+- [x] Create `filterParser.py`, `errorHandler.py`, `responseProcessor.py`
+- [x] Move `parse_filter()` method to `FilterParser`
+- [x] Move error handling logic to `ErrorHandler`
+- [x] Create utility tests
+
+**Step 3 Summary**: Created three utility classes in `operations/utilities/`:
+- **FilterParser**: Extracted `parse_filter()` method from NotionClient with validation
+- **ErrorHandler**: Centralized error handling and formatting (removed unnecessary `is_retryable_error`)
+- **ResponseProcessor**: Utilities for converting API responses to BlockDict format
+- **Tests**: 41 comprehensive tests covering all utility functionality
+- **Benefits**: Improved separation of concerns, better testability, reusable components
 
 ### Step 4: Create NotionService
 - [ ] Create `notionService.py` with business logic
