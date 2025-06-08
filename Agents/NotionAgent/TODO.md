@@ -148,10 +148,10 @@ class NotionClient:
 ## Implementation Plan
 
 ### Step 1: Create NotionAPIClient
-- [ ] Create `notionAPIClient.py` with raw HTTP methods
-- [ ] Move HTTP-related code from `NotionClient`
-- [ ] Update tests to mock `NotionAPIClient` instead of HTTP calls
-- [ ] Ensure rate limiting still works correctly
+- [x] Create `notionAPIClient.py` with raw HTTP methods
+- [x] Move HTTP-related code from `NotionClient`
+- [x] Update tests to mock `NotionAPIClient` instead of HTTP calls
+- [x] Ensure rate limiting still works correctly
 
 ### Step 2: Create CacheOrchestrator
 - [ ] Create `cacheOrchestrator.py` 
