@@ -106,6 +106,9 @@ class NotionPageDetailsTool(ContextAwareTool):
 		if index is None:
 			raise ValueError(f"Invalid page index: {notion_id}")
 		
+		# Increase visit count for directly accessed page/database
+		client.index.visit_int(index)
+		
 		return context, handle_client_response(result, context, "get_notion_page_details", visited_block_id=index)
 
 
@@ -123,6 +126,11 @@ class NotionGetChildrenTool(ContextAwareTool):
 		log.flow(f"Retrieving children of Notion block... {index}{cursor_info}")
 
 		block_id = client.index.resolve_to_uuid(index)
+		
+		# Increase visit count for directly accessed block
+		int_id = client.index.resolve_to_int(index)
+		if int_id is not None:
+			client.index.visit_int(int_id)
 
 		result = await client.get_block_content(block_id=block_id, start_cursor=start_cursor, get_children=True, block_tree=context.get("blockTree"))
 
@@ -150,6 +158,11 @@ class NotionGetBlockContentTool(ContextAwareTool):
 			log.error(error_msg)
 			raise ValueError(error_msg)
 		
+		# Increase visit count for directly accessed block
+		int_id = client.index.resolve_to_int(index)
+		if int_id is not None:
+			client.index.visit_int(int_id)
+		
 		result = await client.get_block_content(get_children=False,
 							block_id=block_id,
 							start_cursor=start_cursor,
@@ -175,6 +188,12 @@ class NotionQueryDatabaseTool(ContextAwareTool):
 		log.flow(f"Querying Notion database... {notion_id}")
 		log.debug("Start cursor: ", start_cursor)
 		log.debug("filter:", str(filter))
+		
+		# Increase visit count for directly queried database
+		int_id = client.index.resolve_to_int(notion_id)
+		if int_id is not None:
+			client.index.visit_int(int_id)
+		
 		result = await client.query_database(notion_id, filter, start_cursor)
 		
 		return context, handle_client_response(result, context, "query_database", add_to_visited=False)

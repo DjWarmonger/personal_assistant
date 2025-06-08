@@ -132,7 +132,6 @@ class NotionClient:
 								self.cache.invalidate_database_if_expired(response_uuid, Utils.convert_date_to_timestamp(last_edited_time))
 							else:
 								self.cache.invalidate_page_if_expired(response_uuid, Utils.convert_date_to_timestamp(last_edited_time))
-						self.index.visit_uuid(response_uuid)
 					except ValueError as ve:
 						log.error(f"Failed to convert original id {original_response_id_str} to CustomUUID: {ve}")
 

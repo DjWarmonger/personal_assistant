@@ -1,5 +1,49 @@
 # FIXME:
 
+## Wrtiter received only one block for TODO list
+
+All visited blocks (id : content):
+```json
+2 : {'object': 'list', 'results': [{'object': 'block', 'id': 1, 'parent': {'page_id': 22}, 'has_children': False, 'child_database': {'title': 'Agent Notion - Zadania'}}, {'object': 'block', 'id': 42, 'parent': {'page_id': 22}, 'has_children': False, 'bookmark': {'caption': [{'text': {'content': 'Moja integracja'}}]}}, {'object': 'block', 'id': 43, 'parent': {'page_id': 22}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Zalety'}}], 'is_toggleable': True, 'color': 'default'}}, {'object': 'block', 'id': 44, 'parent': {'page_id': 22}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Scenariusze użycia'}}], 'is_toggleable': True, 'color': 'default'}}, {'object': 'block', 'id': 45, 'parent': {'page_id': 22}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Dedykowany agent samodzielnie przeglądający Notion'}}], 'is_toggleable': True, 'color': 'default'}}, {'object': 'block', 'id': 46, 'parent': {'page_id': 22}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Integracja z YouTube'}}], 'is_toggleable': True, 'color': 'default'}}, {'object': 'block', 'id': 47, 'parent': {'page_id': 22}, 'has_children': False, 'paragraph': {'color': 'default'}}, {'object': 'block', 'id': 48, 'parent': {'page_id': 22}, 'has_children': False, 'paragraph': {'color': 'default'}}, {'object': 'block', 'id': 49, 'parent': {'page_id': 22}, 'has_children': False, 'paragraph': {'color': 'default'}}], 'has_more': False}`
+```
+
+* All nested blocks are returned as a part of single list. Instyead, these shoudl be nested blocks.
+
+## TODO list was not explored recursively - shoudl be automatic
+
+> All visited blocks (id : content):
+```json
+1 : {'object': 'page', 'id': 1, 'parent': {'workspace': True}, 'properties': {'title': {'id': 'title', 'title': [{'text': {'content': 'TODO dziś'}}]}}}
+2 : {'object': 'list', 'results': [{'object': 'block', 'id': 3, 'parent': {'page_id': 1}, 'has_children': True, 'to_do': {'rich_text': [{'text': {'content': 'Agent Notion'}}], 'checked': False, 'color': 'default'}}, {'object': 'block', 'id': 4, 'parent': {'page_id': 1}, 'has_children': True, 'to_do': {'rich_text': [{'text': {'content': 'Patryk Kostek'}}], 'checked': False, 'color': 'default'}}, {'object': 'block', 'id': 5, 'parent': {'page_id': 1}, 'has_children': True, 'to_do': {'rich_text': [{'text': {'content': 'Obiad u mamy'}}], 'checked': False, 'color': 'default'}}, {'object': 'block', 'id': 6, 'parent': {'page_id': 1}, 'has_children': False, 'to_do': {'rich_text': [{'text': {'content': 'Trening w domu'}}], 'checked': False, 'color': 'default'}}, {'object': 'block', 'id': 7, 'parent': {'page_id': 1}, 'has_children': False, 'to_do': {'rich_text': [{'text': {'content': 'Zaplanować zadania na kolejny dzień'}}], 'checked': False, 'color': 'default'}}], 'has_more': False}
+3 : {'object': 'block', 'id': 3, 'parent': {'page_id': 1}, 'has_children': True, 'to_do': {'rich_text': [{'text': {'content': 'Agent Notion'}}], 'checked': False, 'color': 'default'}}
+4 : {'object': 'block', 'id': 4, 'parent': {'page_id': 1}, 'has_children': True, 'to_do': {'rich_text': [{'text': {'content': 'Patryk Kostek'}}], 'checked': False, 'color': 'default'}}
+5 : {'object': 'block', 'id': 5, 'parent': {'page_id': 1}, 'has_children': True, 'to_do': {'rich_text': [{'text': {'content': 'Obiad u mamy'}}], 'checked': False, 'color': 'default'}}
+6 : {'object': 'block', 'id': 6, 'parent': {'page_id': 1}, 'has_children': False, 'to_do': {'rich_text': [{'text': {'content': 'Trening w domu'}}], 'checked': False, 'color': 'default'}}
+7 : {'object': 'block', 'id': 7, 'parent': {'page_id': 1}, 'has_children': False, 'to_do': {'rich_text': [{'text': {'content': 'Zaplanować zadania na kolejny dzień'}}], 'checked': False, 'color': 'default'}}
+```
+
+```
+Tree of blocks visited:
+1:TODO dziś
+   ├──7
+   ├──3
+   ├──4
+   ├──5
+   └──6
+```
+
+* Second attempt - only main block was returned, no nested blocks at all
+
+All visited blocks (id : content):
+```json
+2 : {'object': 'list', 'results': [{'object': 'block', 'id': 3, 'parent': {'page_id': 1}, 'has_children': True, 'to_do': {'rich_text': [{'text': {'content': 'Agent Notion'}}], 'checked': False, 'color': 'default'}}, {'object': 'block', 'id': 4, 'parent': {'page_id': 1}, 'has_children': True, 'to_do': {'rich_text': [{'text': {'content': 'Patryk Kostek'}}], 'checked': False, 'color': 'default'}}, {'object': 'block', 'id': 5, 'parent': {'page_id': 1}, 'has_children': True, 'to_do': {'rich_text': [{'text': {'content': 'Obiad u mamy'}}], 'checked': False, 'color': 'default'}}, {'object': 'block', 'id': 6, 'parent': {'page_id': 1}, 'has_children': False, 'to_do': {'rich_text': [{'text': {'content': 'Trening w domu'}}], 'checked': False, 'color': 'default'}}, {'object': 'block', 'id': 7, 'parent': {'page_id': 1}, 'has_children': False, 'to_do': {'rich_text': [{'text': {'content': 'Zaplanować zadania na kolejny dzień'}}], 'checked': False, 'color': 'default'}}], 'has_more': False}
+```
+
+```
+Tree of blocks visited:
+1:TODO dziś
+```
+
 ## Query database fail - database is cached with block: prefix
 
 This is actually a page and not a database
@@ -10,6 +54,57 @@ This is actually a page and not a database
 
 Notion Agent correctly realizes that page is already added. But then tries to call "CompleteTask" with page id instead of task id,
 
+## Block tree is scrambled
+
+Tree of blocks visited:
+6
+│  ├──31
+│  │  └──179
+│  ├──27
+│  ├──32
+│  │  ├──184
+│  │  ├──183
+│  │  ├──185
+│  │  └──186
+│  ├──28
+│  ├──26
+│  ├──33
+│  ├──29
+│  ├──25
+│  ├──30
+│  ├──36
+│  │  └──180
+│  ├──40
+│  │  └──182
+│  ├──37
+│  ├──38
+│  │  └──187
+│  ├──34
+│  ├──35
+│  │  └──181
+│  └──39
+5
+│  ├──13
+│  ├──15
+│  ├──16
+│  └──14
+4
+│  ├──18
+│  ├──19
+│  ├──20
+│  ├──17
+│  ├──23
+│  ├──22
+│  ├──21
+│  └──24
+1:Integracja z Notion
+7
+   ├──9
+   ├──12
+   └──11
+
+* Probably 1 is not recognized as root with children 4, 5, 6, 7
+
 ## Action status message in Agent context is incorrect:
 
 * Action name shouldn't start from "FAILED"
@@ -18,14 +113,7 @@ Notion Agent correctly realizes that page is already added. But then tries to ca
 
 Action taken: FAILED     qbms8hEr3i1TZh0AJgzRdf62 - complete_task (qbms8hEr3i1TZh0AJgzRdf62) with args: {'task_id': '4fa780c8df7746ff83500cd7d504c3d7', 'status': 'completed', 'resolution': "Added TODO page to favourites and displayed today's tasks from...
 
-## Wrtiter received only one block:
 
-All visited blocks (id : content):
-```json
-2 : {'object': 'list', 'results': [{'object': 'block', 'id': 1, 'parent': {'page_id': 22}, 'has_children': False, 'child_database': {'title': 'Agent Notion - Zadania'}}, {'object': 'block', 'id': 42, 'parent': {'page_id': 22}, 'has_children': False, 'bookmark': {'caption': [{'text': {'content': 'Moja integracja'}}]}}, {'object': 'block', 'id': 43, 'parent': {'page_id': 22}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Zalety'}}], 'is_toggleable': True, 'color': 'default'}}, {'object': 'block', 'id': 44, 'parent': {'page_id': 22}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Scenariusze użycia'}}], 'is_toggleable': True, 'color': 'default'}}, {'object': 'block', 'id': 45, 'parent': {'page_id': 22}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Dedykowany agent samodzielnie przeglądający Notion'}}], 'is_toggleable': True, 'color': 'default'}}, {'object': 'block', 'id': 46, 'parent': {'page_id': 22}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Integracja z YouTube'}}], 'is_toggleable': True, 'color': 'default'}}, {'object': 'block', 'id': 47, 'parent': {'page_id': 22}, 'has_children': False, 'paragraph': {'color': 'default'}}, {'object': 'block', 'id': 48, 'parent': {'page_id': 22}, 'has_children': False, 'paragraph': {'color': 'default'}}, {'object': 'block', 'id': 49, 'parent': {'page_id': 22}, 'has_children': False, 'paragraph': {'color': 'default'}}], 'has_more': False}`
-```
-
-This happened only once when adding page to favourites. Subsequent tasks to get all page content worked fine.
 
 ## Weird log at successfdul attempt to add page to favourites:
 
