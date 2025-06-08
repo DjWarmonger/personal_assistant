@@ -195,7 +195,23 @@ class NotionClient:
 
 		async def get_child_content_by_int_id(int_id: int) -> tuple[int, dict]:
 			child_content = await self.get_block_content(int_id, block_tree=block_tree, get_children=False)
-			return int_id, child_content
+			# If get_block_content returns a BlockDict, extract the actual content
+			if isinstance(child_content, BlockDict):
+				# BlockDict should contain one entry for this specific block
+				content_dict = child_content.to_dict()
+				if content_dict:
+					# Get the first (and should be only) value from the dict
+					actual_content = next(iter(content_dict.values()))
+					return int_id, actual_content
+				else:
+					# Empty BlockDict, return empty dict
+					return int_id, {}
+			elif isinstance(child_content, str):
+				# Error case - this will be logged by the caller
+				raise Exception(f"Error getting child content for {int_id}: {child_content}")
+			else:
+				# This shouldn't happen, but handle it gracefully
+				return int_id, child_content
 
 		tasks = {int_id: get_child_content_by_int_id(int_id) for int_id in children_int_ids_list}
 		gathered_children_content = await asyncio.gather(*tasks.values())
