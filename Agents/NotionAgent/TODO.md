@@ -201,7 +201,6 @@ class NotionClient:
 - [ ] Create `notionService.py` with business logic
 - [ ] Move high-level orchestration from `NotionClient`
 - [ ] Implement service-level methods
-- [ ] Update integration tests
 
 ### Step 5: Refactor NotionClient
 - [ ] Transform `NotionClient` into facade pattern
@@ -263,7 +262,8 @@ operations/
 - Step 1 (NotionAPIClient): ✅ Complete
 - Step 2 (CacheOrchestrator): ✅ Complete (design issue fixed)
 - Step 2.1 (Fix CacheOrchestrator Design Issue): ✅ Complete
-- Next: Step 3 (Create Utility Classes)
+- Step 3 (Create Utility Classes): ✅ Complete
+- Next: Step 4 (Create NotionService)
 
 ## Success Metrics
 - [ ] `NotionClient` reduced from 625 to ~150 lines
