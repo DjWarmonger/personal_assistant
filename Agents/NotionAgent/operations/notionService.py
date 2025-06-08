@@ -147,24 +147,22 @@ class NotionService:
 
 		children_int_ids_list = list(children_int_ids_map.values())
 
-		async def get_child_content_by_int_id(int_id: int) -> tuple[int, dict]:
-			child_content = await self.get_block_content(int_id, block_tree=block_tree, get_children=False)
-			if isinstance(child_content, BlockDict):
-				content_dict = child_content.to_dict()
-				if content_dict:
-					actual_content = next(iter(content_dict.values()))
-					return int_id, actual_content
+		# Get cached content for each child (no recursive fetching)
+		children_content_dict = {}
+		for int_id in children_int_ids_list:
+			# Get the UUID for this int_id
+			child_uuid = self.index.get_uuid(int_id)
+			if child_uuid:
+				# Get cached content using the cache orchestrator method
+				parsed_content = self.cache_orchestrator.get_cached_block_content(child_uuid)
+				if parsed_content:
+					children_content_dict[int_id] = parsed_content
 				else:
-					return int_id, {}
-			elif isinstance(child_content, str):
-				raise Exception(f"Error getting child content for {int_id}: {child_content}")
+					log.debug(f"No cached content found for child {int_id} (UUID: {child_uuid})")
+					children_content_dict[int_id] = {}
 			else:
-				return int_id, child_content
-
-		tasks = {int_id: get_child_content_by_int_id(int_id) for int_id in children_int_ids_list}
-		gathered_children_content = await asyncio.gather(*tasks.values())
-		
-		children_content_dict = {int_id: content for int_id, content in gathered_children_content}
+				log.error(f"Could not find UUID for int_id {int_id}")
+				children_content_dict[int_id] = {}
 
 		if block_tree is not None and children_custom_uuids:
 			block_tree.add_relationships(parent_uuid_obj, children_custom_uuids)
@@ -177,20 +175,18 @@ class NotionService:
 
 	async def get_block_content(self,
 								block_id: Union[int, str, CustomUUID],
-								get_children=False,
 								start_cursor: Optional[Union[int, str, CustomUUID]] = None,
 								block_tree: Optional[BlockTree] = None) -> BlockDict:
 		"""
-		Get block content with optional children retrieval.
+		Get block content with all children recursively.
 		
 		Args:
 			block_id: ID of the block to retrieve
-			get_children: Whether to fetch children recursively
 			start_cursor: Optional pagination cursor
 			block_tree: Optional block tree for relationship tracking
 			
 		Returns:
-			BlockDict with block data
+			BlockDict with block data and all children
 		"""
 		if block_tree is None:
 			raise BlockTreeRequiredError("get_block_content")
@@ -210,8 +206,6 @@ class NotionService:
 			else:
 				log.error(f"Could not format start_cursor {start_cursor}")
 
-		block_dict = BlockDict()
-		
 		# Use cache orchestrator for block retrieval
 		async def fetch_block():
 			url_uuid_str = str(uuid_obj)
@@ -220,12 +214,11 @@ class NotionService:
 				start_cursor_str = sc_uuid_obj.to_formatted()
 			return await self.api_client.get_block_children_raw(url_uuid_str, start_cursor_str)
 
-		# Check if we need children and if they're already fetched
-		if get_children:
-			current_cache_key_str = str(current_cache_uuid)
-			if self.cache_orchestrator.is_children_fetched_for_block(current_cache_key_str):
-				key_for_recursion = sc_uuid_obj if sc_uuid_obj else uuid_obj
-				return await self.get_all_children_recursively(key_for_recursion, block_tree)
+		# Check if children are already fetched
+		current_cache_key_str = str(current_cache_uuid)
+		if self.cache_orchestrator.is_children_fetched_for_block(current_cache_key_str):
+			key_for_recursion = sc_uuid_obj if sc_uuid_obj else uuid_obj
+			return await self.get_all_children_recursively(key_for_recursion, block_tree, visited_nodes=set())
 
 		# Try to get from cache or fetch
 		result = await self.cache_orchestrator.get_or_fetch_block(current_cache_uuid, fetch_block)
@@ -238,28 +231,29 @@ class NotionService:
 			key_for_tree = sc_uuid_obj if sc_uuid_obj else uuid_obj
 			block_tree.add_parent(key_for_tree)
 
-		# If we need children recursively, fetch them
-		if get_children:
-			log.flow("Retrieving children recursively for block " + str(current_cache_uuid))
-			key_for_recursion = sc_uuid_obj if sc_uuid_obj else uuid_obj
-			children_result = await self.get_all_children_recursively(key_for_recursion, block_tree)
+		# Always fetch children recursively
+		log.flow("Retrieving children recursively for block " + str(current_cache_uuid))
+		key_for_recursion = sc_uuid_obj if sc_uuid_obj else uuid_obj
+		children_result = await self.get_all_children_recursively(key_for_recursion, block_tree, visited_nodes=set())
 
-			if isinstance(children_result, BlockDict):
-				for child_int_id, child_content in children_result.items():
-					result.add_block(child_int_id, child_content)
+		if isinstance(children_result, BlockDict):
+			for child_int_id, child_content in children_result.items():
+				result.add_block(child_int_id, child_content)
 
 		return result
 
 
 	async def get_all_children_recursively(self, 
 										   block_identifier: Union[str, CustomUUID], 
-										   block_tree: Optional[BlockTree] = None) -> BlockDict:
+										   block_tree: Optional[BlockTree] = None,
+										   visited_nodes: Optional[set] = None) -> BlockDict:
 		"""
 		Recursively fetch and flatten all children blocks.
 		
 		Args:
 			block_identifier: ID of the parent block
 			block_tree: Optional block tree for relationship tracking
+			visited_nodes: Set of visited nodes to prevent infinite recursion
 			
 		Returns:
 			BlockDict with all children data
@@ -270,6 +264,15 @@ class NotionService:
 
 		if block_tree is None:
 			raise BlockTreeRequiredError("get_all_children_recursively")
+
+		if visited_nodes is None:
+			visited_nodes = set()
+		
+		if parent_uuid_obj in visited_nodes:
+			log.error(f"Cycle detected: block {parent_uuid_obj} already visited. Skipping recursion.")
+			return BlockDict()
+		
+		visited_nodes.add(parent_uuid_obj)
 
 		# Initialize the flat BlockDict to accumulate all children
 		flat_children_block_dict = BlockDict()
@@ -285,7 +288,11 @@ class NotionService:
 			child_uuid_obj_for_recursion = self.index.get_uuid(child_int_id)
 			if child_uuid_obj_for_recursion:
 				try:
-					descendants_result = await self.get_all_children_recursively(child_uuid_obj_for_recursion, block_tree)
+					descendants_result = await self.get_all_children_recursively(
+						child_uuid_obj_for_recursion, 
+						block_tree, 
+						visited_nodes
+					)
 					flat_children_block_dict.update(descendants_result.to_dict())
 				except NotionServiceError as e:
 					log.error(f"Error in recursive call for child {child_int_id}: {e}")

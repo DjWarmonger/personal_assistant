@@ -24,7 +24,7 @@ class TestBlockCache(unittest.TestCase):
 
 	def setUp(self):
 		# Use an in-memory database for testing
-		self.cache = BlockCache(db_path=':memory:', run_on_start=True)
+		self.cache = BlockCache(db_path=':memory:', run_on_start=False)
 		# Ensure tables are created for each test
 		self.cache.create_tables()
 

@@ -45,6 +45,14 @@ class APIError(NotionServiceError):
 		super().__init__(f"API error during {operation}")
 
 
+class HTTPError(APIError):
+	"""Raised when HTTP requests fail with specific status codes."""
+	
+	def __init__(self, operation: str, status_code: int, original_error: Optional[Exception] = None):
+		self.status_code = status_code
+		super().__init__(operation, original_error)
+
+
 class ObjectTypeVerificationError(NotionServiceError):
 	"""Raised when object type verification fails."""
 	

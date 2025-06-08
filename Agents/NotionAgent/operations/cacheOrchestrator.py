@@ -376,4 +376,20 @@ class CacheOrchestrator:
 		Returns:
 			True if children were fetched, False otherwise
 		"""
-		return self.cache.get_children_fetched_for_block(cache_key) 
+		return self.cache.get_children_fetched_for_block(cache_key)
+
+
+	def get_cached_block_content(self, uuid: CustomUUID) -> Optional[dict]:
+		"""
+		Get cached block content and parse it.
+		
+		Args:
+			uuid: UUID of the block
+			
+		Returns:
+			Parsed block content dictionary or None if not cached
+		"""
+		cached_content = self.cache.get_block(uuid)
+		if cached_content:
+			return self.block_manager.parse_cache_content(cached_content)
+		return None 

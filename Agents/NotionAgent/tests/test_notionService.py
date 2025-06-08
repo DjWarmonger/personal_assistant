@@ -205,19 +205,22 @@ class TestNotionService:
 		children_uuids = [CustomUUID.from_string(TEST_UUID_CHILD1), CustomUUID.from_string(TEST_UUID_CHILD2)]
 		mock_cache_orchestrator.get_children_uuids.return_value = children_uuids
 
-		# Mock get_block_content to return BlockDict for each child
-		async def mock_get_block_content(block_id, **kwargs):
-			if block_id == TEST_INT_ID_CHILD1:
-				result = BlockDict()
-				result.add_block(TEST_INT_ID_CHILD1, {"content": "child1"})
-				return result
-			elif block_id == TEST_INT_ID_CHILD2:
-				result = BlockDict()
-				result.add_block(TEST_INT_ID_CHILD2, {"content": "child2"})
-				return result
-			return BlockDict()
+		# Mock the index methods
+		mock_index.to_int.return_value = {
+			CustomUUID.from_string(TEST_UUID_CHILD1): TEST_INT_ID_CHILD1,
+			CustomUUID.from_string(TEST_UUID_CHILD2): TEST_INT_ID_CHILD2
+		}
+		mock_index.get_uuid.side_effect = lambda x: CustomUUID.from_string(TEST_UUID_CHILD1) if x == TEST_INT_ID_CHILD1 else CustomUUID.from_string(TEST_UUID_CHILD2)
 
-		notion_service.get_block_content = mock_get_block_content
+		# Mock get_cached_block_content to return content for each child
+		def mock_get_cached_block_content(uuid):
+			if str(uuid) == TEST_UUID_CHILD1:
+				return {"content": "child1"}
+			elif str(uuid) == TEST_UUID_CHILD2:
+				return {"content": "child2"}
+			return None
+
+		mock_cache_orchestrator.get_cached_block_content.side_effect = mock_get_cached_block_content
 
 		# Execute
 		result = await notion_service.get_block_children(TEST_UUID_BLOCK, block_tree)
@@ -227,6 +230,8 @@ class TestNotionService:
 		result_dict = result.to_dict()
 		assert TEST_INT_ID_CHILD1 in result_dict
 		assert TEST_INT_ID_CHILD2 in result_dict
+		assert result_dict[TEST_INT_ID_CHILD1] == {"content": "child1"}
+		assert result_dict[TEST_INT_ID_CHILD2] == {"content": "child2"}
 		block_tree.add_relationships.assert_called_once()
 
 	@pytest.mark.asyncio
@@ -259,12 +264,27 @@ class TestNotionService:
 		expected_result = BlockDict()
 		expected_result.add_block(TEST_INT_ID_BLOCK, TEST_BLOCK_DATA)
 		mock_cache_orchestrator.get_or_fetch_block.return_value = expected_result
+		
+		# Mock is_children_fetched_for_block to return False so it goes through normal flow
+		mock_cache_orchestrator.is_children_fetched_for_block.return_value = False
+		
+		# Mock get_all_children_recursively to prevent infinite recursion
+		children_result = BlockDict()
+		children_result.add_block(TEST_INT_ID_CHILD1, {"content": "child1"})
+		
+		async def mock_get_all_children_recursively(block_id, tree, visited_nodes=None):
+			return children_result
+		
+		notion_service.get_all_children_recursively = mock_get_all_children_recursively
 
 		# Execute
 		result = await notion_service.get_block_content(TEST_UUID_BLOCK, block_tree=block_tree)
 
-		# Verify
-		assert result == expected_result
+		# Verify - result should include both the main block and children
+		assert isinstance(result, BlockDict)
+		result_dict = result.to_dict()
+		assert TEST_INT_ID_BLOCK in result_dict
+		assert TEST_INT_ID_CHILD1 in result_dict
 		block_tree.add_parent.assert_called_once()
 
 	@pytest.mark.asyncio
@@ -278,13 +298,13 @@ class TestNotionService:
 		expected_result = BlockDict()
 		expected_result.add_block(TEST_INT_ID_CHILD1, {"content": "child1"})
 		
-		async def mock_get_all_children_recursively(block_id, tree):
+		async def mock_get_all_children_recursively(block_id, tree, visited_nodes=None):
 			return expected_result
 		
 		notion_service.get_all_children_recursively = mock_get_all_children_recursively
 
 		# Execute
-		result = await notion_service.get_block_content(TEST_UUID_BLOCK, get_children=True, block_tree=block_tree)
+		result = await notion_service.get_block_content(TEST_UUID_BLOCK, block_tree=block_tree)
 
 		# Verify
 		assert result == expected_result
@@ -317,6 +337,7 @@ class TestNotionService:
 		# Setup
 		block_tree = MagicMock(spec=BlockTree)
 		mock_cache_orchestrator.get_or_fetch_block.return_value = None
+		mock_cache_orchestrator.is_children_fetched_for_block.return_value = False
 
 		# Execute & Verify
 		with pytest.raises(CacheRetrievalError) as exc_info:

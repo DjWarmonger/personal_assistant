@@ -82,7 +82,8 @@ async def test_navigate_to_notion_page_negative(notion_client):
 	
 	# Should return error string for invalid page
 	assert isinstance(result, str), f"Expected error string, got {type(result)}"
-	assert "HTTP" in result and ("404" in result or "400" in result)
+	# Check for CacheRetrievalError message instead of HTTP error
+	assert "Failed to retrieve page" in result
 
 
 @pytest.mark.asyncio
@@ -142,35 +143,22 @@ async def test_get_children(notion_client):
 	if isinstance(result, str):
 		pytest.fail(f"Expected BlockDict, got error: {result}")
 
-	# Assume single key-value pair in BlockDict for get_children=False
+	# Now get_block_content always returns all children recursively
 	assert isinstance(result, BlockDict)
 	result_dict = result.to_dict()
-	assert len(result_dict) == 1
 	
-	# Get the single block content
-	block_content = next(iter(result_dict.values()))
+	# Should have multiple children blocks, not a single "list" object
+	assert len(result_dict) > 1
 	
-	assert block_content["object"] == "list"
-	assert "results" in block_content
-	assert "next_cursor" in block_content
-	assert "has_more" in block_content
-
-	if block_content["has_more"] == True:
-		print(f"Has more: {block_content['has_more']}, starting cursor in children test: {block_content['next_cursor']}")
-		start_cursor=notion_client.index.resolve_to_uuid(block_content["next_cursor"])
-		result = await notion_client.get_block_content(block_id=block_id, start_cursor=start_cursor, block_tree=block_tree)
-
-		# Handle second call result
-		if isinstance(result, str):
-			pytest.fail(f"Expected BlockDict, got error: {result}")
-		
-		assert isinstance(result, BlockDict)
-		result_dict = result.to_dict()
-		assert len(result_dict) == 1
-		
-		block_content = next(iter(result_dict.values()))
-		assert block_content["object"] == "list"
-		assert "results" in block_content
+	# All keys should be integers (block IDs)
+	for key in result_dict.keys():
+		assert isinstance(key, int), f"Expected int key, got {type(key)}: {key}"
+	
+	# All values should be dictionaries (block content)
+	for value in result_dict.values():
+		assert isinstance(value, dict), f"Expected dict value, got {type(value)}"
+		# Each block should have an object type
+		assert "object" in value
 
 
 @pytest.mark.asyncio
@@ -283,7 +271,7 @@ async def test_get_block_children_error_case(notion_client):
 	result = await notion_client.get_block_children("invalid-uuid", None)
 	
 	assert isinstance(result, str), f"Expected error string, got {type(result)}"
-	assert "Could not convert" in result or "block_tree is None" in result
+	assert "Invalid UUID" in result or "BlockTree is required" in result
 
 
 @pytest.mark.asyncio
@@ -318,7 +306,7 @@ async def test_get_all_children_recursively_error_case(notion_client):
 	result = await notion_client.get_all_children_recursively("invalid-uuid", None)
 	
 	assert isinstance(result, str), f"Expected error string, got {type(result)}"
-	assert "Could not convert" in result or "block_tree is None" in result
+	assert "Invalid UUID" in result or "BlockTree is required" in result
 
 
 @pytest.mark.asyncio
@@ -330,29 +318,28 @@ async def test_get_block_content_with_invalid_id(notion_client):
 	# This should trigger an HTTP error and return error string
 	result = await notion_client.get_block_content(
 		block_id=invalid_block_id, 
-		block_tree=block_tree, 
-		get_children=False
+		block_tree=block_tree
 	)
 	
 	# Should return error string for invalid block ID
 	assert isinstance(result, str), f"Expected error string, got {type(result)}"
-	assert "HTTP" in result and ("404" in result or "400" in result)
+	# Check for CacheRetrievalError message instead of HTTP error
+	assert "Failed to retrieve block" in result
 
 
 @pytest.mark.asyncio
 async def test_get_block_content_recursive_return_type(notion_client):
-	"""Test that get_block_content with get_children=True returns BlockDict or error"""
+	"""Test that get_block_content always returns all children recursively"""
 	block_id = "593cf337c82a47fd80a750671b2a1e43"
 	block_tree = BlockTree()
 	
-	# Test with get_children=True - should call get_all_children_recursively internally
+	# Test that get_block_content always returns all children recursively
 	result = await notion_client.get_block_content(
 		block_id=block_id, 
-		block_tree=block_tree, 
-		get_children=True
+		block_tree=block_tree
 	)
 	
-	# When get_children=True and children are fetched, it should return BlockDict
+	# Should always return BlockDict with all children
 	assert isinstance(result, (BlockDict, dict)), f"Expected BlockDict or dict, got {type(result)}"
 	
 	if isinstance(result, BlockDict):

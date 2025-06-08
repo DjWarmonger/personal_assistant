@@ -195,23 +195,23 @@ class NotionClient:
 - **ErrorHandler**: Centralized error handling and formatting (removed unnecessary `is_retryable_error`)
 - **ResponseProcessor**: Utilities for converting API responses to BlockDict format
 - **Tests**: 41 comprehensive tests covering all utility functionality
-- **Benefits**: Improved separation of concerns, better testability, reusable components
 
 ### Step 4: Create NotionService
-- [ ] Create `notionService.py` with business logic
-- [ ] Move high-level orchestration from `NotionClient`
-- [ ] Implement service-level methods
+- [x] Create `notionService.py` with business logic
+- [x] Move high-level orchestration from `NotionClient`
+- [x] Implement service-level methods
 
 ### Step 5: Refactor NotionClient
-- [ ] Transform `NotionClient` into facade pattern
-- [ ] Remove moved code and delegate to service layer
-- [ ] Update all existing references to maintain API compatibility
-- [ ] Ensure all tests still pass
+- [x] Transform `NotionClient` into facade pattern
+- [x] Remove moved code and delegate to service layer
+- [x] Update all existing references to maintain API compatibility
+- [x] Ensure all tests still pass
 
 ### Step 6: Clean Up
 - [ ] Remove duplicate code and unused imports
 - [ ] Add comprehensive documentation
 - [ ] Verify success metrics
+- [ ] Do not print errors and rethrow them
 
 ## Expected Benefits
 
@@ -275,6 +275,33 @@ operations/
 ---
 
 # FIXME:
+
+## Now, no children are returned for TODO list
+
+```
+Calling tool: NotionGetBlockContent (ETm4VAU9tIvzjj64UXbPMjcB)
+input_args:{'index': '4fa780c8df7746ff83500cd7d504c3d7'}
+Retrieving content of Notion block... 4fa780c8df7746ff83500cd7d504c3d7
+Result of tool NotionGetBlockContent (ETm4VAU9tIvzjj64UXbPMjcB): SUCCESS{}
+```
+
+However, blockTree log iscorrect:
+
+```
+Visited blocks for writer:
+1
+   6
+   4
+   8
+   3
+   7
+   11
+   5
+   9
+   10
+   12
+```
+
 
 ## Wrtiter received only one block for TODO list
 
@@ -405,6 +432,8 @@ Action taken: FAILED     qbms8hEr3i1TZh0AJgzRdf62 - complete_task (qbms8hEr3i1TZ
 2025-06-08 08:32:34,636 - ERROR      - Identifier 'invalid-uuid' is not a valid URL, UUID, or integer ID.
 2025-06-08 08:32:34,636 - ERROR      - Could not convert invalid-uuid to CustomUUID in get_all_children_recursively
 2025-06-08 08:32:35,238 - ERROR      - 404
+
+# Disable cache save during tests
 
 # Optimizations
 

@@ -1,143 +1,120 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 import json
 
-from .asyncClientManager import AsyncClientManager
+from tz_common import CustomUUID
 from tz_common.logs import log
+
+from .asyncClientManager import AsyncClientManager
+from .blockHolder import BlockHolder
+from .utils import Utils
+from .exceptions import HTTPError
 
 
 class NotionAPIClient:
 	"""
-	Pure HTTP client for Notion API communication.
-	Handles only raw API calls without any business logic, caching, or data processing.
+	Handles HTTP communication with the Notion API.
+	Responsible for making API calls and handling HTTP-level concerns.
 	"""
 
-	def __init__(self, notion_token: str, page_size: int = 10):
-		"""
-		Initialize the API client with authentication.
-		
-		Args:
-			notion_token: Notion API token for authentication
-			page_size: Default page size for paginated requests
-		"""
+	def __init__(self, notion_token: str, block_holder: BlockHolder):
 		self.notion_token = notion_token
-		self.page_size = page_size
+		self.block_holder = block_holder
 		self.headers = {
 			"Authorization": f"Bearer {self.notion_token}",
 			"Notion-Version": "2022-06-28"
 		}
+		self.page_size = 10
 
 
-	async def __aenter__(self):
-		"""Async context manager entry."""
-		await AsyncClientManager.initialize()
-		return self
-
-
-	async def __aexit__(self, exc_type, exc_val, exc_tb):
-		"""Async context manager exit."""
-		# Do not close the manager; it's shared globally.
-		pass
-
-
-	async def get_page_raw(self, page_id: str) -> Dict[str, Any]:
+	async def get_page_raw(self, page_id: CustomUUID) -> Dict[str, Any]:
 		"""
-		Raw API call to get page details.
+		Fetch raw page data from Notion API.
 		
 		Args:
-			page_id: UUID string of the page
+			page_id: UUID of the page to fetch
 			
 		Returns:
-			Raw JSON response from Notion API
-			
-		Raises:
-			Exception: If HTTP request fails or returns non-200 status
+			Raw page data from API
 		"""
-		url = f"https://api.notion.com/v1/pages/{page_id}"
+		url = f"https://api.notion.com/v1/pages/{str(page_id)}"
 		
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
 		response = await client.get(url, headers=self.headers, timeout=30.0)
 		
 		if response.status_code != 200:
-			error_data = response.json()
-			raise Exception(f"HTTP {response.status_code}: {error_data}")
+			log.error(response.status_code)
+			error_dict = self.block_holder.clean_error_message(response.json())
+			raise HTTPError("get_page_raw", response.status_code)
 		
 		return response.json()
 
 
-	async def get_database_raw(self, database_id: str) -> Dict[str, Any]:
+	async def get_database_raw(self, database_id: CustomUUID) -> Dict[str, Any]:
 		"""
-		Raw API call to get database details.
+		Fetch raw database data from Notion API.
 		
 		Args:
-			database_id: UUID string of the database
+			database_id: UUID of the database to fetch
 			
 		Returns:
-			Raw JSON response from Notion API
-			
-		Raises:
-			Exception: If HTTP request fails or returns non-200 status
+			Raw database data from API
 		"""
-		url = f"https://api.notion.com/v1/databases/{database_id}"
+		url = f"https://api.notion.com/v1/databases/{str(database_id)}"
 		
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
 		response = await client.get(url, headers=self.headers, timeout=30.0)
 		
 		if response.status_code != 200:
-			error_data = response.json()
-			raise Exception(f"HTTP {response.status_code}: {error_data}")
+			log.error(response.status_code)
+			error_dict = self.block_holder.clean_error_message(response.json())
+			raise HTTPError("get_database_raw", response.status_code)
 		
 		return response.json()
 
 
-	async def get_block_children_raw(self, block_id: str, start_cursor: Optional[str] = None, page_size: Optional[int] = None) -> Dict[str, Any]:
+	async def get_block_children_raw(self, block_id: CustomUUID, start_cursor: Optional[CustomUUID] = None) -> Dict[str, Any]:
 		"""
-		Raw API call to get block children.
+		Fetch raw block children data from Notion API.
 		
 		Args:
-			block_id: UUID string of the parent block
-			start_cursor: Optional cursor for pagination
-			page_size: Optional page size override
+			block_id: UUID of the block whose children to fetch
+			start_cursor: Optional pagination cursor
 			
 		Returns:
-			Raw JSON response from Notion API
-			
-		Raises:
-			Exception: If HTTP request fails or returns non-200 status
+			Raw children data from API
 		"""
-		actual_page_size = page_size or 20  # Use 20 as default like in original code
-		url = f"https://api.notion.com/v1/blocks/{block_id}/children?page_size={actual_page_size}"
-		
+		url = f"https://api.notion.com/v1/blocks/{str(block_id)}/children?page_size=20"
 		if start_cursor is not None:
-			url += f"&start_cursor={start_cursor}"
+			sc_formatted_uuid = start_cursor.to_formatted()
+			url += f"&start_cursor={sc_formatted_uuid}"
 		
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
 		response = await client.get(url, headers=self.headers, timeout=30.0)
 		
 		if response.status_code != 200:
-			error_data = response.json()
-			raise Exception(f"HTTP {response.status_code}: {error_data}")
+			log.error(response.status_code)
+			error_dict = self.block_holder.clean_error_message(response.json())
+			raise HTTPError("get_block_children_raw", response.status_code)
 		
 		return response.json()
 
 
-	async def search_raw(self, query: str, filter_type: Optional[str] = None, start_cursor: Optional[str] = None, sort: str = "descending") -> Dict[str, Any]:
+	async def search_raw(self, query: str, filter_type: Optional[str] = None, 
+						 start_cursor: Optional[CustomUUID] = None, sort: str = "descending") -> Dict[str, Any]:
 		"""
-		Raw API call to search Notion.
+		Perform raw search on Notion API.
 		
 		Args:
 			query: Search query string
-			filter_type: Optional filter type ("page", "database", etc.)
-			start_cursor: Optional cursor for pagination
-			sort: Sort direction ("ascending" or "descending")
+			filter_type: Optional filter type
+			start_cursor: Optional pagination cursor
+			sort: Sort direction
 			
 		Returns:
-			Raw JSON response from Notion API
-			
-		Raises:
-			Exception: If HTTP request fails or returns non-200 status
+			Raw search results from API
 		"""
 		url = "https://api.notion.com/v1/search"
 		payload = {
@@ -148,59 +125,80 @@ class NotionAPIClient:
 				"timestamp": "last_edited_time"
 			}
 		}
-		
 		if filter_type is not None:
 			payload["filter"] = {
 				"value": filter_type,
 				"property": "object"
 			}
-		
 		if start_cursor is not None:
-			payload["start_cursor"] = start_cursor
-		
+			payload["start_cursor"] = start_cursor.to_formatted()
+
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
 		response = await client.post(url, headers=self.headers, json=payload)
-		
+
 		if response.status_code != 200:
-			error_data = response.json()
-			raise Exception(f"HTTP {response.status_code}: {error_data}")
+			log.error(response.status_code)
+			error_dict = self.block_holder.clean_error_message(response.json())
+			raise HTTPError("search_raw", response.status_code)
 		
 		return response.json()
 
 
-	async def query_database_raw(self, database_id: str, filter_obj: Optional[Dict[str, Any]] = None, start_cursor: Optional[str] = None) -> Dict[str, Any]:
+	async def query_database_raw(self, database_id: CustomUUID, filter_obj: Optional[Dict[str, Any]] = None,
+								 start_cursor: Optional[CustomUUID] = None) -> Dict[str, Any]:
 		"""
-		Raw API call to query database.
+		Perform raw database query on Notion API.
 		
 		Args:
-			database_id: UUID string of the database
-			filter_obj: Optional filter object (already parsed)
-			start_cursor: Optional cursor for pagination
+			database_id: UUID of the database to query
+			filter_obj: Optional filter object
+			start_cursor: Optional pagination cursor
 			
 		Returns:
-			Raw JSON response from Notion API
-			
-		Raises:
-			Exception: If HTTP request fails or returns non-200 status
+			Raw query results from API
 		"""
-		url = f"https://api.notion.com/v1/databases/{database_id}/query"
+		url = f"https://api.notion.com/v1/databases/{str(database_id)}/query"
 		payload = {
 			"page_size": self.page_size,
 		}
-		
 		if filter_obj:
 			payload["filter"] = filter_obj
-		
 		if start_cursor is not None:
-			payload["start_cursor"] = start_cursor
-		
+			payload["start_cursor"] = start_cursor.to_formatted()
+
 		await AsyncClientManager.wait_for_next_request()
 		client = await AsyncClientManager.get_client()
 		response = await client.post(url, headers=self.headers, json=payload)
-		
+
 		if response.status_code != 200:
-			error_data = response.json()
-			raise Exception(f"HTTP {response.status_code}: {error_data}")
+			error_message = self.block_holder.clean_error_message(response.json())
+			log.error(response.status_code, error_message)
+			raise HTTPError("query_database_raw", response.status_code)
 		
-		return response.json() 
+		return response.json()
+
+
+	def parse_filter(self, filter_input: Optional[Union[dict, str]]) -> Optional[Dict[str, Any]]:
+		"""
+		Parse filter input into a proper dictionary for API requests.
+		
+		Args:
+			filter_input: Filter as dict, JSON string, or None
+			
+		Returns:
+			Parsed filter dictionary or None
+		"""
+		if filter_input is None:
+			return None
+		elif isinstance(filter_input, str):
+			try:
+				return json.loads(filter_input)
+			except json.JSONDecodeError:
+				log.error(f"Failed to parse filter string as JSON: {filter_input}")
+				return None
+		elif isinstance(filter_input, dict):
+			return filter_input
+		else:
+			log.error(f"Filter is of unexpected type {type(filter_input)}. Using empty filter.")
+			return None 
