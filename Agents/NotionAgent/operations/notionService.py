@@ -374,11 +374,19 @@ class NotionService:
 		else:
 			db_uuid = database_id
 		
+		# Get integer ID for error message (matching original format)
+		int_id = self.index.to_int(db_uuid)
+		
 		# Verify object type
 		try:
 			self.cache_orchestrator.verify_object_type_or_raise(db_uuid, ObjectType.DATABASE)
 		except ValueError as e:
-			raise ObjectTypeVerificationError(str(db_uuid), "database", "unknown")
+			# Restore original error message format with int_id
+			if int_id is not None:
+				raise ValueError(f"Database {int_id} was expected to be a database but it is a different type")
+			else:
+				# Fallback if int_id conversion fails
+				raise ObjectTypeVerificationError(str(db_uuid), "database", "unknown")
 
 		# Convert start_cursor to CustomUUID for cache operations
 		start_cursor_uuid = None

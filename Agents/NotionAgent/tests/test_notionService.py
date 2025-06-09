@@ -95,12 +95,38 @@ class TestNotionService:
 					return None  # Return None for invalid UUIDs
 			return x
 		
+		def to_int_side_effect(uuid_input):
+			# Handle single UUID case - return single integer
+			if isinstance(uuid_input, CustomUUID):
+				if str(uuid_input) == TEST_UUID_DATABASE:
+					return TEST_INT_ID_DATABASE
+				elif str(uuid_input) == TEST_UUID_PAGE:
+					return TEST_INT_ID_PAGE
+				elif str(uuid_input) == TEST_UUID_BLOCK:
+					return TEST_INT_ID_BLOCK
+				elif str(uuid_input) == TEST_UUID_CHILD1:
+					return TEST_INT_ID_CHILD1
+				elif str(uuid_input) == TEST_UUID_CHILD2:
+					return TEST_INT_ID_CHILD2
+				else:
+					return None
+			# Handle list case - return dictionary
+			elif isinstance(uuid_input, list):
+				result = {}
+				for uuid_obj in uuid_input:
+					if str(uuid_obj) == TEST_UUID_CHILD1:
+						result[uuid_obj] = TEST_INT_ID_CHILD1
+					elif str(uuid_obj) == TEST_UUID_CHILD2:
+						result[uuid_obj] = TEST_INT_ID_CHILD2
+					else:
+						result[uuid_obj] = None
+				return result
+			else:
+				return None
+		
 		mock.resolve_to_uuid.side_effect = resolve_to_uuid_side_effect
 		mock.resolve_to_int.return_value = TEST_INT_ID_PAGE
-		mock.to_int.return_value = {
-			CustomUUID.from_string(TEST_UUID_CHILD1): TEST_INT_ID_CHILD1,
-			CustomUUID.from_string(TEST_UUID_CHILD2): TEST_INT_ID_CHILD2
-		}
+		mock.to_int.side_effect = to_int_side_effect
 		mock.get_uuid.side_effect = lambda x: CustomUUID.from_string(TEST_UUID_CHILD1) if x == TEST_INT_ID_CHILD1 else CustomUUID.from_string(TEST_UUID_CHILD2)
 		return mock
 
@@ -506,11 +532,13 @@ class TestNotionService:
 		# Setup
 		mock_cache_orchestrator.verify_object_type_or_raise.side_effect = ValueError("Not a database")
 
-		# Execute & Verify
-		with pytest.raises(ObjectTypeVerificationError) as exc_info:
+		# Execute & Verify - should now get the original error message format with int_id
+		with pytest.raises(ValueError) as exc_info:
 			await notion_service.query_database(TEST_UUID_DATABASE)
 		
-		assert exc_info.value.expected_type == "database"
+		# Check that the error message contains the integer ID and the expected format
+		error_message = str(exc_info.value)
+		assert f"Database {TEST_INT_ID_DATABASE} was expected to be a database but it is a different type" == error_message
 
 	@pytest.mark.asyncio
 	async def test_query_database_exception_handling(self, notion_service, mock_cache_orchestrator, mock_api_client):
