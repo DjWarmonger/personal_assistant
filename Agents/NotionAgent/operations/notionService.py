@@ -1,20 +1,19 @@
 import asyncio
 from typing import Optional, Union
+import json
 
 from tz_common import CustomUUID
 from tz_common.logs import log
 
 from .notionAPIClient import NotionAPIClient
 from .cacheOrchestrator import CacheOrchestrator
-from .utilities import FilterParser, ErrorHandler, ResponseProcessor
 from .index import Index
 from .urlIndex import UrlIndex
-from .blockCache import BlockCache, ObjectType
+from .blockCache import ObjectType
 from .blockTree import BlockTree
 from .blockHolder import BlockHolder
 from .blockDict import BlockDict
 from .blockManager import BlockManager
-from .utils import Utils
 from .exceptions import (
 	NotionServiceError, InvalidUUIDError, BlockTreeRequiredError,
 	CacheRetrievalError, APIError, ObjectTypeVerificationError
@@ -293,7 +292,7 @@ class NotionService:
 						block_tree, 
 						visited_nodes
 					)
-					flat_children_block_dict.update(descendants_result.to_dict())
+					flat_children_block_dict.update(descendants_result)
 				except NotionServiceError as e:
 					log.error(f"Error in recursive call for child {child_int_id}: {e}")
 					continue
@@ -390,7 +389,6 @@ class NotionService:
 				start_cursor_str = start_cursor_uuid.to_formatted()
 
 		# Create cache filter key
-		import json
 		cache_filter_key = json.dumps(filter_obj, sort_keys=True) if filter_obj else None
 		
 		# Check cache first

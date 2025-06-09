@@ -163,11 +163,4 @@ class NotionClient:
 			return str(e)
 
 
-	def parse_filter(self, filter: Optional[dict | str]) -> dict:
-		"""
-		Facade method that delegates to NotionAPIClient for backward compatibility.
-		"""
-		return self.api_client.parse_filter(filter) or {}
-
-
 

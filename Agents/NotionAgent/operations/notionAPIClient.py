@@ -26,6 +26,12 @@ class NotionAPIClient:
 		self.page_size = 10
 
 
+	def _handle_api_error(self, response, method_name: str) -> None:
+		error_dict = self.block_holder.clean_error_message(response.json())
+		log.error(response.status_code, error_dict)
+		raise HTTPError(method_name, response.status_code)
+
+
 	async def get_page_raw(self, page_id: CustomUUID) -> Dict[str, Any]:
 		"""
 		Fetch raw page data from Notion API.
@@ -43,9 +49,7 @@ class NotionAPIClient:
 		response = await client.get(url, headers=self.headers, timeout=30.0)
 		
 		if response.status_code != 200:
-			log.error(response.status_code)
-			error_dict = self.block_holder.clean_error_message(response.json())
-			raise HTTPError("get_page_raw", response.status_code)
+			self._handle_api_error(response, "get_page_raw")
 		
 		return response.json()
 
@@ -67,9 +71,7 @@ class NotionAPIClient:
 		response = await client.get(url, headers=self.headers, timeout=30.0)
 		
 		if response.status_code != 200:
-			log.error(response.status_code)
-			error_dict = self.block_holder.clean_error_message(response.json())
-			raise HTTPError("get_database_raw", response.status_code)
+			self._handle_api_error(response, "get_database_raw")
 		
 		return response.json()
 
@@ -95,9 +97,7 @@ class NotionAPIClient:
 		response = await client.get(url, headers=self.headers, timeout=30.0)
 		
 		if response.status_code != 200:
-			log.error(response.status_code)
-			error_dict = self.block_holder.clean_error_message(response.json())
-			raise HTTPError("get_block_children_raw", response.status_code)
+			self._handle_api_error(response, "get_block_children_raw")
 		
 		return response.json()
 
@@ -138,9 +138,7 @@ class NotionAPIClient:
 		response = await client.post(url, headers=self.headers, json=payload)
 
 		if response.status_code != 200:
-			log.error(response.status_code)
-			error_dict = self.block_holder.clean_error_message(response.json())
-			raise HTTPError("search_raw", response.status_code)
+			self._handle_api_error(response, "search_raw")
 		
 		return response.json()
 
@@ -172,9 +170,7 @@ class NotionAPIClient:
 		response = await client.post(url, headers=self.headers, json=payload)
 
 		if response.status_code != 200:
-			error_message = self.block_holder.clean_error_message(response.json())
-			log.error(response.status_code, error_message)
-			raise HTTPError("query_database_raw", response.status_code)
+			self._handle_api_error(response, "query_database_raw")
 		
 		return response.json()
 

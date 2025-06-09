@@ -68,9 +68,12 @@ class BlockDict(BaseModel):
 		return self.blocks.get(key, default)
 
 
-	def update(self, other_dict: Dict[int, Dict[str, Any]]) -> None:
-		"""Update blocks with another dictionary."""
-		self.blocks.update(other_dict)
+	def update(self, other_dict) -> None:
+		"""Update blocks with another dictionary or BlockDict instance."""
+		if isinstance(other_dict, BlockDict):
+			self.blocks.update(other_dict.blocks)
+		else:
+			self.blocks.update(other_dict)
 
 
 	def add_block(self, block_id: int, content: Dict[str, Any]) -> None:
