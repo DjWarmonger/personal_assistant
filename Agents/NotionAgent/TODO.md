@@ -302,6 +302,13 @@ Visited blocks for writer:
    12
 ```
 
+## ✅ FIXED: Restored original error message format
+
+The original error message format has been restored in `NotionService.query_database()`:
+
+```python
+raise ValueError(f"Database {int_id} was expected to be a database but it is a different type")
+```
 
 ## Wrtiter received only one block for TODO list
 
