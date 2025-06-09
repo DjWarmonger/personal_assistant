@@ -1,6 +1,4 @@
-import unittest
 import os
-import asyncio
 import pytest
 import pytest_asyncio
 from dotenv import load_dotenv

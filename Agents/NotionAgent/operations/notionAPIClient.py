@@ -6,7 +6,6 @@ from tz_common.logs import log
 
 from .asyncClientManager import AsyncClientManager
 from .blockHolder import BlockHolder
-from .utils import Utils
 from .exceptions import HTTPError
 
 

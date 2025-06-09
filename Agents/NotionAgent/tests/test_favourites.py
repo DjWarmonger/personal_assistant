@@ -2,9 +2,6 @@ import unittest
 import asyncio
 import os
 import sys
-import pytest
-import pytest_asyncio
-from dotenv import load_dotenv
 from typing import List, Union
 
 # Update the import path to include the project root
