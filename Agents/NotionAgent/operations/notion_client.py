@@ -86,18 +86,6 @@ class NotionClient:
 			return str(e)
 		
 
-	async def get_block_children(self, uuid: Union[str, CustomUUID], block_tree: Optional[BlockTree] = None) -> Union[BlockDict, str]:
-		"""
-		Facade method that delegates to NotionService.
-		This should be called only if we know that children have been already fetched.
-		"""
-		try:
-			return await self.service.get_block_children(uuid, block_tree)
-		except Exception as e:
-			log.error(f"Error in get_block_children: {e}")
-			return str(e)
-
-
 	async def get_block_content(self,
 							 block_id: Union[int, str, CustomUUID],
 							 start_cursor: Optional[Union[int, str, CustomUUID]] = None,
@@ -116,18 +104,6 @@ class NotionClient:
 			log.error(f"Error in get_block_content: {e}")
 			return str(e)
 		
-	
-	async def get_all_children_recursively(self, block_identifier: Union[str, CustomUUID], block_tree: Optional[BlockTree] = None) -> Union[BlockDict, str]:
-		"""
-		Facade method that delegates to NotionService.
-		Recursively fetch and flatten all children blocks for the given block identifier.
-		"""
-		try:
-			return await self.service.get_all_children_recursively(block_identifier, block_tree)
-		except Exception as e:
-			log.error(f"Error in get_all_children_recursively: {e}")
-			return str(e)
-
 
 	async def search_notion(self, query, filter_type=None,
 							start_cursor: Optional[Union[str, CustomUUID]] = None, sort="descending") -> Union[BlockDict, str]:

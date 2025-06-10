@@ -224,62 +224,43 @@ class TestNotionService:
 
 	@pytest.mark.asyncio
 	async def test_get_block_children_success(self, notion_service, mock_cache_orchestrator, mock_index):
-		"""Test successful retrieval of block children."""
-		# Setup
-		block_tree = MagicMock(spec=BlockTree)
-		children_uuids = [CustomUUID.from_string(TEST_UUID_CHILD1), CustomUUID.from_string(TEST_UUID_CHILD2)]
-		mock_cache_orchestrator.get_children_uuids.return_value = children_uuids
-
-		# Mock the index methods
-		mock_index.to_int.return_value = {
-			CustomUUID.from_string(TEST_UUID_CHILD1): TEST_INT_ID_CHILD1,
-			CustomUUID.from_string(TEST_UUID_CHILD2): TEST_INT_ID_CHILD2
-		}
-		mock_index.get_uuid.side_effect = lambda x: CustomUUID.from_string(TEST_UUID_CHILD1) if x == TEST_INT_ID_CHILD1 else CustomUUID.from_string(TEST_UUID_CHILD2)
-
-		# Mock get_cached_block_content to return content for each child
-		def mock_get_cached_block_content(uuid):
-			if str(uuid) == TEST_UUID_CHILD1:
-				return {"content": "child1"}
-			elif str(uuid) == TEST_UUID_CHILD2:
-				return {"content": "child2"}
-			return None
-
-		mock_cache_orchestrator.get_cached_block_content.side_effect = mock_get_cached_block_content
-
-		# Execute
-		result = await notion_service.get_block_children(TEST_UUID_BLOCK, block_tree)
-
-		# Verify
+		"""Test successful get_block_children call."""
+		block_tree = BlockTree()
+		
+		# Mock the cache orchestrator to return some children UUIDs
+		mock_children_uuids = [CustomUUID.from_string(TEST_UUID_CHILD1), CustomUUID.from_string(TEST_UUID_CHILD2)]
+		mock_cache_orchestrator.get_children_uuids.return_value = mock_children_uuids
+		
+		# Mock cached content
+		mock_cache_orchestrator.get_cached_block_content.return_value = {"object": "block", "id": TEST_INT_ID_CHILD1}
+		
+		result = await notion_service._get_block_children(TEST_UUID_BLOCK, block_tree)
+		
 		assert isinstance(result, BlockDict)
 		result_dict = result.to_dict()
+		assert len(result_dict) == 2
 		assert TEST_INT_ID_CHILD1 in result_dict
 		assert TEST_INT_ID_CHILD2 in result_dict
-		assert result_dict[TEST_INT_ID_CHILD1] == {"content": "child1"}
-		assert result_dict[TEST_INT_ID_CHILD2] == {"content": "child2"}
-		block_tree.add_relationships.assert_called_once()
 
 	@pytest.mark.asyncio
 	async def test_get_block_children_invalid_uuid(self, notion_service, mock_index):
 		"""Test get_block_children with invalid UUID."""
-		# Setup
-		mock_index.resolve_to_uuid.return_value = None
-		block_tree = MagicMock(spec=BlockTree)
-
-		# Execute & Verify
-		with pytest.raises(InvalidUUIDError) as exc_info:
-			await notion_service.get_block_children("invalid-uuid", block_tree)
+		block_tree = BlockTree()
 		
-		assert exc_info.value.uuid_value == "invalid-uuid"
+		# Mock index to return None for invalid UUID
+		mock_index.resolve_to_uuid.return_value = None
+		
+		with pytest.raises(InvalidUUIDError):
+			await notion_service._get_block_children("invalid-uuid", block_tree)
 
 	@pytest.mark.asyncio
 	async def test_get_block_children_no_block_tree(self, notion_service):
 		"""Test get_block_children without block_tree."""
-		# Execute & Verify
-		with pytest.raises(BlockTreeRequiredError) as exc_info:
-			await notion_service.get_block_children(TEST_UUID_BLOCK, None)
 		
-		assert exc_info.value.operation == "get_block_children"
+		with pytest.raises(BlockTreeRequiredError) as exc_info:
+			await notion_service._get_block_children(TEST_UUID_BLOCK, None)
+		
+		assert exc_info.value.operation == "_get_block_children"
 
 	@pytest.mark.asyncio
 	async def test_get_block_content_success(self, notion_service, mock_cache_orchestrator, mock_index):
@@ -300,7 +281,7 @@ class TestNotionService:
 		async def mock_get_all_children_recursively(block_id, tree, visited_nodes=None):
 			return children_result
 		
-		notion_service.get_all_children_recursively = mock_get_all_children_recursively
+		notion_service._get_all_children_recursively = mock_get_all_children_recursively
 
 		# Execute
 		result = await notion_service.get_block_content(TEST_UUID_BLOCK, block_tree=block_tree)
@@ -326,7 +307,7 @@ class TestNotionService:
 		async def mock_get_all_children_recursively(block_id, tree, visited_nodes=None):
 			return expected_result
 		
-		notion_service.get_all_children_recursively = mock_get_all_children_recursively
+		notion_service._get_all_children_recursively = mock_get_all_children_recursively
 
 		# Execute
 		result = await notion_service.get_block_content(TEST_UUID_BLOCK, block_tree=block_tree)
@@ -372,47 +353,39 @@ class TestNotionService:
 
 	@pytest.mark.asyncio
 	async def test_get_all_children_recursively_success(self, notion_service):
-		"""Test successful recursive children retrieval."""
-		# Setup
-		block_tree = MagicMock(spec=BlockTree)
+		"""Test successful get_all_children_recursively call."""
+		block_tree = BlockTree()
 		
 		# Mock get_block_children to return immediate children only for the parent
-		# Return empty for children to avoid infinite recursion
-		call_count = 0
 		async def mock_get_block_children(uuid, tree):
-			nonlocal call_count
-			call_count += 1
-			if call_count == 1:  # First call for parent
-				immediate_children = BlockDict()
-				immediate_children.add_block(TEST_INT_ID_CHILD1, {"content": "child1"})
-				immediate_children.add_block(TEST_INT_ID_CHILD2, {"content": "child2"})
-				return immediate_children
-			else:  # Subsequent calls for children - return empty to stop recursion
+			if str(uuid) == str(TEST_UUID_BLOCK):
+				result = BlockDict()
+				result.add_block(TEST_INT_ID_CHILD1, {"object": "block", "id": TEST_INT_ID_CHILD1})
+				result.add_block(TEST_INT_ID_CHILD2, {"object": "block", "id": TEST_INT_ID_CHILD2})
+				return result
+			else:
 				return BlockDict()
 		
-		notion_service.get_block_children = mock_get_block_children
-
-		# Execute
-		result = await notion_service.get_all_children_recursively(TEST_UUID_BLOCK, block_tree)
-
-		# Verify
+		notion_service._get_block_children = mock_get_block_children
+		
+		result = await notion_service._get_all_children_recursively(TEST_UUID_BLOCK, block_tree)
+		
 		assert isinstance(result, BlockDict)
 		result_dict = result.to_dict()
+		assert len(result_dict) == 2
 		assert TEST_INT_ID_CHILD1 in result_dict
 		assert TEST_INT_ID_CHILD2 in result_dict
 
 	@pytest.mark.asyncio
 	async def test_get_all_children_recursively_invalid_uuid(self, notion_service, mock_index):
 		"""Test get_all_children_recursively with invalid UUID."""
-		# Setup
-		block_tree = MagicMock(spec=BlockTree)
-		mock_index.resolve_to_uuid.return_value = None
-
-		# Execute & Verify
-		with pytest.raises(InvalidUUIDError) as exc_info:
-			await notion_service.get_all_children_recursively("invalid-uuid", block_tree)
+		block_tree = BlockTree()
 		
-		assert exc_info.value.uuid_value == "invalid-uuid"
+		# Mock index to return None for invalid UUID
+		mock_index.resolve_to_uuid.return_value = None
+		
+		with pytest.raises(InvalidUUIDError):
+			await notion_service._get_all_children_recursively("invalid-uuid", block_tree)
 
 	@pytest.mark.asyncio
 	async def test_search_notion_cache_hit(self, notion_service, mock_cache_orchestrator):

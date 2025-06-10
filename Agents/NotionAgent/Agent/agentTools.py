@@ -91,7 +91,7 @@ class NotionSearchTool(ContextAwareTool):
 
 class NotionPageDetailsTool(ContextAwareTool):
 	name: str = "NotionPageDetails"
-	description: str = "Get details of a page, block or database in Notion"
+	description: str = "Get page or database properties and metadata only (no children blocks). Use this to get basic information about a page or database without retrieving its content."
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
 		notion_id: str = Field(..., description="UUID of the page, block or database to navigate to")
@@ -114,7 +114,7 @@ class NotionPageDetailsTool(ContextAwareTool):
 
 class NotionGetBlockContentTool(ContextAwareTool):
 	name: str = "NotionGetBlockContent"
-	description: str = "Retrieve content of a page or block in Notion, recursively including all children"
+	description: str = "Retrieve complete content of a page or block including ALL children blocks recursively. Use this to explore and read the full content of a page or block with all nested elements."
 
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):

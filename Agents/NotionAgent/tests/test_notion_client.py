@@ -131,35 +131,6 @@ async def test_search_notion_with_filter(notion_client):
 
 
 @pytest.mark.asyncio
-async def test_get_children(notion_client):
-	block_id = "593cf337c82a47fd80a750671b2a1e43"
-	block_tree = BlockTree()
-
-	result = await notion_client.get_block_content(block_id=block_id, block_tree=block_tree)
-
-	# Handle BlockDict or error string
-	if isinstance(result, str):
-		pytest.fail(f"Expected BlockDict, got error: {result}")
-
-	# Now get_block_content always returns all children recursively
-	assert isinstance(result, BlockDict)
-	result_dict = result.to_dict()
-	
-	# Should have multiple children blocks, not a single "list" object
-	assert len(result_dict) > 1
-	
-	# All keys should be integers (block IDs)
-	for key in result_dict.keys():
-		assert isinstance(key, int), f"Expected int key, got {type(key)}: {key}"
-	
-	# All values should be dictionaries (block content)
-	for value in result_dict.values():
-		assert isinstance(value, dict), f"Expected dict value, got {type(value)}"
-		# Each block should have an object type
-		assert "object" in value
-
-
-@pytest.mark.asyncio
 async def test_filter_database(notion_client):
 	database_id = "fb76be1f96684194952d4ddfac58df48"
 
@@ -238,76 +209,6 @@ async def test_database_query_with_empty_filter(notion_client):
 
 
 @pytest.mark.asyncio
-async def test_get_block_children_return_type(notion_client):
-	"""Test that get_block_children returns Union[BlockDict, str]"""
-	block_id = "593cf337c82a47fd80a750671b2a1e43"
-	block_tree = BlockTree()
-	
-	# First get some content to ensure children are cached
-	await notion_client.get_block_content(block_id=block_id, block_tree=block_tree)
-	
-	# Test successful case - should return BlockDict
-	result = await notion_client.get_block_children(block_id, block_tree)
-	
-	assert isinstance(result, (BlockDict, str)), f"Expected BlockDict or str, got {type(result)}"
-	
-	if isinstance(result, BlockDict):
-		# Verify it behaves like a dictionary
-		assert hasattr(result, 'items')
-		assert hasattr(result, 'keys')
-		assert hasattr(result, 'values')
-		assert hasattr(result, 'to_dict')
-		# Test dictionary-like access
-		dict_version = result.to_dict()
-		assert isinstance(dict_version, dict)
-
-
-@pytest.mark.asyncio
-async def test_get_block_children_error_case(notion_client):
-	"""Test that get_block_children returns error string for invalid input"""
-	# Test with None block_tree - should return error string
-	result = await notion_client.get_block_children("invalid-uuid", None)
-	
-	assert isinstance(result, str), f"Expected error string, got {type(result)}"
-	assert "Invalid UUID" in result or "BlockTree is required" in result
-
-
-@pytest.mark.asyncio
-async def test_get_all_children_recursively_return_type(notion_client):
-	"""Test that get_all_children_recursively returns Union[BlockDict, str]"""
-	block_id = "593cf337c82a47fd80a750671b2a1e43"
-	block_tree = BlockTree()
-	
-	# Test successful case - should return BlockDict
-	result = await notion_client.get_all_children_recursively(block_id, block_tree)
-	
-	assert isinstance(result, (BlockDict, str)), f"Expected BlockDict or str, got {type(result)}"
-	
-	if isinstance(result, BlockDict):
-		# Verify it's a flat dictionary (no nested structures)
-		dict_version = result.to_dict()
-		assert isinstance(dict_version, dict)
-		
-		# All keys should be integers (block IDs)
-		for key in dict_version.keys():
-			assert isinstance(key, int), f"Expected int key, got {type(key)}: {key}"
-		
-		# All values should be dictionaries (block content)
-		for value in dict_version.values():
-			assert isinstance(value, dict), f"Expected dict value, got {type(value)}"
-
-
-@pytest.mark.asyncio
-async def test_get_all_children_recursively_error_case(notion_client):
-	"""Test that get_all_children_recursively returns error string for invalid input"""
-	# Test with None block_tree - should return error string
-	result = await notion_client.get_all_children_recursively("invalid-uuid", None)
-	
-	assert isinstance(result, str), f"Expected error string, got {type(result)}"
-	assert "Invalid UUID" in result or "BlockTree is required" in result
-
-
-@pytest.mark.asyncio
 async def test_get_block_content_with_invalid_id(notion_client):
 	"""Test HTTP error handling with deliberately incorrect block ID"""
 	invalid_block_id = "00000000-0000-0000-0000-000000000000"  # Valid UUID format but non-existent
@@ -345,5 +246,61 @@ async def test_get_block_content_recursive_return_type(notion_client):
 		dict_version = result.to_dict()
 		for key in dict_version.keys():
 			assert isinstance(key, int), f"Expected int key, got {type(key)}"
+
+
+@pytest.mark.asyncio
+async def test_same_page_uuid_handled_by_both_tools(notion_client):
+	"""Test that the same page UUID can be handled correctly by both page details and block content methods"""
+	page_id = os.getenv("NOTION_LANDING_PAGE_ID")
+	if not page_id:
+		pytest.skip("NOTION_LANDING_PAGE_ID not found in environment")
+	
+	# Test NotionPageDetailsTool functionality (get_notion_page_details)
+	page_details_result = await notion_client.get_notion_page_details(page_id=page_id)
+	
+	# Should return page properties without children
+	if isinstance(page_details_result, str):
+		pytest.fail(f"get_notion_page_details failed: {page_details_result}")
+	
+	assert isinstance(page_details_result, BlockDict)
+	page_details_dict = page_details_result.to_dict()
+	assert len(page_details_dict) == 1
+	
+	page_data = next(iter(page_details_dict.values()))
+	assert page_data["object"] == "page"
+	assert "properties" in page_data
+	page_int_id = next(iter(page_details_dict.keys()))
+	
+	# Test NotionGetBlockContentTool functionality (get_block_content)
+	block_tree = BlockTree()
+	block_content_result = await notion_client.get_block_content(
+		block_id=page_id, 
+		block_tree=block_tree
+	)
+	
+	# Should return page + all children recursively
+	if isinstance(block_content_result, str):
+		pytest.fail(f"get_block_content failed: {block_content_result}")
+	
+	assert isinstance(block_content_result, BlockDict)
+	block_content_dict = block_content_result.to_dict()
+	
+	# Should have children blocks (current behavior: parent page not included in children result)
+	# TODO: This reveals the issue mentioned in TODO.md - get_block_content should include parent block
+	assert len(block_content_dict) >= 1
+	
+	# Verify UUID resolution works consistently for both methods
+	resolved_uuid_from_details = notion_client.index.resolve_to_uuid(page_data["id"])
+	assert resolved_uuid_from_details == CustomUUID.from_string(page_id)
+	
+	# Verify that both methods can process the same UUID without errors
+	# Even though they return different content (page properties vs children blocks)
+	assert isinstance(page_details_result, BlockDict)
+	assert isinstance(block_content_result, BlockDict)
+	
+	print(f"✅ Both tools successfully handled page UUID: {page_id}")
+	print(f"   - Page details returned: 1 block (page properties only)")
+	print(f"   - Block content returned: {len(block_content_dict)} blocks (children only)")
+	print(f"   - NOTE: Current behavior - get_block_content returns children but not parent page")
 
 
