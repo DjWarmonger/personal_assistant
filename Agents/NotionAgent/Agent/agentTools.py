@@ -112,34 +112,9 @@ class NotionPageDetailsTool(ContextAwareTool):
 		return context, handle_client_response(result, context, "get_notion_page_details", visited_block_id=index)
 
 
-class NotionGetChildrenTool(ContextAwareTool):
-	name: str = "NotionGetChildren"
-	description: str = "Retrieve children of a page or block in Notion. Only call if node's 'has_children' is True"
-
-	class ArgsSchema(ContextAwareTool.ArgsSchema):
-		index: int | str = Field(..., description="Index id or uuid of the page or block to retrieve children for")
-		start_cursor: Optional[str] = Field(None, description='Cursor to start from, use "next_cursor" from previous response to get the next page')
-
-
-	async def _run(self, context: AgentState, index: int | str, start_cursor: Optional[str] = None, **kwargs: Any) -> tuple[AgentState, str]:
-		cursor_info = f" start cursor: {start_cursor}" if start_cursor is not None else ""
-		log.flow(f"Retrieving children of Notion block... {index}{cursor_info}")
-
-		block_id = client.index.resolve_to_uuid(index)
-		
-		# Increase visit count for directly accessed block
-		int_id = client.index.resolve_to_int(index)
-		if int_id is not None:
-			client.index.visit_int(int_id)
-
-		result = await client.get_block_content(block_id=block_id, start_cursor=start_cursor, get_children=True, block_tree=context.get("blockTree"))
-
-		return context, handle_client_response(result, context, "get_block_content")
-
-
 class NotionGetBlockContentTool(ContextAwareTool):
 	name: str = "NotionGetBlockContent"
-	description: str = "Retrieve content of a page or block in Notion, recursively"
+	description: str = "Retrieve content of a page or block in Notion, recursively including all children"
 
 
 	class ArgsSchema(ContextAwareTool.ArgsSchema):
@@ -163,8 +138,7 @@ class NotionGetBlockContentTool(ContextAwareTool):
 		if int_id is not None:
 			client.index.visit_int(int_id)
 		
-		result = await client.get_block_content(get_children=False,
-							block_id=block_id,
+		result = await client.get_block_content(block_id=block_id,
 							start_cursor=start_cursor,
 							block_tree=context.get("blockTree"))
 
@@ -268,7 +242,6 @@ agent_tools = [
 	NotionSearchTool(),
 	NotionPageDetailsTool(),
 	NotionGetBlockContentTool(),
-	NotionGetChildrenTool(),
 	NotionQueryDatabaseTool(),
 	ChangeFavourties(),
 	CompleteTaskTool()

@@ -1,3 +1,45 @@
+# Remove Redundant NotionGetChildrenTool
+
+## Problem Analysis
+- `NotionGetChildrenTool` and `NotionGetBlockContentTool` are currently doing the same thing
+- Both tools call `client.get_block_content()` which returns block + all children recursively
+- This creates confusion for the agent and redundant functionality
+- After recent refactoring of `get_block_content()`, the recursive behavior is now working correctly
+- `NotionGetChildrenTool` is no longer needed since `NotionGetBlockContentTool` handles recursive content retrieval
+
+## Implementation Plan
+
+### Phase 1: Remove NotionGetChildrenTool
+- [ ] Remove `NotionGetChildrenTool` class from `agentTools.py`
+- [ ] Remove it from `agent_tools` list
+- [ ] Remove it from `planner_tools` list
+- [ ] Update tool executor configurations
+
+### Phase 2: Update Tool Descriptions and Documentation
+- [ ] Update `NotionGetBlockContentTool` description to clearly state it retrieves content recursively
+- [ ] Update `NotionPageDetailsTool` description to clarify it only gets page properties (no children)
+- [ ] Ensure agent prompts/documentation reflect the simplified tool set
+
+### Phase 3: Verify Existing Functionality
+- [ ] Test that `NotionGetBlockContentTool` correctly returns parent block + all children recursively
+- [ ] Test that `NotionPageDetailsTool` only returns page properties without children
+- [ ] Test that real page uuid can be handled by both `NotionPageDetailsTool` and `NotionGetBlockContentTool` correctly
+- [ ] Verify no existing tests or code references the removed `NotionGetChildrenTool`
+
+### Phase 4: Clean Up Related Code
+- [ ] Search codebase for any references to "NotionGetChildren" or similar
+- [ ] Update any documentation that mentions the removed tool
+- [ ] Update agent system prompts if they reference the old tool
+
+## Expected Benefits
+- Simplified tool set for the agent
+- Clear separation of concerns:
+  - `NotionPageDetailsTool`: Get page properties only
+  - `NotionGetBlockContentTool`: Get page/block + all children recursively
+- Reduced confusion and redundancy
+- Better agent decision-making with clearer tool purposes
+
+---
 
 # Refactoring of Notion Client
 
@@ -36,12 +78,33 @@ Visited blocks for writer:
    12
 ```
 
-## ✅ FIXED: Restored original error message format
+### Case 2
 
-The original error message format has been restored in `NotionService.query_database()`:
+```json
+All visited blocks (id : content):
+10 : {'object': 'block', 'id': 10, 'parent': {'page_id': 29}, 'has_children': False, 'child_database': {'title': 'Agent Notion - Zadania'}}
+30 : {'object': 'block', 'id': 30, 'parent': {'page_id': 29}, 'has_children': False, 'bookmark': {'caption': [{'text': {'content': 'Moja integracja'}}]}}
+31 : {'object': 'block', 'id': 31, 'parent': {'page_id': 29}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Zalety'}}], 'is_toggleable': True, 'color': 'default'}}
+32 : {'object': 'block', 'id': 32, 'parent': {'page_id': 29}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Scenariusze użycia'}}], 'is_toggleable': True, 'color': 'default'}}
+33 : {'object': 'block', 'id': 33, 'parent': {'page_id': 29}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Dedykowany agent samodzielnie przeglądający Notion'}}], 'is_toggleable': True, 'color': 'default'}}
+34 : {'object': 'block', 'id': 34, 'parent': {'page_id': 29}, 'has_children': True, 'heading_3': {'rich_text': [{'text': {'content': 'Integracja z YouTube'}}], 'is_toggleable': True, 'color': 'default'}}
+35 : {'object': 'block', 'id': 35, 'parent': {'page_id': 29}, 'has_children': False, 'paragraph': {'color': 'default'}}
+36 : {'object': 'block', 'id': 36, 'parent': {'page_id': 29}, 'has_children': False, 'paragraph': {'color': 'default'}}
+37 : {'object': 'block', 'id': 37, 'parent': {'page_id': 29}, 'has_children': False, 'paragraph': {'color': 'default'}}
+```
 
-```python
-raise ValueError(f"Database {int_id} was expected to be a database but it is a different type")
+```
+Tree of blocks visited:
+29:Integracja z Notion
+   ├──33
+   ├──31
+   ├──32
+   ├──30
+   ├──34
+   ├──10
+   ├──35
+   ├──36
+   └──37
 ```
 
 ## Wrtiter received only one block for TODO list
