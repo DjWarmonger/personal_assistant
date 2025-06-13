@@ -30,7 +30,7 @@ Notion Agent interacts with Notion’s API, navigating across pages, retrieving 
 
 - Minimize token usage.
 - Cache fetched blocks and their children to speed repeated queries.
+- Avoid re-fetching or reprocessing identical content.
 - Maintain parent-child relationships to preserve context.
 - Strip unnecessary data from blocks to keep them concise.
-- Consider replacing UUIDs/URLs with shorter placeholders.
-- Avoid re-fetching or reprocessing identical content.
+- Replace UUIDs/URLs with shorter placeholders.

@@ -18,7 +18,7 @@ The architecture follows the facade pattern with clear separation between HTTP c
   - Is called directly by Agent tools
   - Initializes and coordinates all service layer components
   - Converts exceptions to error strings for backward compatibility
-- **Key Methods**: All original public methods (`get_notion_page_details`, `get_block_children`, `get_block_content`, `search_notion`, `query_database`)
+- **Key Methods**: Public methods used by agent tools (`get_notion_page_details`, `get_block_content`, `search_notion`, `query_database`)
 - **Dependencies**: Initializes and manages `NotionAPIClient`, `CacheOrchestrator`, and `NotionService`
 
 ### 2. **NotionAPIClient (HTTP Layer)**
@@ -48,18 +48,14 @@ The architecture follows the facade pattern with clear separation between HTTP c
   - Manages UUID/integer ID conversions and resolution
   - Handles recursive operations and tree management
   - Provides structured exception handling with custom exception types
-- **Core Methods**:
+- **Public Methods** (called by NotionClient facade):
   - `get_notion_page_details()`: Page/database retrieval with caching
-  - `get_block_children()`: Children retrieval from cache
   - `get_block_content()`: Block content with recursive children fetching
-  - `get_all_children_recursively()`: Recursive children flattening
   - `search_notion()`: Search with caching support
-  - `query_database()`: Database queries with type verification
-- **Features**:
-  - Cache-first strategy with fallback to API
-  - Recursive children fetching with cycle detection
-  - Object type verification for database operations
-  - Structured error handling with custom exception types
+  - `query_database()`: Database queries with filtering and caching
+- **Internal Methods** (implementation details):
+  - `_get_block_children()`: Retrieves immediate children from cache
+- **Dependencies**: NotionAPIClient, CacheOrchestrator, Index, UrlIndex, BlockHolder, BlockManager
 
 ### 4. **CacheOrchestrator (Cache Management)**
 - **Primary Role**: Orchestrates caching operations and cache-or-fetch patterns.
@@ -88,6 +84,16 @@ The architecture follows the facade pattern with clear separation between HTTP c
 5. **HTTP Request**: Fetcher function uses `NotionAPIClient` for raw API call
 6. **Data Processing**: `BlockManager` processes and stores raw data with UUID conversion
 7. **Response**: Processed data returned as `BlockDict` through the layers
+
+### Recursive Block Content Retrieval Flow (`get_block_content`)
+1. **Root Block Retrieval**: Calls `get_notion_page_details` to fetch the root block content
+2. **Queue-Based Processing**: Uses a breadth-first search with a deque queue to process blocks sequentially
+3. **Children Fetching**: For each block, calls `NotionAPIClient.get_block_children_raw` directly
+4. **Batch Processing**: Uses `BlockManager.process_children_batch` to process and store children
+5. **Cache Integration**: Retrieves cached content via `CacheOrchestrator.get_cached_block_content`
+6. **Cycle Detection**: Maintains `visited_nodes` set to prevent infinite loops
+7. **Tree Management**: Updates `BlockTree` relationships for parent-child tracking
+8. **Error Resilience**: Continues processing other branches if individual blocks fail
 
 ### Error Handling Strategy
 - **HTTP Layer**: `HTTPError` for API communication failures
@@ -127,47 +133,20 @@ The architecture follows the facade pattern with clear separation between HTTP c
 
 ### Layer-Specific Testing
 - **NotionAPIClient**: HTTP mocking, rate limiting, error handling
-- **NotionService**: Business logic, UUID resolution, recursive operations
+- **NotionService**: Business logic, UUID resolution, queue-based recursive operations
 - **CacheOrchestrator**: Cache patterns, invalidation, type verification
 - **NotionClient**: Integration testing, backward compatibility
 
 ### Mock Strategy
-- `NotionAPIClient`: Mock HTTP responses and rate limiting
-- `CacheOrchestrator`: Mock cache operations and invalidation
+- `NotionAPIClient`: Mock HTTP responses and rate limiting, especially `get_block_children_raw` for recursive tests
+- `CacheOrchestrator`: Mock cache operations, invalidation, and `get_cached_block_content` for children retrieval
+- `BlockManager`: Mock `process_children_batch` for children processing
 - `Index`: Mock UUID/integer ID conversions with proper return types
 - Service dependencies: Mock all external dependencies for isolation
 
-## Migration and Compatibility
-
-### Backward Compatibility
-- `NotionClient` maintains exact same public API
-- Error handling converts exceptions to error strings as before
-- All existing tests pass without modification
-- Agent tools continue to work without changes
-
-### Benefits of Refactoring
-- **Maintainability**: Clear separation of concerns and responsibilities
-- **Testability**: Each layer can be tested in isolation
-- **Extensibility**: Easy to add new features or modify existing behavior
-- **Debugging**: Clear error boundaries and structured exception handling
-- **Performance**: Optimized caching patterns and reduced redundancy
-
-## Future Development Guidelines
-
-### Adding New Features
-- **HTTP Operations**: Add new methods to `NotionAPIClient`
-- **Business Logic**: Implement in `NotionService` with proper error handling
-- **Caching**: Use `CacheOrchestrator` patterns for cache-or-fetch operations
-- **Public API**: Add facade methods to `NotionClient` for backward compatibility
-
-### Error Handling
-- Use appropriate custom exception types in service layer
-- Maintain integer ID format for user-facing error messages
-- Ensure proper exception conversion in facade layer
-
-### Testing New Features
-- Test each layer independently with appropriate mocks
-- Verify integration through facade layer
-- Maintain backward compatibility in public API
-- Follow async/await patterns consistently
-
+### Testing `get_block_content` Implementation
+- **Root Block Mocking**: Mock `get_notion_page_details` to return root block content
+- **API Client Mocking**: Mock `get_block_children_raw` to return children data structures
+- **Cache Mocking**: Mock `get_cached_block_content` to return processed children content
+- **Queue Processing**: Verify breadth-first traversal and cycle detection
+- **Error Handling**: Test resilience when individual block fetching fails
