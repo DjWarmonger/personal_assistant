@@ -2,9 +2,6 @@ import unittest
 import asyncio
 import os
 import sys
-import pytest
-import pytest_asyncio
-from dotenv import load_dotenv
 from typing import List, Union
 
 # Update the import path to include the project root
@@ -25,7 +22,7 @@ class TestFavourites(unittest.TestCase):
 		self.index.db_conn.commit()
 		self.loop = asyncio.new_event_loop()
 		asyncio.set_event_loop(self.loop)
-		self.notion_client = self.loop.run_until_complete(NotionClient().__aenter__())
+		self.notion_client = self.loop.run_until_complete(NotionClient(load_from_disk=False, run_on_start=False).__aenter__())
 
 	def tearDown(self):
 		self.loop.run_until_complete(self.notion_client.__aexit__(None, None, None))
