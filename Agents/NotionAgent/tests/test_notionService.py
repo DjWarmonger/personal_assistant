@@ -263,25 +263,43 @@ class TestNotionService:
 		assert exc_info.value.operation == "_get_block_children"
 
 	@pytest.mark.asyncio
-	async def test_get_block_content_success(self, notion_service, mock_cache_orchestrator, mock_index):
+	async def test_get_block_content_success(self, notion_service, mock_cache_orchestrator, mock_index, mock_api_client, mock_dependencies):
 		"""Test successful block content retrieval."""
 		# Setup
 		block_tree = MagicMock(spec=BlockTree)
-		expected_result = BlockDict()
-		expected_result.add_block(TEST_INT_ID_BLOCK, TEST_BLOCK_DATA)
-		mock_cache_orchestrator.get_or_fetch_block.return_value = expected_result
 		
-		# Mock is_children_fetched_for_block to return False so it goes through normal flow
-		mock_cache_orchestrator.is_children_fetched_for_block.return_value = False
+		# Mock get_notion_page_details to return root block content
+		root_block_result = BlockDict()
+		root_block_result.add_block(TEST_INT_ID_BLOCK, TEST_BLOCK_DATA)
 		
-		# Mock get_all_children_recursively to prevent infinite recursion
-		children_result = BlockDict()
-		children_result.add_block(TEST_INT_ID_CHILD1, {"content": "child1"})
+		# Mock the service's get_notion_page_details method
+		async def mock_get_notion_page_details(page_id=None, database_id=None):
+			return root_block_result
 		
-		async def mock_get_all_children_recursively(block_id, tree, visited_nodes=None):
-			return children_result
+		notion_service.get_notion_page_details = mock_get_notion_page_details
 		
-		notion_service._get_all_children_recursively = mock_get_all_children_recursively
+		# Mock API client to return children
+		mock_api_client.get_block_children_raw.return_value = {
+			"results": [
+				{"id": TEST_UUID_CHILD1, "object": "block", "type": "paragraph", "has_children": False},
+				{"id": TEST_UUID_CHILD2, "object": "block", "type": "paragraph", "has_children": False}
+			],
+			"has_more": False
+		}
+		
+		# Mock block manager to process children
+		children_uuids = [CustomUUID.from_string(TEST_UUID_CHILD1), CustomUUID.from_string(TEST_UUID_CHILD2)]
+		mock_dependencies['block_manager'].process_children_batch.return_value = children_uuids
+		
+		# Mock cache orchestrator to return cached content for children
+		def mock_get_cached_block_content(uuid):
+			if str(uuid) == TEST_UUID_CHILD1:
+				return {"object": "block", "id": TEST_INT_ID_CHILD1, "content": "child1"}
+			elif str(uuid) == TEST_UUID_CHILD2:
+				return {"object": "block", "id": TEST_INT_ID_CHILD2, "content": "child2"}
+			return None
+		
+		mock_cache_orchestrator.get_cached_block_content.side_effect = mock_get_cached_block_content
 
 		# Execute
 		result = await notion_service.get_block_content(TEST_UUID_BLOCK, block_tree=block_tree)
@@ -291,29 +309,40 @@ class TestNotionService:
 		result_dict = result.to_dict()
 		assert TEST_INT_ID_BLOCK in result_dict
 		assert TEST_INT_ID_CHILD1 in result_dict
+		assert TEST_INT_ID_CHILD2 in result_dict
 		block_tree.add_parent.assert_called_once()
 
 	@pytest.mark.asyncio
-	async def test_get_block_content_with_children_already_fetched(self, notion_service, mock_cache_orchestrator):
-		"""Test get_block_content with children when already fetched."""
+	async def test_get_block_content_with_no_children(self, notion_service, mock_cache_orchestrator, mock_api_client):
+		"""Test get_block_content when block has no children."""
 		# Setup
 		block_tree = MagicMock(spec=BlockTree)
-		mock_cache_orchestrator.is_children_fetched_for_block.return_value = True
 		
-		# Mock get_all_children_recursively
-		expected_result = BlockDict()
-		expected_result.add_block(TEST_INT_ID_CHILD1, {"content": "child1"})
+		# Mock get_notion_page_details to return root block content
+		root_block_result = BlockDict()
+		root_block_result.add_block(TEST_INT_ID_BLOCK, TEST_BLOCK_DATA)
 		
-		async def mock_get_all_children_recursively(block_id, tree, visited_nodes=None):
-			return expected_result
+		# Mock the service's get_notion_page_details method
+		async def mock_get_notion_page_details(page_id=None, database_id=None):
+			return root_block_result
 		
-		notion_service._get_all_children_recursively = mock_get_all_children_recursively
+		notion_service.get_notion_page_details = mock_get_notion_page_details
+		
+		# Mock API client to return no children
+		mock_api_client.get_block_children_raw.return_value = {
+			"results": [],
+			"has_more": False
+		}
 
 		# Execute
 		result = await notion_service.get_block_content(TEST_UUID_BLOCK, block_tree=block_tree)
 
-		# Verify
-		assert result == expected_result
+		# Verify - should only have the root block
+		assert isinstance(result, BlockDict)
+		result_dict = result.to_dict()
+		assert len(result_dict) == 1
+		assert TEST_INT_ID_BLOCK in result_dict
+		block_tree.add_parent.assert_called_once()
 
 	@pytest.mark.asyncio
 	async def test_get_block_content_no_block_tree(self, notion_service):
@@ -339,11 +368,15 @@ class TestNotionService:
 
 	@pytest.mark.asyncio
 	async def test_get_block_content_cache_returns_none(self, notion_service, mock_cache_orchestrator):
-		"""Test get_block_content when cache returns None."""
+		"""Test get_block_content when get_notion_page_details returns None."""
 		# Setup
 		block_tree = MagicMock(spec=BlockTree)
-		mock_cache_orchestrator.get_or_fetch_block.return_value = None
-		mock_cache_orchestrator.is_children_fetched_for_block.return_value = False
+		
+		# Mock get_notion_page_details to return None (simulating cache miss)
+		async def mock_get_notion_page_details(page_id=None, database_id=None):
+			return None
+		
+		notion_service.get_notion_page_details = mock_get_notion_page_details
 
 		# Execute & Verify
 		with pytest.raises(CacheRetrievalError) as exc_info:
@@ -351,41 +384,7 @@ class TestNotionService:
 		
 		assert exc_info.value.resource_type == "block"
 
-	@pytest.mark.asyncio
-	async def test_get_all_children_recursively_success(self, notion_service):
-		"""Test successful get_all_children_recursively call."""
-		block_tree = BlockTree()
-		
-		# Mock get_block_children to return immediate children only for the parent
-		async def mock_get_block_children(uuid, tree):
-			if str(uuid) == str(TEST_UUID_BLOCK):
-				result = BlockDict()
-				result.add_block(TEST_INT_ID_CHILD1, {"object": "block", "id": TEST_INT_ID_CHILD1})
-				result.add_block(TEST_INT_ID_CHILD2, {"object": "block", "id": TEST_INT_ID_CHILD2})
-				return result
-			else:
-				return BlockDict()
-		
-		notion_service._get_block_children = mock_get_block_children
-		
-		result = await notion_service._get_all_children_recursively(TEST_UUID_BLOCK, block_tree)
-		
-		assert isinstance(result, BlockDict)
-		result_dict = result.to_dict()
-		assert len(result_dict) == 2
-		assert TEST_INT_ID_CHILD1 in result_dict
-		assert TEST_INT_ID_CHILD2 in result_dict
 
-	@pytest.mark.asyncio
-	async def test_get_all_children_recursively_invalid_uuid(self, notion_service, mock_index):
-		"""Test get_all_children_recursively with invalid UUID."""
-		block_tree = BlockTree()
-		
-		# Mock index to return None for invalid UUID
-		mock_index.resolve_to_uuid.return_value = None
-		
-		with pytest.raises(InvalidUUIDError):
-			await notion_service._get_all_children_recursively("invalid-uuid", block_tree)
 
 	@pytest.mark.asyncio
 	async def test_search_notion_cache_hit(self, notion_service, mock_cache_orchestrator):

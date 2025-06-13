@@ -27,7 +27,7 @@ async def notion_client():
 
 @pytest.mark.asyncio
 async def test_navigate_to_notion_page(notion_client):
-	page_id = os.getenv("NOTION_LANDING_PAGE_ID")
+	page_id = os.getenv("NOTION_SYSTEMC_PAGE_ID")
 	
 	result = await notion_client.get_notion_page_details(page_id=page_id)
 
@@ -222,8 +222,8 @@ async def test_get_block_content_with_invalid_id(notion_client):
 	
 	# Should return error string for invalid block ID
 	assert isinstance(result, str), f"Expected error string, got {type(result)}"
-	# Check for CacheRetrievalError message instead of HTTP error
-	assert "Failed to retrieve block" in result
+	# Check for error message - could be either "Failed to retrieve page" or "Failed to retrieve block"
+	assert ("Failed to retrieve page" in result or "Failed to retrieve block" in result), f"Expected error message about failed retrieval, got: {result}"
 
 
 @pytest.mark.asyncio
@@ -251,9 +251,9 @@ async def test_get_block_content_recursive_return_type(notion_client):
 @pytest.mark.asyncio
 async def test_same_page_uuid_handled_by_both_tools(notion_client):
 	"""Test that the same page UUID can be handled correctly by both page details and block content methods"""
-	page_id = os.getenv("NOTION_LANDING_PAGE_ID")
+	page_id = os.getenv("NOTION_SYSTEMC_PAGE_ID")
 	if not page_id:
-		pytest.skip("NOTION_LANDING_PAGE_ID not found in environment")
+		pytest.skip("NOTION_SYSTEMC_PAGE_ID not found in environment")
 	
 	# Test NotionPageDetailsTool functionality (get_notion_page_details)
 	page_details_result = await notion_client.get_notion_page_details(page_id=page_id)

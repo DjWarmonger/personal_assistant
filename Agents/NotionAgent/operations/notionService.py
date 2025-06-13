@@ -1,5 +1,7 @@
 from typing import Optional, Union
 import json
+import asyncio
+from collections import deque
 
 from tz_common import CustomUUID
 from tz_common.logs import log
@@ -176,7 +178,8 @@ class NotionService:
 								start_cursor: Optional[Union[int, str, CustomUUID]] = None,
 								block_tree: Optional[BlockTree] = None) -> BlockDict:
 		"""
-		Get block content with all children recursively.
+		Get block content with all children recursively using a simple, robust queue-based approach.
+		This method is designed to be explicitly sequential to avoid concurrency issues.
 		
 		Args:
 			block_id: ID of the block to retrieve
@@ -192,113 +195,85 @@ class NotionService:
 		uuid_obj = self.index.resolve_to_uuid(block_id)
 		if uuid_obj is None:
 			raise InvalidUUIDError(str(block_id))
-		
-		current_cache_uuid = uuid_obj
-		
-		# Handle start cursor
-		sc_uuid_obj = None
-		if start_cursor is not None:
-			sc_uuid_obj = self.index.resolve_to_uuid(start_cursor)
-			if sc_uuid_obj:
-				current_cache_uuid = sc_uuid_obj
+
+		# Initialize result BlockDict and the processing queue
+		all_blocks = BlockDict()
+		queue = deque([(uuid_obj, True)]) # (uuid, is_root)
+		visited_nodes = {uuid_obj}
+
+		# --- Step 1: Get the root block's own content ---
+		# The /children endpoint does not include the parent, so we fetch it separately.
+		# This also serves as a check for a valid block_id before starting recursion.
+		try:
+			# We use get_notion_page_details as it correctly fetches a single block's content
+			# (pages and blocks are structurally similar for this purpose).
+			root_block_content = await self.get_notion_page_details(page_id=uuid_obj)
+			if root_block_content:
+				all_blocks.update(root_block_content)
+				if block_tree:
+					block_tree.add_parent(uuid_obj)
 			else:
-				log.error(f"Could not format start_cursor {start_cursor}")
+				# If we can't get the root block, there's nothing to do.
+				raise CacheRetrievalError("block", str(uuid_obj))
+		except Exception as e:
+			log.error(f"Failed to retrieve root block {uuid_obj}: {e}")
+			raise # Re-raise the exception to be caught by the client facade
 
-		# Use cache orchestrator for block retrieval
-		async def fetch_block():
-			url_uuid_str = str(uuid_obj)
-			start_cursor_str = None
-			if sc_uuid_obj:
-				start_cursor_str = sc_uuid_obj.to_formatted()
-			return await self.api_client.get_block_children_raw(url_uuid_str, start_cursor_str)
+		# --- Step 2: Sequentially fetch children ---
+		while queue:
+			current_uuid, is_root = queue.popleft()
 
-		# Check if children are already fetched
-		current_cache_key_str = str(current_cache_uuid)
-		if self.cache_orchestrator.is_children_fetched_for_block(current_cache_key_str):
-			key_for_recursion = sc_uuid_obj if sc_uuid_obj else uuid_obj
-			return await self._get_all_children_recursively(key_for_recursion, block_tree, visited_nodes=set())
+			try:
+				# Determine the start_cursor only for the root block on the first call
+				cursor_for_fetch = start_cursor if is_root else None
+				sc_uuid_obj = self.index.resolve_to_uuid(cursor_for_fetch) if cursor_for_fetch else None
+				start_cursor_str = sc_uuid_obj.to_formatted() if sc_uuid_obj else None
 
-		# Try to get from cache or fetch
-		result = await self.cache_orchestrator.get_or_fetch_block(current_cache_uuid, fetch_block)
+				# Directly and sequentially call the API client. This is the core of the fix.
+				raw_children_data = await self.api_client.get_block_children_raw(str(current_uuid), start_cursor_str)
+				
+				# Process the raw response to get children
+				children_list = raw_children_data.get("results", [])
+				if not children_list:
+					continue
+
+				# Process and store the batch of children
+				children_uuids = self.block_manager.process_children_batch(children_list, current_uuid)
+				
+				# Add new children to the final result and the queue for further processing
+				for child_uuid in children_uuids:
+					if child_uuid not in visited_nodes:
+						child_content = self.cache_orchestrator.get_cached_block_content(child_uuid)
+						if child_content:
+							child_int_id = self.index.to_int(child_uuid)
+							if child_int_id:
+								all_blocks.add_block(child_int_id, child_content)
+								visited_nodes.add(child_uuid)
+								# If the child has children, add it to the queue to be processed
+								if child_content.get("has_children"):
+									queue.append((child_uuid, False))
+				
+				# Update block tree relationships
+				if block_tree:
+					block_tree.add_relationships(current_uuid, children_uuids)
+
+			except Exception as e:
+				log.error(f"Error fetching or processing children for block {current_uuid}: {e}")
+				# We continue processing other branches instead of failing the entire operation
+				continue
 		
-		if result is None:
-			raise CacheRetrievalError("block", str(current_cache_uuid))
-
-		# Handle tree operations
-		if block_tree is not None:
-			key_for_tree = sc_uuid_obj if sc_uuid_obj else uuid_obj
-			block_tree.add_parent(key_for_tree)
-
-		# Always fetch children recursively
-		log.flow("Retrieving children recursively for block " + str(current_cache_uuid))
-		key_for_recursion = sc_uuid_obj if sc_uuid_obj else uuid_obj
-		children_result = await self._get_all_children_recursively(key_for_recursion, block_tree, visited_nodes=set())
-
-		if isinstance(children_result, BlockDict):
-			for child_int_id, child_content in children_result.items():
-				result.add_block(child_int_id, child_content)
-
-		return result
+		log.flow(f"Completed recursive block fetching. Total blocks retrieved: {len(all_blocks.to_dict())}")
+		return all_blocks
 
 
 	async def _get_all_children_recursively(self, 
 										   block_identifier: Union[str, CustomUUID], 
 										   block_tree: Optional[BlockTree] = None,
 										   visited_nodes: Optional[set] = None) -> BlockDict:
-		"""
-		Internal method: Recursively fetch and flatten all children blocks.
-		
-		Args:
-			block_identifier: ID of the parent block
-			block_tree: Optional block tree for relationship tracking
-			visited_nodes: Set of visited nodes to prevent infinite recursion
-			
-		Returns:
-			BlockDict with all children data
-		"""
-		parent_uuid_obj = self.index.resolve_to_uuid(block_identifier)
-		if not parent_uuid_obj:
-			raise InvalidUUIDError(str(block_identifier))
-
-		if block_tree is None:
-			raise BlockTreeRequiredError("_get_all_children_recursively")
-
-		if visited_nodes is None:
-			visited_nodes = set()
-		
-		if parent_uuid_obj in visited_nodes:
-			log.error(f"Cycle detected: block {parent_uuid_obj} already visited. Skipping recursion.")
-			return BlockDict()
-		
-		visited_nodes.add(parent_uuid_obj)
-
-		# Initialize the flat BlockDict to accumulate all children
-		flat_children_block_dict = BlockDict()
-		
-		# Get immediate children
-		immediate_children_result = await self._get_block_children(parent_uuid_obj, block_tree)
-
-		# Add immediate children to flat dict and recurse
-		for child_int_id, child_content in immediate_children_result.items():
-			flat_children_block_dict.add_block(child_int_id, child_content)
-			
-			# Get child UUID for recursion
-			child_uuid_obj_for_recursion = self.index.get_uuid(child_int_id)
-			if child_uuid_obj_for_recursion:
-				try:
-					descendants_result = await self._get_all_children_recursively(
-						child_uuid_obj_for_recursion, 
-						block_tree, 
-						visited_nodes
-					)
-					flat_children_block_dict.update(descendants_result)
-				except NotionServiceError as e:
-					log.error(f"Error in recursive call for child {child_int_id}: {e}")
-					continue
-			else:
-				log.error(f"Could not find CustomUUID for int_id {child_int_id} during recursion")
-
-		return flat_children_block_dict
+		# This method is now obsolete and will be removed.
+		# For now, return an empty dict to avoid breaking any remaining calls.
+		log.error("Deprecated method _get_all_children_recursively was called.")
+		return BlockDict()
 
 
 	async def search_notion(self, 
