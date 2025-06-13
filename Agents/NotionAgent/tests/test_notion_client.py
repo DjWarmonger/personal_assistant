@@ -229,7 +229,7 @@ async def test_get_block_content_with_invalid_id(notion_client):
 @pytest.mark.asyncio
 async def test_get_block_content_recursive_return_type(notion_client):
 	"""Test that get_block_content always returns all children recursively"""
-	block_id = "593cf337c82a47fd80a750671b2a1e43"
+	block_id = os.getenv("NOTION_SYSTEMC_PAGE_ID")
 	block_tree = BlockTree()
 	
 	# Test that get_block_content always returns all children recursively

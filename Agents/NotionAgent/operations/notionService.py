@@ -173,13 +173,93 @@ class NotionService:
 		return block_dict
 
 
+	async def _process_block_batch(self,
+								   current_blocks: list,
+								   start_cursor: Optional[Union[int, str, CustomUUID]],
+								   all_blocks: BlockDict,
+								   visited_nodes: set,
+								   block_tree: Optional[BlockTree]) -> list:
+		"""
+		Private method to process a batch of blocks asynchronously.
+		
+		Args:
+			current_blocks: List of (uuid, is_root) tuples to process
+			start_cursor: Optional pagination cursor (only used for root blocks)
+			all_blocks: BlockDict to accumulate results
+			visited_nodes: Set of already visited UUIDs
+			block_tree: Optional block tree for relationship tracking
+			
+		Returns:
+			List of new (uuid, is_root) tuples to add to queue for next iteration
+		"""
+		async def process_single_block(current_uuid, is_root):
+			"""Process a single block and return its children for queuing."""
+			try:
+				# Determine the start_cursor only for the root block on the first call
+				cursor_for_fetch = start_cursor if is_root else None
+				sc_uuid_obj = self.index.resolve_to_uuid(cursor_for_fetch) if cursor_for_fetch else None
+				start_cursor_str = sc_uuid_obj.to_formatted() if sc_uuid_obj else None
+
+				# Directly call the API client
+				raw_children_data = await self.api_client.get_block_children_raw(str(current_uuid), start_cursor_str)
+				
+				# Process the raw response to get children
+				children_list = raw_children_data.get("results", [])
+				if not children_list:
+					return []
+
+				# Process and store the batch of children
+				children_uuids = self.block_manager.process_children_batch(children_list, current_uuid)
+				
+				# Collect new children for the queue
+				new_queue_items = []
+				for child_uuid in children_uuids:
+					if child_uuid not in visited_nodes:
+						child_content = self.cache_orchestrator.get_cached_block_content(child_uuid)
+						if child_content:
+							child_int_id = self.index.to_int(child_uuid)
+							if child_int_id:
+								all_blocks.add_block(child_int_id, child_content)
+								visited_nodes.add(child_uuid)
+								# If the child has children, add it to the queue to be processed
+								if child_content.get("has_children"):
+									new_queue_items.append((child_uuid, False))
+				
+				# Update block tree relationships
+				if block_tree:
+					block_tree.add_relationships(current_uuid, children_uuids)
+				
+				return new_queue_items
+
+			except Exception as e:
+				log.error(f"Error fetching or processing children for block {current_uuid}: {e}")
+				# Return empty list to continue processing other blocks
+				return []
+
+		# Process all blocks in the current batch asynchronously
+		batch_results = await asyncio.gather(
+			*[process_single_block(uuid, is_root) for uuid, is_root in current_blocks],
+			return_exceptions=True
+		)
+		
+		# Collect all new queue items from successful results
+		new_queue_items = []
+		for result in batch_results:
+			if isinstance(result, list):
+				new_queue_items.extend(result)
+			elif isinstance(result, Exception):
+				log.error(f"Exception in batch processing: {result}")
+		
+		return new_queue_items
+
+
 	async def get_block_content(self,
 								block_id: Union[int, str, CustomUUID],
 								start_cursor: Optional[Union[int, str, CustomUUID]] = None,
 								block_tree: Optional[BlockTree] = None) -> BlockDict:
 		"""
-		Get block content with all children recursively using a simple, robust queue-based approach.
-		This method is designed to be explicitly sequential to avoid concurrency issues.
+		Get block content with all children recursively using batch processing with asyncio.gather.
+		Processes all blocks in the current queue level asynchronously before moving to the next level.
 		
 		Args:
 			block_id: ID of the block to retrieve
@@ -219,61 +299,26 @@ class NotionService:
 			log.error(f"Failed to retrieve root block {uuid_obj}: {e}")
 			raise # Re-raise the exception to be caught by the client facade
 
-		# --- Step 2: Sequentially fetch children ---
+		# --- Step 2: Process children in batches asynchronously ---
 		while queue:
-			current_uuid, is_root = queue.popleft()
-
-			try:
-				# Determine the start_cursor only for the root block on the first call
-				cursor_for_fetch = start_cursor if is_root else None
-				sc_uuid_obj = self.index.resolve_to_uuid(cursor_for_fetch) if cursor_for_fetch else None
-				start_cursor_str = sc_uuid_obj.to_formatted() if sc_uuid_obj else None
-
-				# Directly and sequentially call the API client. This is the core of the fix.
-				raw_children_data = await self.api_client.get_block_children_raw(str(current_uuid), start_cursor_str)
-				
-				# Process the raw response to get children
-				children_list = raw_children_data.get("results", [])
-				if not children_list:
-					continue
-
-				# Process and store the batch of children
-				children_uuids = self.block_manager.process_children_batch(children_list, current_uuid)
-				
-				# Add new children to the final result and the queue for further processing
-				for child_uuid in children_uuids:
-					if child_uuid not in visited_nodes:
-						child_content = self.cache_orchestrator.get_cached_block_content(child_uuid)
-						if child_content:
-							child_int_id = self.index.to_int(child_uuid)
-							if child_int_id:
-								all_blocks.add_block(child_int_id, child_content)
-								visited_nodes.add(child_uuid)
-								# If the child has children, add it to the queue to be processed
-								if child_content.get("has_children"):
-									queue.append((child_uuid, False))
-				
-				# Update block tree relationships
-				if block_tree:
-					block_tree.add_relationships(current_uuid, children_uuids)
-
-			except Exception as e:
-				log.error(f"Error fetching or processing children for block {current_uuid}: {e}")
-				# We continue processing other branches instead of failing the entire operation
-				continue
+			# Extract all blocks currently in the queue for batch processing
+			current_batch = []
+			while queue:
+				current_batch.append(queue.popleft())
+			
+			# Process the entire batch asynchronously
+			new_queue_items = await self._process_block_batch(
+				current_batch, start_cursor, all_blocks, visited_nodes, block_tree
+			)
+			
+			# Add new items to the queue for the next iteration
+			queue.extend(new_queue_items)
 		
 		log.flow(f"Completed recursive block fetching. Total blocks retrieved: {len(all_blocks.to_dict())}")
 		return all_blocks
 
 
-	async def _get_all_children_recursively(self, 
-										   block_identifier: Union[str, CustomUUID], 
-										   block_tree: Optional[BlockTree] = None,
-										   visited_nodes: Optional[set] = None) -> BlockDict:
-		# This method is now obsolete and will be removed.
-		# For now, return an empty dict to avoid breaking any remaining calls.
-		log.error("Deprecated method _get_all_children_recursively was called.")
-		return BlockDict()
+
 
 
 	async def search_notion(self, 

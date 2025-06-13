@@ -199,9 +199,7 @@ async def test_initialization_only(mock_block_holder):
 @pytest.mark.asyncio
 async def test_real_api_call(api_client):
 	"""Test actual API call to Notion (requires valid token and page ID)."""
-	page_id = os.getenv("NOTION_LANDING_PAGE_ID")
-	if not page_id:
-		pytest.skip("NOTION_LANDING_PAGE_ID not found in environment")
+	page_id = os.getenv("NOTION_SYSTEMC_PAGE_ID")
 	
 	# NotionAPIClient doesn't need async context manager, just call the method directly
 	try:
