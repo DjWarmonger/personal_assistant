@@ -4,12 +4,12 @@ from typing import Dict, Any
 
 from tz_common import CustomUUID
 
-from ..operations.notionService import NotionService
-from ..operations.notionAPIClient import NotionAPIClient
-from ..operations.cacheOrchestrator import CacheOrchestrator
-from ..operations.blockDict import BlockDict
-from ..operations.blockCache import ObjectType
-from ..operations.blockTree import BlockTree
+from ..operations.notion.notionService import NotionService
+from ..operations.notion.notionAPIClient import NotionAPIClient
+from ..operations.blocks.cacheOrchestrator import CacheOrchestrator
+from ..operations.blocks.blockDict import BlockDict
+from ..operations.blocks.blockCache import ObjectType
+from ..operations.blocks.blockTree import BlockTree
 from ..operations.exceptions import (
 	InvalidUUIDError, BlockTreeRequiredError, CacheRetrievalError, 
 	APIError, ObjectTypeVerificationError

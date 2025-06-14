@@ -8,9 +8,9 @@ from typing import List, Union
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Use direct imports from operations
-from operations.notion_client import NotionClient
-from operations.asyncClientManager import AsyncClientManager
-from operations.index import Index
+from operations.notion.notion_client import NotionClient
+from operations.notion.asyncClientManager import AsyncClientManager
+from operations.blocks.index import Index
 from tz_common import CustomUUID
 
 class TestFavourites(unittest.TestCase):

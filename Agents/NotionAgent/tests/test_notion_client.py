@@ -8,10 +8,10 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Use direct imports from operations
-from operations.notion_client import NotionClient
-from operations.asyncClientManager import AsyncClientManager
-from operations.blockTree import BlockTree
-from operations.blockDict import BlockDict
+from operations.notion.notion_client import NotionClient
+from operations.notion.asyncClientManager import AsyncClientManager
+from operations.blocks.blockTree import BlockTree
+from operations.blocks.blockDict import BlockDict
 from tz_common import CustomUUID
 
 load_dotenv()

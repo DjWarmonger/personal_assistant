@@ -3,7 +3,7 @@ import unittest
 
 from tz_common import CustomUUID
 
-from operations.blockCache import BlockCache, ObjectType
+from operations.blocks.blockCache import BlockCache, ObjectType
 from operations.utils import Utils # Assuming Utils contains get_current_time_isoformat
 
 # Predefined valid UUIDs for testing

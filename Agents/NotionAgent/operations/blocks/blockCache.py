@@ -10,7 +10,7 @@ from tz_common.logs import log
 from tz_common.timed_storage import TimedStorage
 from tz_common import CustomUUID
 
-from .utils import Utils
+from ..utils import Utils
 
 # TODO: Split into cache key utils and db handler?
 

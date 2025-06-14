@@ -4,8 +4,8 @@ from typing_extensions import NotRequired
 from pydantic import Field
 
 from tz_common.langchain_wrappers import AgentState
-from operations.blockTree import BlockTree
-from operations.blockDict import BlockDict
+from operations.blocks.blockTree import BlockTree
+from operations.blocks.blockDict import BlockDict
 
 
 class PlannerAgentState(AgentState):

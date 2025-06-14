@@ -7,7 +7,7 @@ from tz_common.logs import log
 from .blockCache import BlockCache, ObjectType
 from .blockManager import BlockManager
 from .blockDict import BlockDict
-from .utils import Utils
+from ..utils import Utils
 from .index import Index
 
 

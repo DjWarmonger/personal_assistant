@@ -4,8 +4,8 @@ import re
 from unittest.mock import AsyncMock, patch, MagicMock
 from dotenv import load_dotenv
 
-from operations.notionAPIClient import NotionAPIClient
-from operations.blockHolder import BlockHolder
+from operations.notion.notionAPIClient import NotionAPIClient
+from operations.blocks.blockHolder import BlockHolder
 from operations.urlIndex import UrlIndex
 from operations.exceptions import HTTPError
 from tz_common import CustomUUID
@@ -51,8 +51,8 @@ async def test_get_page_raw_success(mock_block_holder):
 	mock_response.status_code = 200
 	mock_response.json = lambda: {"id": "test-page-id", "object": "page"}
 	
-	with patch('operations.notionAPIClient.AsyncClientManager.wait_for_next_request') as mock_wait, \
-		 patch('operations.notionAPIClient.AsyncClientManager.get_client') as mock_get_client:
+	with patch('operations.notion.notionAPIClient.AsyncClientManager.wait_for_next_request') as mock_wait, \
+		 patch('operations.notion.notionAPIClient.AsyncClientManager.get_client') as mock_get_client:
 		
 		mock_client = AsyncMock()
 		mock_client.get.return_value = mock_response
@@ -79,7 +79,7 @@ async def test_get_page_raw_error(mock_block_holder):
 	mock_response.status_code = 404
 	mock_response.json = lambda: {"message": "Page not found"}
 	
-	with patch('operations.notionAPIClient.AsyncClientManager.wait_for_next_request'), patch('operations.notionAPIClient.AsyncClientManager.get_client') as mock_get_client:
+	with patch('operations.notion.notionAPIClient.AsyncClientManager.wait_for_next_request'), patch('operations.notion.notionAPIClient.AsyncClientManager.get_client') as mock_get_client:
 		
 		mock_client = AsyncMock()
 		mock_client.get.return_value = mock_response
@@ -102,8 +102,8 @@ async def test_get_block_children_raw_with_cursor(mock_block_holder):
 	mock_response.status_code = 200
 	mock_response.json = lambda: {"results": [], "has_more": False}
 	
-	with patch('operations.notionAPIClient.AsyncClientManager.wait_for_next_request'), \
-		 patch('operations.notionAPIClient.AsyncClientManager.get_client') as mock_get_client:
+	with patch('operations.notion.notionAPIClient.AsyncClientManager.wait_for_next_request'), \
+		 patch('operations.notion.notionAPIClient.AsyncClientManager.get_client') as mock_get_client:
 		
 		mock_client = AsyncMock()
 		mock_client.get.return_value = mock_response
@@ -131,8 +131,8 @@ async def test_search_raw(mock_block_holder):
 	mock_response.status_code = 200
 	mock_response.json = lambda: {"results": [{"id": "result-1"}]}
 	
-	with patch('operations.notionAPIClient.AsyncClientManager.wait_for_next_request'), \
-		 patch('operations.notionAPIClient.AsyncClientManager.get_client') as mock_get_client:
+	with patch('operations.notion.notionAPIClient.AsyncClientManager.wait_for_next_request'), \
+		 patch('operations.notion.notionAPIClient.AsyncClientManager.get_client') as mock_get_client:
 		
 		mock_client = AsyncMock()
 		mock_client.post.return_value = mock_response
@@ -164,8 +164,8 @@ async def test_query_database_raw(mock_block_holder):
 	
 	filter_obj = {"property": "Status", "select": {"equals": "TODO"}}
 	
-	with patch('operations.notionAPIClient.AsyncClientManager.wait_for_next_request'), \
-		 patch('operations.notionAPIClient.AsyncClientManager.get_client') as mock_get_client:
+	with patch('operations.notion.notionAPIClient.AsyncClientManager.wait_for_next_request'), \
+		 patch('operations.notion.notionAPIClient.AsyncClientManager.get_client') as mock_get_client:
 		
 		mock_client = AsyncMock()
 		mock_client.post.return_value = mock_response

@@ -2,16 +2,37 @@
 Operations module for NotionAgent.
 """
 
-# Define imports as placeholders to prevent automatic loading
-# These will be populated when explicitly imported
+# Import from subdirectories
+from .blocks import (
+	BlockCache, ObjectType, BlockDict, BlockHolder, FilteringOptions,
+	BlockManager, BlockTree, Index, CacheOrchestrator
+)
+from .notion import (
+	AsyncClientManager, NotionClient, NotionAPIClient, NotionService
+)
+
+# Import remaining modules
+from .utils import Utils
+from .urlIndex import UrlIndex
+from .exceptions import *
+
 __all__ = [
-	"NotionClient",
+	# Block-related
 	"BlockCache",
+	"ObjectType", 
+	"BlockDict",
+	"BlockHolder",
+	"FilteringOptions",
+	"BlockManager",
 	"BlockTree",
 	"Index",
-	"UrlIndex",
-	"Utils",
-	"UUIDConverter",
+	"CacheOrchestrator",
+	# Notion-related
 	"AsyncClientManager",
-	"ObjectType"
+	"NotionClient",
+	"NotionAPIClient",
+	"NotionService",
+	# Utilities
+	"Utils",
+	"UrlIndex"
 ] 

@@ -7,10 +7,10 @@ import json
 # Update the import path to include the project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from operations.blockManager import BlockManager
-from operations.blockHolder import BlockHolder, FilteringOptions
-from operations.blockCache import BlockCache, ObjectType
-from operations.index import Index
+from operations.blocks.blockManager import BlockManager
+from operations.blocks.blockHolder import BlockHolder, FilteringOptions
+from operations.blocks.blockCache import BlockCache, ObjectType
+from operations.blocks.index import Index
 from operations.urlIndex import UrlIndex
 from tz_common import CustomUUID
 

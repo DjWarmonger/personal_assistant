@@ -8,7 +8,7 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Use direct imports from operations
-from operations.blockTree import BlockTree
+from operations.blocks.blockTree import BlockTree
 from tz_common import CustomUUID # Updated import
 
 # Predefined valid UUIDs for testing

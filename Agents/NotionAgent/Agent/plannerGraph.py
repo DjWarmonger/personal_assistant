@@ -12,8 +12,8 @@ from .agentTools import planner_tool_executor, client
 from .agentState import PlannerAgentState, NotionAgentState, WriterAgentState
 from .graph import notion_agent
 from .writerGraph import writer_agent
-from operations.blockTree import BlockTree
-from operations.blockDict import BlockDict
+from operations.blocks.blockTree import BlockTree
+from operations.blocks.blockDict import BlockDict
 
 
 def planner_start(state: PlannerAgentState) -> PlannerAgentState:

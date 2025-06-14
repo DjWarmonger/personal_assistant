@@ -1,6 +1,6 @@
 ---
 description: Database and Storage features
-globs: operations/*.py,Agents/NotionAgent/operations/*.py
+globs: operations/blocks/*.py,Agents/NotionAgent/operations/blocks/*.py
 alwaysApply: false
 ---
 ## Block Handling and Data Flow

@@ -3,13 +3,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
 
 from tz_common import CustomUUID
-from operations.cacheOrchestrator import CacheOrchestrator
-from operations.blockCache import BlockCache, ObjectType
-from operations.blockManager import BlockManager
-from operations.blockDict import BlockDict
-from operations.index import Index
+from operations.blocks.cacheOrchestrator import CacheOrchestrator
+from operations.blocks.blockCache import BlockCache, ObjectType
+from operations.blocks.blockManager import BlockManager
+from operations.blocks.blockDict import BlockDict
+from operations.blocks.index import Index
 from operations.urlIndex import UrlIndex
-from operations.blockHolder import BlockHolder
+from operations.blocks.blockHolder import BlockHolder
 
 
 # Test Constants

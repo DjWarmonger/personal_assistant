@@ -12,7 +12,7 @@ from tz_common.actions import AgentActionListUtils
 from .agents import writer_agent_runnable
 from .agentTools import writer_tool_executor, client
 from .agentState import WriterAgentState
-from operations.blockTree import BlockTree
+from operations.blocks.blockTree import BlockTree
 
 
 def writer_start(state: WriterAgentState) -> WriterAgentState:

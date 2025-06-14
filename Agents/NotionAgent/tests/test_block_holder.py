@@ -6,8 +6,8 @@ import copy
 # Update the import path to include the project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from operations.blockHolder import BlockHolder, FilteringOptions
-from operations.index import Index
+from operations.blocks.blockHolder import BlockHolder, FilteringOptions
+from operations.blocks.index import Index
 from operations.urlIndex import UrlIndex
 from tz_common import CustomUUID
 

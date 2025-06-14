@@ -5,8 +5,8 @@ from tz_common import CustomUUID
 from tz_common.logs import log
 
 from .asyncClientManager import AsyncClientManager
-from .blockHolder import BlockHolder
-from .exceptions import HTTPError
+from ..blocks.blockHolder import BlockHolder
+from ..exceptions import HTTPError
 
 
 class NotionAPIClient:

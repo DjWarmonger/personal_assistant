@@ -7,15 +7,15 @@ from tz_common import CustomUUID
 from tz_common.logs import log
 
 from .notionAPIClient import NotionAPIClient
-from .cacheOrchestrator import CacheOrchestrator
-from .index import Index
-from .urlIndex import UrlIndex
-from .blockCache import ObjectType
-from .blockTree import BlockTree
-from .blockHolder import BlockHolder
-from .blockDict import BlockDict
-from .blockManager import BlockManager
-from .exceptions import (
+from ..blocks.cacheOrchestrator import CacheOrchestrator
+from ..blocks.index import Index
+from ..urlIndex import UrlIndex
+from ..blocks.blockCache import ObjectType
+from ..blocks.blockTree import BlockTree
+from ..blocks.blockHolder import BlockHolder
+from ..blocks.blockDict import BlockDict
+from ..blocks.blockManager import BlockManager
+from ..exceptions import (
 	NotionServiceError, InvalidUUIDError, BlockTreeRequiredError,
 	CacheRetrievalError, APIError, ObjectTypeVerificationError
 )

@@ -1,6 +1,6 @@
 ---
 description: 
-globs: 
+globs: operations/notion/*.py,Agents/NotionAgent/operations/notion/*.py
 alwaysApply: false
 ---
 # Notion Client Architecture

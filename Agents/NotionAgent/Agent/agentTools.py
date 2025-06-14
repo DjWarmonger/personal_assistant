@@ -2,9 +2,9 @@ from typing import Optional, Type, Any
 from langchain_core.pydantic_v1 import Field, validator
 
 from langfuse.decorators import observe
-from operations.notion_client import NotionClient
-from operations.blockDict import BlockDict
-from operations.blockHolder import FilteringOptions
+from operations.notion.notion_client import NotionClient
+from operations.blocks.blockDict import BlockDict
+from operations.blocks.blockHolder import FilteringOptions
 from tz_common import log, JsonConverter
 from tz_common import CustomUUID
 from tz_common.tasks import AgentTask, AgentTaskList

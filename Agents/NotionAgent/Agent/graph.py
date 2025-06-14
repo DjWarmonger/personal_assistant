@@ -14,8 +14,8 @@ from tz_common.actions import AgentActionListUtils
 from .agents import notion_agent_runnable
 from .agentTools import tool_executor, client
 from .agentState import NotionAgentState
-from operations.blockTree import BlockTree
-from operations.blockDict import BlockDict
+from operations.blocks.blockTree import BlockTree
+from operations.blocks.blockDict import BlockDict
 
 # TODO: Add to other agents?
 langfuse_handler = create_langfuse_handler(user_id="Notion Agent")

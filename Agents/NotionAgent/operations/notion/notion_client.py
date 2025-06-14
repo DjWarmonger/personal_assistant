@@ -6,14 +6,14 @@ from tz_common import CustomUUID
 from tz_common.logs import log, LogLevel
 
 from .asyncClientManager import AsyncClientManager
-from .index import Index
-from .urlIndex import UrlIndex
-from .blockCache import BlockCache
-from .blockTree import BlockTree
-from .blockHolder import BlockHolder
-from .blockDict import BlockDict
-from .blockManager import BlockManager
-from .cacheOrchestrator import CacheOrchestrator
+from ..blocks.index import Index
+from ..urlIndex import UrlIndex
+from ..blocks.blockCache import BlockCache
+from ..blocks.blockTree import BlockTree
+from ..blocks.blockHolder import BlockHolder
+from ..blocks.blockDict import BlockDict
+from ..blocks.blockManager import BlockManager
+from ..blocks.cacheOrchestrator import CacheOrchestrator
 from .notionAPIClient import NotionAPIClient
 from .notionService import NotionService
 
