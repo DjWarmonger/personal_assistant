@@ -82,9 +82,6 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 
 	messages_with_context = get_message_timeline_from_state(state)
 
-	# Add current time information to context
-	messages_with_context.append(create_current_time_message())
-
 	if state['unsolvedTasks']:
 		messages_with_context.append(AIMessage(content=remaining_tasks))
 	if state['completedTasks']:
@@ -98,6 +95,9 @@ def call_notion_agent(state: NotionAgentState) -> NotionAgentState:
 	#	messages_with_context.append(AIMessage(content=actions_str))
 	if state["recentResults"]:
 		messages_with_context.append(AIMessage(content=recent_calls))
+
+	# Add current time information to context
+	messages_with_context.append(create_current_time_message())
 
 	response = notion_agent_runnable.invoke({"messages": messages_with_context})
 

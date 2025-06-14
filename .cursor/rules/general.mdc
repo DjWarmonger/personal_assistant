@@ -8,3 +8,34 @@ alwaysApply: false
 * Only handle TODO and FIXME tasks if they are related to task at hand
 * Only delete existing comments if they are invalidated by current changes
 * Do not delete commented-out code unless it's completely invalidated by new change
+
+# Single Source of Truth
+
+*Principle:* Each fact, constant, and behavior should have **one and only one** authoritative definition. All other parts of the system must reference that single source rather than redefining or duplicating it.
+
+## 1. Centralize constants & configuration
+
+* Replace magic numbers or strings with named constants, configuration entries, or enum values.
+* Define each constant **once** (e.g., in a dedicated `constants.py`, `.env`, or enum) and import/reference it wherever needed.
+* When modules exchange values, pass the centralized definition rather than copying the literal value.
+
+## 2. Synchronize shared state
+
+* If Module A depends on Module B's runtime state, expose an explicit API (method, event, message) for querying or updating that state.
+* **Never assume** another module is already in a required state; verify—or await confirmation—before proceeding.
+* Favor immutable data structures or message-passing patterns to minimize accidental drift.
+
+## 3. Consolidate documentation
+
+* Document each behavior in a **single** canonical location.
+* In code comments, focus on *intent*, *responsibilities*, and the *public contract*; avoid duplicating implementation details in external docs.
+* When external documentation is necessary, link directly to the canonical file path or URL instead of paraphrasing its contents.
+
+## 4. Eliminate hidden coupling
+
+* Avoid implicit data dependencies, such as global variables modified elsewhere.
+* Make any unavoidable dependency explicit through function parameters, constructor injection, or clearly defined interfaces.
+
+## 5. Review & enforcement
+
+* During code review, flag duplicated literals, undocumented dependencies, or diverging documentation.

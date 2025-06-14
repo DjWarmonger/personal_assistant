@@ -1,3 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+## BlockHolder Refactoring Implementation Issues
+
+* Issue: Misunderstood cache storage requirements during initial planning phase. Initially proposed changing cache to store int IDs instead of UUIDs.
+* Resolution: User corrected that cache should continue storing UUIDs internally as they are immutable and important. Int IDs are only optimization layer for AI Agent exposure at `BlockManager`/Agent interface level.
+* Prevention: Clarify data storage requirements and immutability constraints before proposing architectural changes. Ask about data persistence requirements and which identifiers are considered canonical.
 ## BlockHolder Refactoring Implementation Issues
 
 * Issue: Misunderstood cache storage requirements during initial planning phase. Initially proposed changing cache to store int IDs instead of UUIDs.
@@ -19,7 +29,7 @@
 ## Agent Tool UUID Resolution Errors
 
 * Issue: Agent tools were failing with "Invalid type for identifier: <class 'NoneType'>" when calling `resolve_to_uuid(index)` with non-existent index values.
-* Resolution: Added proper None checking in `NotionGetChildrenTool` and `NotionGetBlockContentTool` with meaningful error messages for invalid indices.
+* Resolution: Added proper None checking in `NotionGetBlockContentTool` with meaningful error messages for invalid indices. Note: `NotionGetChildrenTool` was later removed as redundant.
 * Prevention: Always validate input parameters and handle None/invalid cases gracefully in tool implementations. Provide clear error messages indicating what went wrong.
 
 ## Code Duplication in JSON Parsing

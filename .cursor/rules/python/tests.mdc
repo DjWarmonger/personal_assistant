@@ -84,6 +84,9 @@ echo "Running JsonAgent tests..."
 python -m pytest Agents/JsonAgent/tests
 ```
 
+* If you need to test more than one test case from a suite, run the full suite
+* If you need to test more than one suite, run all the tests at once
+
 ## Test Isolation
 
 Tests should be isolated from each other:
@@ -93,32 +96,6 @@ Tests should be isolated from each other:
 3. Use temporary files and directories when needed
 4. Clean up any resources after tests complete
 
-## Debugging Tests
-
-For debugging failing tests:
-
-```bash
-# Run with verbose output and stop on first failure
-python -m pytest Agents/NotionAgent/tests -v -x
-
-# Run with pdb debugger on failures
-python -m pytest Agents/NotionAgent/tests --pdb
-
-# Run specific test with output capture disabled
-python -m pytest -s Agents/NotionAgent/tests/test_file.py::test_method
-```
-
-# Remove empty / outdated tests - Case study
-
-## Issue: Obsolete/Placeholder Tests in `test_block_tree.py`
-*   The file `test_block_tree.py` contained many placeholder tests with `@patch` decorators but no actual assertions relevant to the current `BlockTree` API.
-
-## Resolution: Obsolete/Placeholder Tests in `test_block_tree.py`
-*   These tests were removed, and new, relevant tests were added for `is_empty`, `get_tree_str` on an empty tree, duplicate relationships, and `from_dict` with empty inputs.
-
-## Prevention: Obsolete/Placeholder Tests in `test_block_tree.py`
-*   Regularly review and clean up test suites to remove obsolete tests that no longer reflect the current codebase, improving clarity and maintainability.
-
 ## Avoid Testing Trivial Imports
 
 Skip testing imports that only verify module loading without any actual functionality. Focus testing efforts on:
@@ -127,5 +104,38 @@ Skip testing imports that only verify module loading without any actual function
 - Error handling and edge cases
 - Integration between components
 - Data validation and transformation
+
+## Test-Suite lifecycle and maintenance
+
+### Keep the Suite Relevant
+
+* Routinely prune empty, placeholder, or obsolete tests.
+* Add new tests only for current, meaningful API behaviour.
+
+ ### Know the Test's Purpose
+
+* **Migration / Verification tests** - temporary helpers to confirm parity with a legacy system. Plan their deletion as soon as the migration is finished.
+* **Unit tests** - isolate and check one small unit of logic.
+* **Integration tests** - exercise interactions across components.
+
+ ## Ask the Value Question First
+
+* Before writing any test, ask: “Will this still earn its keep after the feature ships?”
+* If its value disappears (e.g., after a migration), schedule its removal up front.
+
+ ### Organise by Production Module
+
+* Prefer one test file per production file (e.g., `block_manager.py` → `test_block_manager.py`).
+* When a file grows, group related cases into classes within the same file (`TestCache`, `TestFiltering`, …).
+* Split into a separate file only when the new scope is clearly distinct and enduring.
+
+ ### Avoid “Phase” Files
+
+* Do not create throw-away files like `test_feature_phase1.py`, `test_feature_phase2.py`.
+* Append new scenarios to the existing file instead of scattering tests across versions.
+
+Follow these principles yo keeps the test suite clear, lean, and genuinely protective of the evolving codebase.
+
+
 
 

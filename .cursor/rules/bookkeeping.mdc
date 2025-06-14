@@ -3,55 +3,47 @@ description:
 globs: *.md
 alwaysApply: false
 ---
-# Update docs and notes after completing the task
+# Documentation & Notes Update Policy
 
-This document explains when and how to update README, TODO, BACKLOG, ALREADY_DONE and setup.md
+This document explains on how to save notes and modify .md files for future reference.
+These rules are written for an autonomous coding agent. All `.notes` entries and modified `.md` files feed directly into the agent's future context, so optimize for AI comprehension.
 
-* Top-level folder as well as project subfolders may have separate .md documentation. Update documentation according to scope of change.
+## Scope
 
-* **CRITICAL: Wait for explicit user confirmation that the feature is implemented and working correctly before updating any TODO, BACKLOG, or ALREADY_DONE files.** 
-  - Do NOT assume the feature is complete just because code has been written
-  - Do NOT update these files based on successful compilation or test passes alone
-  - ALWAYS ask the user directly: "The feature appears to be implemented. Have you tested it and confirmed it's working as expected? Should I update the TODO/ALREADY_DONE documentation?"
-  - Only proceed with documentation updates after receiving clear user confirmation (e.g., "Yes, it's working" or "Yes, please update the docs")
+Each directory (root and sub-folders) may have its own `.md` docs. Update only the files affected by your change.
 
-* After feature is implemented and **explicitly confirmed by the user to be working**, update corresponding TODO, BACKLOG and ALREADY_DONE md files. Move features from TODO or BACKLOG to ALREADY_DONE when they are finished.
+## Confirmation Gate
 
-* When required libraries, variables, scripts or external configuration change, update setup.md accordingly. Make sure these instructions allow new developer launch the project with no prior knowledge about it.
+**Never** modify `TODO.md`, `BACKLOG.md`, or `ALREADY_DONE.md` until the user explicitly confirms that the feature works.
 
-* Ater scope of changes is changed and verified, document project goal, architecture, structure and other assumptions in README.md
+1. When implementation appears finished, ask:
 
-# Document encountered problems inside .notes
+   > "The feature seems implemented. Have you tested it and confirmed it works? May I update the documentation?"
+2. Proceed only after a clear **Yes**.
 
-Notes are scratchpad for future guidelines optimized for AI coding agent.
+## After Confirmation
 
-* Proceed only after a task has been completed or issue has been solved and confirmed to work
-* Add new .md report to .notes folder.
-* Write there notes regarding faced problems and technical issues that took multiple rounds and clarifications to resolve. In particular:
-- Note user complaints and interventions.
-- Note technical obstacles.
-- Write down unforseen problems
-- Write down missing or inaccessible data or context unlikely to be deduced by coding agent alone.
+* Move completed items from `TODO`/`BACKLOG` to `ALREADY_DONE`.
+* If you changed libraries, environment variables, scripts, or external configuration, update `setup.md` so a newcomer can run the project unaided.
+* When project goals or architecture change, refresh `README.md` accordingly.
 
-## Note standards
+---
 
-* Focus on helpful advice which can help coding agent do better next time. Prefer applicable guidelines over just documenting past events.
-* Keep notes distinct and separate from each other to help splitting or reordering by human supervisor.
-* Prefer concise form over excessive formatting.
-- Avoid bold text (double **).
-- Use hashes (#) to mark sections and titles.
+# Problem-Solving Notes (`.notes/`)
 
-## Use this format
+## When to Write
 
-`##` Issue title
+Create a new `.md` file in `.notes/` **only after** the issue is solved and confirmed.
 
-* Issue: Encountered error message if any, brief description of the problem.
-* Resolution: Applied solution. Use code quotation marks (`name`) for names of classes, variables, files or directories.
-* Prevention: How to avoid this issue in the future, for example but not limited to:
-- Clarify requirements
-- Clarify assumptions
-- Resolve ambiguity
-- Propose multiple alternatives to user
-- Use proven solutions
-- Check edge cases, anticipate incorrect inputs or states
-- Use standarized file structure, class structure or architectural patterns across the project
+## What to Capture
+
+* **Issue**: error message or concise description.
+* **Resolution**: what fixed it (use back-ticks for code, file, or symbol names).
+* **Prevention**: actionable guidance to avoid recurrence, e.g. clarify requirements, handle edge cases, propose alternatives, adopt patterns.
+
+## Style
+
+* Be concise; skip ornamental formatting.
+* Remember: these notes and docs will be parsed by an AI; use clear structure, short declarative sentences, and avoid ambiguous pronouns.
+* Use `#` headings, plain lists, and no bold within notes.
+* Keep each note self-contained to ease re-ordering or splitting.

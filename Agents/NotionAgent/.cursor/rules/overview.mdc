@@ -1,10 +1,11 @@
 ---
-description: Project overwiew and goals
-globs: ./**/*.py
+description: 
+globs: Agents/NotionAgent/*.py
+alwaysApply: false
 ---
 # Project Overview
 
-Notion Agent interacts with Notion’s API, navigating across pages, retrieving relevant content, and returning it to the user. It can handle requests from humans or other agents. Future plans include more advanced configurations.
+Notion Agent interacts with Notion's API, navigating across pages, retrieving relevant content, and returning it to the user. It can handle requests from humans or other agents. Future plans include more advanced configurations.
 
 # Project Goals
 

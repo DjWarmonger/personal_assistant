@@ -77,13 +77,18 @@ Your goal is to search for information in the Notion workspace and navigate to s
 </tools>
 
 <instructions>
-If a message indicates that a page or block was visited, consider it as visited. You will not directly see the page or block content.
+- If a message indicates that a page or block was visited, consider it as visited. You will not have direct view at the page or block content.
+- When you use NotionGetBlockContent, all children blocks will be automatically fetched recursively - no need to call additional tools for nested content.
 </instructions>
 
 <tasks>
-1. Use complete_task tool to indicate that given task got finished.
-2. Finishing all tasks will be considered as completing the assignment.
-3. Do not output extra text, only use tools. Extra text will be ignored.
+- Use complete_task tool to indicate that given task got finished. Use the uuid of the task to complete.
+- Do NOT use Notion page or block UUIDs, these are not task UUIDs.
+- Do NOT use tool call or action UUIDs, these are not task UUIDs.
+- Complete all tasks to finish your assignment.
+- Do not output extra text, only use tools. Extra text will be ignored.
+- Do not call tool that failed again with same arguments.
+- If you were unable to complete the task successfully, use complete_task tool with status "FAILED".
 </tasks>
 """
 

@@ -14,6 +14,7 @@ from .agentTools import writer_tool_executor, client
 from .agentState import WriterAgentState
 from operations.blockTree import BlockTree
 
+
 def writer_start(state: WriterAgentState) -> WriterAgentState:
 
 	log.flow(f"Entered start")
@@ -39,18 +40,31 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 
 	# TODO: Refactor duplicated code?
 	if not state["blockTree"].is_empty():
-		tree_mapping = client.index.to_int(state["blockTree"].get_all_nodes())
+		all_tree_nodes = state["blockTree"].get_all_nodes()
+		
+		# Ensure all nodes in the tree are added to the index first
+		for uuid_node in all_tree_nodes:
+			client.index.add_uuid(uuid_node, name="")
+		
+		# Now get the mapping from UUID to int
+		tree_mapping = client.index.to_int(all_tree_nodes)
 
-		#log.debug(f"Tree ids:", tree_mapping.values())
-		tree_names = client.index.get_names(list(tree_mapping.values()))
+		# Get names for all the integer IDs
+		valid_int_ids = [int_id for int_id in tree_mapping.values() if int_id is not None]
+		tree_names = client.index.get_names(valid_int_ids)
 
 		log.debug(f"Tree names:", {uuid: name for uuid, name in tree_names.items() if name != ""})
 
+		# Create the final mapping with formatted strings
 		for uuid, index in tree_mapping.items():
-			if index in tree_names and tree_names[index] != "":
-				tree_mapping[uuid] = f"{index}:{tree_names[index]}"
+			if index is not None:
+				if index in tree_names and tree_names[index] != "":
+					tree_mapping[uuid] = f"{index}:{tree_names[index]}"
+				else:
+					tree_mapping[uuid] = f"{index}"
 			else:
-				tree_mapping[uuid] = f"{index}"
+				# This shouldn't happen now, but as a fallback
+				tree_mapping[uuid] = str(uuid)
 
 		tree_str = state['blockTree'].get_tree_str(tree_mapping)
 
@@ -60,7 +74,15 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 	else:
 		log.error("Block tree is empty")
 	
-	visitedBlocks = f"All visited blocks (id : content):\n" + '\n'.join([f"{key} : {value}" for key, value in state["visitedBlocks"].items()])
+	# Apply filtering to visitedBlocks content using BlockHolder
+	filtered_visited_blocks = client.block_holder.apply_visited_blocks_filters(
+		state["visitedBlocks"].to_dict(),
+		remove_block_id=True,
+		remove_parent_info=True,
+		remove_has_children=True
+	)
+	
+	visitedBlocks = f"All visited blocks (id : content):\n" + '\n'.join([f"{key} : {value}" for key, value in filtered_visited_blocks.items()])
 
 	# TODO: Possibly reorder  visitedBlocks according to the block tree
 

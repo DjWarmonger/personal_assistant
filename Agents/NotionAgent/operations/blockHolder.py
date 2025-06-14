@@ -236,4 +236,64 @@ class BlockHolder:
 		if "request_id" in message:
 			del message["request_id"]
 
-		return message 
+		return message
+
+
+	def _filter_block_id(self, content: dict) -> dict:
+		"""Remove block id field from content."""
+		filtered = content.copy()
+		if 'id' in filtered:
+			del filtered['id']
+		return filtered
+
+
+	def _filter_parent_info(self, content: dict) -> dict:
+		"""Remove parent information from content."""
+		filtered = content.copy()
+		if 'parent' in filtered:
+			del filtered['parent']
+		return filtered
+
+
+	def _filter_has_children_info(self, content: dict) -> dict:
+		"""Remove has_children field from content."""
+		filtered = content.copy()
+		if 'has_children' in filtered:
+			del filtered['has_children']
+		return filtered
+
+
+	def apply_visited_blocks_filters(self, visited_blocks: dict, 
+									remove_block_id: bool = True,
+									remove_parent_info: bool = True, 
+									remove_has_children: bool = True) -> dict:
+		"""
+		Apply filtering to visitedBlocks content for writer agent context.
+		Each filter can be toggled independently for easy experimentation.
+		
+		Args:
+			visited_blocks: Dictionary of block_id -> content
+			remove_block_id: Whether to remove 'id' field
+			remove_parent_info: Whether to remove 'parent' field  
+			remove_has_children: Whether to remove 'has_children' field
+			
+		Returns:
+			Filtered dictionary with same structure
+		"""
+		filtered_blocks = {}
+		
+		for block_id, content in visited_blocks.items():
+			filtered_content = content.copy()
+			
+			if remove_block_id:
+				filtered_content = self._filter_block_id(filtered_content)
+				
+			if remove_parent_info:
+				filtered_content = self._filter_parent_info(filtered_content)
+				
+			if remove_has_children:
+				filtered_content = self._filter_has_children_info(filtered_content)
+				
+			filtered_blocks[block_id] = filtered_content
+		
+		return filtered_blocks 

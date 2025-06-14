@@ -3,6 +3,9 @@ description:
 globs: 
 alwaysApply: false
 ---
+# Agent Design
+
+This document describes architecture of Agents: their state, tools, data flow and exception handling. It also clarifies assumptions and guidelines of how Agent logic shoudl interact with the rest of codebase.
 
 ## Core Principles
 
@@ -43,8 +46,6 @@ alwaysApply: false
    ❌ Don't mix concerns in single files
    ✅ Separate operations from tools
    ✅ Keep related code together
-
-# Agent Design
 
 ## Tool Return Types
 

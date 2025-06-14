@@ -90,10 +90,12 @@ def process_tool_calls(last_message, tool_executor : ToolExecutor, state: AgentS
 		loop.close()
 
 	for key, (action, message) in processed_results.items():
-		log.debug(f"Result of tool {key}:", message)
+		tool_status = "SUCCESS" if action.status == ActionStatus.COMPLETED else "failed"
+		tool_result_message = f"Result of tool {key}: {tool_status}, {message}"
+		log.knowledge(f"Result of tool {key}: {tool_status}", message)
 
 		# Show AI tool call -> result
-		ai_message = AIMessage(content=f"Result of tool {key}: {message}")
+		ai_message = AIMessage(content=tool_result_message)
 		add_timestamp(ai_message)
 		state["recentResults"].append(ai_message)
 		state["toolResults"].append(ai_message)

@@ -17,7 +17,9 @@ alwaysApply: false
 
 - Always use proper type hints
 - At the beginning of each method check if type hints conditions are met.
-- Define custom types for clarity (e.g., `JsonDocument = Dict[str, Any]`)
+- Define custom types for clarity (e.g., `JsonDocument = Dict[str, Any]`) when such type is used in multiple places
+- For complex data types that are passed around implement Pydantic models
+- Use proper type hints with Union types when methods can return different types
 
 ## Enums and Constants
 
