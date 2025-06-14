@@ -97,7 +97,9 @@ class TimedStorage(ABC):
 	def stop_periodic_save(self):
 
 		self._stop_event.set()
-		self._timer.join()
+		# Only join if the thread was actually started
+		if self._timer.is_alive():
+			self._timer.join()
 
 	
 	def save_now(self):

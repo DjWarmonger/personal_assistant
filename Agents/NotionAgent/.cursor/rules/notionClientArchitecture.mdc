@@ -1,0 +1,152 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Notion Client Architecture
+
+## Overview
+
+The architecture follows the facade pattern with clear separation between HTTP communication, business logic, and caching orchestration.
+
+## Architecture Layers
+
+### 1. **NotionClient (Facade)**
+- **Primary Role**: Maintains backward compatibility while delegating to the new service architecture.
+- **Responsibilities**:
+  - Acts as the entry point for all Notion operations
+  - Is called directly by Agent tools
+  - Initializes and coordinates all service layer components
+  - Converts exceptions to error strings for backward compatibility
+- **Key Methods**: Public methods used by agent tools (`get_notion_page_details`, `get_block_content`, `search_notion`, `query_database`)
+- **Dependencies**: Initializes and manages `NotionAPIClient`, `CacheOrchestrator`, and `NotionService`
+
+### 2. **NotionAPIClient (HTTP Layer)**
+- **Primary Role**: Handles pure HTTP communication with the Notion API.
+- **Responsibilities**:
+  - Makes raw HTTP requests to Notion API endpoints
+  - Manages API headers, authentication, and rate limiting coordination
+  - Handles HTTP-level error responses and status codes
+  - Provides clean, typed interfaces for each API endpoint
+- **Core Methods**:
+  - `get_page_raw()`: Fetches raw page data
+  - `get_database_raw()`: Fetches raw database data
+  - `get_block_children_raw()`: Fetches raw block children data
+  - `search_raw()`: Performs raw search operations
+  - `query_database_raw()`: Performs raw database queries
+- **Features**:
+  - Rate limiting integration via `AsyncClientManager`
+  - Structured error handling with `HTTPError` exceptions
+  - Filter parsing utilities for database queries
+  - Async context manager support
+
+### 3. **NotionService (Business Logic Layer)**
+- **Primary Role**: Orchestrates business logic for Notion operations.
+- **Responsibilities**:
+  - Coordinates between HTTP client, cache orchestrator, and utilities
+  - Implements high-level Notion functionality and workflows
+  - Manages UUID/integer ID conversions and resolution
+  - Handles recursive operations and tree management
+  - Provides structured exception handling with custom exception types
+- **Public Methods** (called by NotionClient facade):
+  - `get_notion_page_details()`: Page/database retrieval with caching
+  - `get_block_content()`: Block content with recursive children fetching
+  - `search_notion()`: Search with caching support
+  - `query_database()`: Database queries with filtering and caching
+- **Internal Methods** (implementation details):
+  - `_get_block_children()`: Retrieves immediate children from cache
+- **Dependencies**: NotionAPIClient, CacheOrchestrator, Index, UrlIndex, BlockHolder, BlockManager
+
+### 4. **CacheOrchestrator (Cache Management)**
+- **Primary Role**: Orchestrates caching operations and cache-or-fetch patterns.
+- **Responsibilities**:
+  - Implements cache-or-fetch patterns for all resource types
+  - Manages cache invalidation based on `last_edited_time`
+  - Coordinates between `BlockCache` and `BlockManager`
+  - Provides centralized cache access methods
+- **Core Methods**:
+  - `get_or_fetch_page()`, `get_or_fetch_database()`, `get_or_fetch_block()`
+  - `get_cached_search_results()`, `cache_search_results()`
+  - `get_cached_database_query_results()`, `cache_database_query_results()`
+  - `verify_object_type_or_raise()`: Object type validation
+- **Features**:
+  - Automatic cache invalidation based on timestamps
+  - Support for paginated results caching
+  - Object type verification for database operations
+
+## Data Flow & Interaction
+
+### Typical Request Flow
+1. **Client Request**: `NotionClient` receives a method call (e.g., `get_notion_page_details`)
+2. **Service Delegation**: `NotionClient` delegates to `NotionService` with error handling
+3. **Cache Check**: `NotionService` uses `CacheOrchestrator` to check cache first
+4. **API Fallback**: If cache miss, `CacheOrchestrator` calls provided fetcher function
+5. **HTTP Request**: Fetcher function uses `NotionAPIClient` for raw API call
+6. **Data Processing**: `BlockManager` processes and stores raw data with UUID conversion
+7. **Response**: Processed data returned as `BlockDict` through the layers
+
+### Recursive Block Content Retrieval Flow (`get_block_content`)
+1. **Root Block Retrieval**: Calls `get_notion_page_details` to fetch the root block content
+2. **Queue-Based Processing**: Uses a breadth-first search with a deque queue to process blocks sequentially
+3. **Children Fetching**: For each block, calls `NotionAPIClient.get_block_children_raw` directly
+4. **Batch Processing**: Uses `BlockManager.process_children_batch` to process and store children
+5. **Cache Integration**: Retrieves cached content via `CacheOrchestrator.get_cached_block_content`
+6. **Cycle Detection**: Maintains `visited_nodes` set to prevent infinite loops
+7. **Tree Management**: Updates `BlockTree` relationships for parent-child tracking
+8. **Error Resilience**: Continues processing other branches if individual blocks fail
+
+### Error Handling Strategy
+- **HTTP Layer**: `HTTPError` for API communication failures
+- **Service Layer**: Custom exceptions (`InvalidUUIDError`, `CacheRetrievalError`, `APIError`, etc.)
+- **Facade Layer**: Converts exceptions to error strings for backward compatibility
+
+### UUID and Integer ID Management
+- **Service Layer**: Handles UUID resolution and integer ID conversion
+- **Error Messages**: Uses integer IDs for user-facing error messages (e.g., "Database 123 was expected to be a database")
+- **Cache Keys**: Uses UUIDs internally for cache operations
+- **Public API**: Accepts both UUIDs and integer IDs, resolves appropriately
+
+## Key Design Principles
+
+### 1. **Separation of Concerns**
+- HTTP communication isolated in `NotionAPIClient`
+- Business logic centralized in `NotionService`
+- Cache management delegated to `CacheOrchestrator`
+- Backward compatibility maintained in `NotionClient` facade
+
+### 2. **Dependency Injection**
+- All components receive dependencies through constructor injection
+- Enables easy testing with mock objects
+- Clear dependency relationships and initialization order
+
+### 3. **Async/Await Throughout**
+- All API operations are async for proper concurrency
+- Consistent async patterns across all layers
+- Proper error propagation in async context
+
+### 4. **Structured Exception Handling**
+- Custom exception types for different error categories
+- Clear error messages with relevant context
+- Proper exception chaining and original error preservation
+
+## Testing Strategy
+
+### Layer-Specific Testing
+- **NotionAPIClient**: HTTP mocking, rate limiting, error handling
+- **NotionService**: Business logic, UUID resolution, queue-based recursive operations
+- **CacheOrchestrator**: Cache patterns, invalidation, type verification
+- **NotionClient**: Integration testing, backward compatibility
+
+### Mock Strategy
+- `NotionAPIClient`: Mock HTTP responses and rate limiting, especially `get_block_children_raw` for recursive tests
+- `CacheOrchestrator`: Mock cache operations, invalidation, and `get_cached_block_content` for children retrieval
+- `BlockManager`: Mock `process_children_batch` for children processing
+- `Index`: Mock UUID/integer ID conversions with proper return types
+- Service dependencies: Mock all external dependencies for isolation
+
+### Testing `get_block_content` Implementation
+- **Root Block Mocking**: Mock `get_notion_page_details` to return root block content
+- **API Client Mocking**: Mock `get_block_children_raw` to return children data structures
+- **Cache Mocking**: Mock `get_cached_block_content` to return processed children content
+- **Queue Processing**: Verify breadth-first traversal and cycle detection
+- **Error Handling**: Test resilience when individual block fetching fails

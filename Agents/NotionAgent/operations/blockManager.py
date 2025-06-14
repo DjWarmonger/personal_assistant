@@ -281,7 +281,6 @@ class BlockManager:
 								 parent_type: ObjectType = ObjectType.BLOCK) -> BlockDict:
 		"""
 		Process a children response from Notion API and return BlockDict with all children.
-		Now returns unfiltered children data.
 		
 		Args:
 			response_data: Raw response from /blocks/{id}/children endpoint

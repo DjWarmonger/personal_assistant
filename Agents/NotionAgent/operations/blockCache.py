@@ -184,7 +184,8 @@ class BlockCache(TimedStorage):
 		
 		if parent_key:
 			if relationship_exists:
-				log.debug(f"Updating relationship: {parent_key} -> {cache_key}")
+				pass
+				#log.debug(f"Updating relationship: {parent_key} -> {cache_key}")
 			else:
 				log.debug(f"Adding relationship: {parent_key} -> {cache_key}")
 		
