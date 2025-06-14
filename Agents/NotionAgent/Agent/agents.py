@@ -13,13 +13,13 @@ load_dotenv()
 
 # TODO: Think about generic way to list related agents and their purpose
 
-# TODO: Rewrite this for reasoning model
+# TODO: List other agents, their purpose and ids
 
-# TODO: Do not append all the tool details to the prompt
+# TODO: Rewrite this for reasoning model
 
 #- Be helpful and informative, but stick to the task at hand.
 planner_agent_prompt = """
-You are the Planner Agent for Notion content retrieval system. Your sole purpose is to prepare task list for sub-agents: Notion navigation agent and Writer agent.
+You are the Planner Agent for Notion content retrieval system. Your sole purpose is to prepare task list for other agents: Notion navigation agent and Writer agent.
 Your role is to break down the user's problem description into a clear, ordered sequence of actionable tasks. Each task should be possible to accomplish with a single tool call. Provide indexes and titles of known pages where relevant. Only request search if known pages are insufficient.
 Only use AddTaskTool to define tasks for other agents and CompleteTaskTool to mark them as completed.
 AVOID calling any other tools which are listed just as reference of tools available to other agents.
@@ -34,22 +34,15 @@ Goals:
 	- Do NOT use any other tools.
 	- Add exactly one main task with role USER and role_id set to "User" that will be used for final output when completed. 
 	- Add comprehensive list of sub-tasks for Notion Agent with role "AGENT" and role_id "NOTION". These tasks need to be comprehensive and retrieve as much information as possible. Explain requirements in detail and avoid ambiguity.
-	- If editing or summarizing retrieved text is neccessary, add sub-tasks for Writer Agent with role "AGENT" and role_id "WRITER" to prepare the final response.
+	- Add sub-tasks for Writer Agent with role "AGENT" and role_id "WRITER" to edit the final response.
 	- Complete the task with role USER ater receiving satisfactory response from other agents. Store the final response for user in "data_output" field.
 	- Add all neccessary tasks at once with multiple tool calls.
 
 Additional info:
-	- Page context, including parent–child relationships and block hierarchies, is preserved programmatically via Tasks and BlockTree. Sub-agents you call will receive BlockTree automatically.
-    - Sub-agents will only receive tasks directed to them.
-	- Notion Agent cannot directly respond with a message. All responses must be requested from Writer.
+	- Page context, including parent–child relationships and block hierarchies, is preserved programmatically via Tasks and BlockTree.
 	- Writer only has access to "CompleteTask" tool. It should call this tool when it has sufficient information needed to anwer the task.
 	- Remember that Notion agent will be the first agent to be called, after that Writer agent will be called and receive all the retrieved pages from Notion agent.
-    
-Example workflows:
-	- To retrieve information from a page or database, add tasks for Notion Agent and Writer Agent. Writer Agent will automatically receive all the retrieved pages after Notion Agent has finished.
-    - To change favourites, add task for Notion Agent.
 """
- #   - When asked about current time, answer directly - you already have access to current time.
 
 # {format_instructions}
 
@@ -72,16 +65,15 @@ planner_prompt = ChatPromptTemplate.from_messages(
 	]
 )
 
+# TODO: How to exit the graph in case of unrecoverable error?
+
 system_prompt = """
 You are an AI agent designed to assist with tasks related to the Notion workspace.
-Your goal is to search for information in the Notion workspace and navigate to specific pages or databases.
+Your goal is to search for information in the Notion workspace and navigate to specific pages or databases. Explore children blocks of visited pages.
 
 <tools>
-1. You may call multiple tools at once to fetch multiple pages or blocks.
+1. You may call multiple tools at once to fecth multiple pages or blocks.
 2. DO NOT call a single tool many times with same arguments.
-3. Use only valid database id to query databases.
-4. NotionPageDetails: Use to get page/database properties and metadata only (no content blocks).
-5. NotionGetBlockContent: Use to retrieve complete page/block content including ALL children recursively.
 </tools>
 
 <instructions>
