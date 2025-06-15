@@ -1,3 +1,9 @@
+# Refactoring of Notion Client
+
+## Clean Up
+
+- [ ] Do not print errors and rethrow them
+
 # Features
 
 ## Generate captions for blocks - IMPLEMENTATION PLAN
@@ -133,12 +139,6 @@ Captions are aimed at writing agent, which should receive minmal but sufficient 
 - `CAPTION_MODEL`: OpenAI model to use (default: gpt-4o-mini)
 - `CAPTION_MAX_TOKENS`: Maximum tokens for caption generation (default: 50)
 
-# Refactoring of Notion Client
-
-## Clean Up
-
-- [ ] Do not print errors and rethrow them
-
 ## Unify AIToolbox with Langfuse Handler
 
 - [x] **Integrate AIToolbox with existing langfuse_handler**: Modified AIToolbox to accept an optional `langfuse_handler` parameter in its constructor. When provided, AIToolbox uses the handler's session_id and user_id for consistent tracking. Updated CaptionGenerator to accept and pass the shared langfuse_handler to AIToolbox.
@@ -161,7 +161,6 @@ caption_generator = CaptionGenerator(
 - CaptionGenerator creates AIToolbox with shared handler: `AIToolbox(user_id="Notion Agent Caption Generator", langfuse_handler=langfuse_handler)`
 - All caption generation API calls are now tracked under the same Notion Agent session
 
-- [ ] **Fix langfuse/openai version compatibility**: The current langfuse wrapper has compatibility issues with the OpenAI client (`Client.__init__() got an unexpected keyword argument 'proxies'`). This prevents actual API calls from working and causes caption generation to fail silently.
 - [x] **Update caption generation to use unified tracking**: Caption generation now uses the shared langfuse_handler when provided, ensuring all API calls are tracked alongside other agent operations.
 
 # FIXME:

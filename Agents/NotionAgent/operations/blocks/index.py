@@ -405,6 +405,46 @@ class Index(TimedStorage):
 			self.set_dirty()
 
 
+	def update_name_if_empty(self, int_id: int, name: str) -> bool:
+
+		# TODO: Clear name when block is edited or deleted
+		"""
+		Update name only if current name is empty or default.
+		
+		Args:
+			int_id: Integer ID of the block
+			name: New name to set
+			
+		Returns:
+			True if name was updated, False if name already exists
+		"""
+		if not isinstance(int_id, int):
+			raise TypeError(f"Expected int, got {type(int_id)}")
+		if not isinstance(name, str):
+			raise TypeError(f"Expected str for name, got {type(name)}")
+		
+		with self.db_lock:
+			# Check current name
+			self.cursor.execute('SELECT name FROM index_data WHERE int_id = ?', (int_id,))
+			result = self.cursor.fetchone()
+			
+			if not result:
+				# Block doesn't exist in index
+				return False
+			
+			current_name = result[0] or ""
+			
+			# Only update if current name is empty or whitespace
+			if not current_name.strip():
+				self.cursor.execute('UPDATE index_data SET name = ? WHERE int_id = ?', (name, int_id))
+				self.db_conn.commit()
+				self.set_dirty()
+				return True
+			else:
+				# Name already exists, don't update
+				return False
+
+
 	def get_name(self, int_id: int) -> str:
 		if not isinstance(int_id, int):
 			raise TypeError(f"Expected int, got {type(int_id)}")
