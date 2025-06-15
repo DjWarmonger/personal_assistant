@@ -4,6 +4,7 @@
 
 ### Overview
 Implement automatic caption generation for blocks whenever they are added or updated. The system should generate short captions (one sentence max, or just a word) using asynchronous calls to a cheap model, update the name in the index table, and run in the background without slowing down the main thread.
+Captions are aimed at writing agent, which should receive minmal but sufficient summary of the block.
 
 ### Architecture Components
 
@@ -109,8 +110,6 @@ Implement automatic caption generation for blocks whenever they are added or upd
 
 #### Error Handling Strategy
 - **Non-blocking**: Caption generation failures must never interrupt main block processing
-- **Logging**: Log errors at appropriate levels (error for API failures, debug for empty content)
-- **Retry Logic**: Simple retry for transient API failures (max 2 retries)
 - **Fallback**: Continue without caption if generation fails
 
 #### Performance Considerations
@@ -123,13 +122,9 @@ Implement automatic caption generation for blocks whenever they are added or upd
 - **Skip Empty Blocks**: Don't generate captions for blocks with no text content
 - **Skip System Blocks**: Avoid captioning purely structural blocks
 - **Text Extraction**: Focus on meaningful text content (titles, paragraphs, lists)
-- **Length Limits**: Skip very short text that doesn't need captioning
 
 #### Testing Strategy
 - **Unit Tests**: Test caption generation logic with mock API responses
-- **Integration Tests**: Test background processing with real block data
-- **Performance Tests**: Verify background processing doesn't impact main thread
-- **Error Tests**: Verify graceful handling of API failures and edge cases
 
 ### Configuration Options
 - `ENABLE_CAPTION_GENERATION`: Global enable/disable flag
@@ -138,18 +133,17 @@ Implement automatic caption generation for blocks whenever they are added or upd
 - `CAPTION_MODEL`: OpenAI model to use (default: gpt-4o-mini)
 - `CAPTION_MAX_TOKENS`: Maximum tokens for caption generation (default: 50)
 
-### Success Metrics
-- Caption generation success rate > 95%
-- No measurable impact on main thread performance
-- Average caption generation time < 2 seconds
-- Queue processing keeps up with block creation rate
-- Meaningful, concise captions that improve user experience
-
 # Refactoring of Notion Client
 
 ## Clean Up
 
 - [ ] Do not print errors and rethrow them
+
+## Unify AIToolbox with Langfuse Handler
+
+- [ ] **Integrate AIToolbox with existing langfuse_handler**: Currently AIToolbox creates its own langfuse session, but Notion Agent already has `langfuse_handler = create_langfuse_handler(user_id="Notion Agent")` in `Agent/graph.py`. Need to modify AIToolbox to accept an external langfuse handler or session context to ensure all API calls are tracked under the same Notion Agent session.
+- [ ] **Fix langfuse/openai version compatibility**: The current langfuse wrapper has compatibility issues with the OpenAI client (`Client.__init__() got an unexpected keyword argument 'proxies'`). This prevents actual API calls from working and causes caption generation to fail silently.
+- [ ] **Update caption generation to use unified tracking**: Once langfuse integration is fixed, ensure caption generation API calls are properly tracked alongside other agent operations.
 
 # FIXME:
 
