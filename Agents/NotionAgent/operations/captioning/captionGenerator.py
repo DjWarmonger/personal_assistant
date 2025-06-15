@@ -4,6 +4,7 @@ import re
 
 from tz_common.logs import log
 from tz_common.aitoolbox import AIToolbox
+from langfuse.callback import CallbackHandler
 from ..blocks.blockHolder import BlockHolder, FilteringOptions
 
 
@@ -13,15 +14,19 @@ class CaptionGenerator:
 	Extracts meaningful text from blocks and generates concise captions.
 	"""
 
-	def __init__(self, ai_toolbox: AIToolbox, block_holder: BlockHolder):
+	def __init__(self, block_holder: BlockHolder, langfuse_handler: Optional[CallbackHandler] = None):
 		"""
 		Initialize the caption generator.
 		
 		Args:
-			ai_toolbox: AIToolbox instance for OpenAI API calls
 			block_holder: BlockHolder instance for content filtering
+			langfuse_handler: Optional langfuse handler for tracking API calls
 		"""
-		self.ai_toolbox = ai_toolbox
+		# Create AIToolbox with shared langfuse handler
+		self.ai_toolbox = AIToolbox(
+			user_id="Notion Agent Caption Generator",
+			langfuse_handler=langfuse_handler
+		)
 		self.block_holder = block_holder
 		
 		# Configuration

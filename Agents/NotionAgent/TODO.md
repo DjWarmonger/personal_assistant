@@ -141,9 +141,28 @@ Captions are aimed at writing agent, which should receive minmal but sufficient 
 
 ## Unify AIToolbox with Langfuse Handler
 
-- [ ] **Integrate AIToolbox with existing langfuse_handler**: Currently AIToolbox creates its own langfuse session, but Notion Agent already has `langfuse_handler = create_langfuse_handler(user_id="Notion Agent")` in `Agent/graph.py`. Need to modify AIToolbox to accept an external langfuse handler or session context to ensure all API calls are tracked under the same Notion Agent session.
+- [x] **Integrate AIToolbox with existing langfuse_handler**: Modified AIToolbox to accept an optional `langfuse_handler` parameter in its constructor. When provided, AIToolbox uses the handler's session_id and user_id for consistent tracking. Updated CaptionGenerator to accept and pass the shared langfuse_handler to AIToolbox.
+
+**Integration Example:**
+```python
+# In Agent/graph.py - existing langfuse_handler
+langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
+
+# In NotionClient or wherever CaptionGenerator is instantiated
+caption_generator = CaptionGenerator(
+    block_holder=self.block_holder,
+    langfuse_handler=langfuse_handler  # Pass shared handler
+)
+```
+
+**Key Changes:**
+- AIToolbox constructor now accepts `langfuse_handler: Optional[CallbackHandler] = None`
+- When langfuse_handler is provided, AIToolbox uses its session_id and user_id
+- CaptionGenerator creates AIToolbox with shared handler: `AIToolbox(user_id="Notion Agent Caption Generator", langfuse_handler=langfuse_handler)`
+- All caption generation API calls are now tracked under the same Notion Agent session
+
 - [ ] **Fix langfuse/openai version compatibility**: The current langfuse wrapper has compatibility issues with the OpenAI client (`Client.__init__() got an unexpected keyword argument 'proxies'`). This prevents actual API calls from working and causes caption generation to fail silently.
-- [ ] **Update caption generation to use unified tracking**: Once langfuse integration is fixed, ensure caption generation API calls are properly tracked alongside other agent operations.
+- [x] **Update caption generation to use unified tracking**: Caption generation now uses the shared langfuse_handler when provided, ensuring all API calls are tracked alongside other agent operations.
 
 # FIXME:
 

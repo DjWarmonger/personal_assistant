@@ -19,21 +19,19 @@ class TestCaptionGenerator:
 	@classmethod
 	def setup_class(cls):
 		"""Set up test fixtures once for the entire test class."""
-		# Create real AIToolbox once for all tests
-		cls.real_ai_toolbox = AIToolbox()
-		
 		# Create shared dependencies
 		cls.url_index = UrlIndex()
 		cls.block_holder = BlockHolder(cls.url_index)
 
 	def setup_method(self):
 		"""Set up test fixtures before each test method."""
-		# Create mock dependencies for tests that need them
-		self.mock_ai_toolbox = Mock(spec=AIToolbox)
+		# Create caption generators (CaptionGenerator now creates its own AIToolbox)
+		self.caption_generator = CaptionGenerator(self.block_holder)
+		self.real_caption_generator = CaptionGenerator(self.block_holder)
 		
-		# Create caption generators
-		self.caption_generator = CaptionGenerator(self.mock_ai_toolbox, self.block_holder)
-		self.real_caption_generator = CaptionGenerator(self.real_ai_toolbox, self.block_holder)
+		# Mock the ai_toolbox for tests that need controlled responses
+		self.mock_ai_toolbox = Mock(spec=AIToolbox)
+		self.caption_generator.ai_toolbox = self.mock_ai_toolbox
 
 
 	def test_extract_text_from_paragraph_block(self):
@@ -405,8 +403,8 @@ class TestCaptionGenerator:
 		"""Test that caption generation produces valid JSON responses."""
 		# Create a test version that captures the raw response
 		class TestCaptionGenerator(CaptionGenerator):
-			def __init__(self, ai_toolbox, block_holder):
-				super().__init__(ai_toolbox, block_holder)
+			def __init__(self, block_holder):
+				super().__init__(block_holder)
 				self.last_raw_response = None
 			
 			async def generate_caption_async(self, block_content, block_type):
@@ -439,7 +437,7 @@ class TestCaptionGenerator:
 				except Exception as e:
 					return None
 		
-		test_generator = TestCaptionGenerator(self.real_ai_toolbox, self.block_holder)
+		test_generator = TestCaptionGenerator(self.block_holder)
 		
 		block_content = {
 			"type": "paragraph",
@@ -477,8 +475,8 @@ class TestCaptionGenerator:
 			def send_openai_request(self, **kwargs):
 				raise Exception("Simulated API failure")
 		
-		failing_toolbox = FailingAIToolbox()
-		failing_generator = CaptionGenerator(failing_toolbox, self.block_holder)
+		failing_generator = CaptionGenerator(self.block_holder)
+		failing_generator.ai_toolbox = FailingAIToolbox()
 		
 		block_content = {
 			"type": "paragraph",
