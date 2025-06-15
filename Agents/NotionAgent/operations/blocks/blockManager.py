@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Union, List
+from typing import Optional, Dict, Union, List, Any
 import json
 from tz_common import CustomUUID
 from tz_common.logs import log
@@ -15,10 +15,12 @@ class BlockManager:
 	Handles UUID extraction, index registration, and data conversion.
 	"""
 
-	def __init__(self, index: Index, cache: BlockCache, block_holder: BlockHolder):
+	def __init__(self, index: Index, cache: BlockCache, block_holder: BlockHolder, 
+				 caption_processor: Optional[Any] = None):
 		self.index = index
 		self.cache = cache
 		self.block_holder = block_holder
+		self.caption_processor = caption_processor
 
 
 	def parse_cache_content(self, cache_content: str) -> dict:
@@ -98,6 +100,15 @@ class BlockManager:
 		if parent_uuid is not None:
 			self.cache.add_parent_child_relationship(
 				parent_uuid, main_uuid, parent_type, object_type
+			)
+		
+		# Queue caption generation if processor is available
+		if self.caption_processor:
+			self.caption_processor.queue_caption_generation(
+				uuid=main_uuid,
+				int_id=main_int_id,
+				block_content=processed_data,
+				block_type=object_type.value
 			)
 		
 		log.debug(f"Processed and stored {object_type.value} {main_int_id}")

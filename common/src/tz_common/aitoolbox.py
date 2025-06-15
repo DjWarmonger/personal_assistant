@@ -12,21 +12,30 @@ from dotenv import load_dotenv
 
 from langfuse.decorators import observe, langfuse_context
 from langfuse.openai import openai
+from langfuse.callback import CallbackHandler
 
 from tz_common import log
 
 class AIToolbox:
 
-	def __init__(self, user_id="test", session_id=None):
+	def __init__(self, user_id="test", session_id=None, langfuse_handler: Optional[CallbackHandler] = None):
 
 		load_dotenv(override=True)
 
 		self.openai_api_key = os.getenv("OPENAI_API_KEY")
 
 		self.user_id = user_id
+		self.langfuse_handler = langfuse_handler
 
 		if session_id is None:
 			self.session_id = time.strftime("%Y-%m-%d_%H-%M-%S")
+		else:
+			self.session_id = session_id
+
+		# If we have an external langfuse_handler, use its session/user context
+		if self.langfuse_handler:
+			self.user_id = self.langfuse_handler.user_id or self.user_id
+			self.session_id = self.langfuse_handler.session_id or self.session_id
 
 		# TODO: Set once globally
 		"""
@@ -36,15 +45,18 @@ class AIToolbox:
 		)
 		"""
 
+	def _update_langfuse_context(self):
+		"""Update langfuse context with current session/user info."""
+		langfuse_context.update_current_trace(
+			session_id=self.session_id,
+			user_id=self.user_id
+		)
 
 	# TODO: Opcjonalna wersja observe przełączana flagą
 	@observe()
 	def send_openai_request(self, message: str, system_prompt: str = None, temperature: float = 0.0, model: str = "gpt-4o-mini", json_format: bool = False, max_tokens: int = 1024) -> str:
 
-		langfuse_context.update_current_trace(
-			session_id=self.session_id,
-			user_id=self.user_id
-		)
+		self._update_langfuse_context()
 		messages=[]
 
 		if system_prompt is not None:
@@ -66,10 +78,7 @@ class AIToolbox:
 	@observe()
 	async def send_openai_requests(self, messages: dict[str, str], system_prompt: str = None, temperature: float = 0.0, model: str = "gpt-4o-mini", json_format: bool = False) -> dict[str, str]:
 
-		langfuse_context.update_current_trace(
-			session_id=self.session_id,
-			user_id=self.user_id
-		)
+		self._update_langfuse_context()
 
 		body = {
 			"role": "system",
@@ -106,10 +115,7 @@ class AIToolbox:
 	@observe(capture_input=False)
 	def send_openai_request_with_image(self, image: str | list[str], prompt: str) -> str:
 		
-		langfuse_context.update_current_trace(
-			session_id=self.session_id,
-			user_id=self.user_id
-		)
+		self._update_langfuse_context()
 
 		content = [
 					{
@@ -165,10 +171,7 @@ class AIToolbox:
 		# TODO: variant which accepts simple list of images
 		log.debug(f"Getting descriptions for images:", prompt)
 
-		langfuse_context.update_current_trace(
-			session_id=self.session_id,
-			user_id=self.user_id
-		)
+		self._update_langfuse_context()
 
 		@observe()
 		async def get_description(name: str, image: str, unique_prompt: str = None) -> tuple[str, str]:
@@ -203,10 +206,7 @@ class AIToolbox:
 
 		# TODO: Consider using different API providers
 
-		langfuse_context.update_current_trace(
-			session_id=self.session_id,
-			user_id=self.user_id
-		)
+		self._update_langfuse_context()
 		
 		headers = {
 			"Authorization": f"Bearer {self.openai_api_key}",
@@ -264,10 +264,7 @@ class AIToolbox:
 
 		log.debug(f"Transcribing audio files")
 
-		langfuse_context.update_current_trace(
-			session_id=self.session_id,
-			user_id=self.user_id
-		)
+		self._update_langfuse_context()
 
 		@observe()
 		async def get_transcription(name: str, audio: bytes) -> tuple[str, str]:
@@ -288,10 +285,7 @@ class AIToolbox:
 	@observe(capture_output=False)
 	def get_embedding(self, text: str, model: str = "text-embedding-3-large") -> list[float]:
 
-		langfuse_context.update_current_trace(
-			session_id=self.session_id,
-			user_id=self.user_id
-		)
+		self._update_langfuse_context()
 
 		response = openai.embeddings.create(input=text, model=model)
 		return response.data[0].embedding
@@ -301,10 +295,7 @@ class AIToolbox:
 	@observe(capture_input=False, capture_output=False)
 	async def get_embeddings(self, texts: dict[str, str], model: str = "text-embedding-3-large", max_concurrent: int = 16) -> dict[str, list[float]]:
 
-		langfuse_context.update_current_trace(
-			session_id=self.session_id,
-			user_id=self.user_id
-		)
+		self._update_langfuse_context()
 
 		semaphore = asyncio.Semaphore(max_concurrent)
 
