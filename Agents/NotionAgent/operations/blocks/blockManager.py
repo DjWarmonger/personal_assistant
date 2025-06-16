@@ -102,14 +102,17 @@ class BlockManager:
 				parent_uuid, main_uuid, parent_type, object_type
 			)
 		
-		# Queue caption generation if processor is available
+		# Queue caption generation if processor is available and block doesn't have a name
 		if self.caption_processor:
-			self.caption_processor.queue_caption_generation(
-				uuid=main_uuid,
-				int_id=main_int_id,
-				block_content=processed_data,
-				block_type=object_type.value
-			)
+			# Only queue for blocks that don't already have names in index
+			current_name = self.index.get_name(main_int_id)
+			if not current_name.strip():  # Empty or whitespace-only names
+				self.caption_processor.queue_caption_generation(
+					uuid=main_uuid,
+					int_id=main_int_id,
+					block_content=processed_data,
+					block_type=object_type.value
+				)
 		
 		log.debug(f"Processed and stored {object_type.value} {main_int_id}")
 		return main_int_id

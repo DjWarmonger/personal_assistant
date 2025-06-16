@@ -42,17 +42,11 @@ Captions are aimed at writing agent, which should receive minmal but sufficient 
 
 #### 3. Integration Points
 
-##### A. BlockManager Integration (`operations/blocks/blockManager.py`)
+##### A. BlockManager Integration (`operations/blocks/blockManager.py`) - ✅ **COMPLETED**
 - **Hook Location**: `process_and_store_block()` method after successful storage
-- **Implementation**:
-  ```python
-  # After storing block in cache
-  if self.caption_processor:
-      self.caption_processor.queue_caption_generation(
-          main_uuid, main_int_id, processed_data, object_type.value
-      )
-  ```
-- **Conditional Logic**: Only queue for blocks that don't already have names in index
+- **Conditional Logic**: ✅ Only queue for blocks that don't already have names in index
+- **Testing**: ✅ Added 5 comprehensive test cases covering all scenarios
+- **Integration**: ✅ Works for all block processing (main blocks, children, search results)
 
 ##### B. CacheOrchestrator Integration (`operations/blocks/cacheOrchestrator.py`)
 - **Hook Locations**: 
