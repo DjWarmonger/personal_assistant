@@ -48,17 +48,23 @@ Captions are aimed at writing agent, which should receive minmal but sufficient 
 - **Testing**: ✅ Added 5 comprehensive test cases covering all scenarios
 - **Integration**: ✅ Works for all block processing (main blocks, children, search results)
 
-##### B. CacheOrchestrator Integration (`operations/blocks/cacheOrchestrator.py`)
+##### B. CacheOrchestrator Integration (`operations/blocks/cacheOrchestrator.py`) - ✅ **COMPLETED**
 - **Hook Locations**: 
-  - `get_or_fetch_page()` - for new pages
-  - `get_or_fetch_database()` - for new databases  
-  - `cache_search_results()` - for new search result items
-- **Implementation**: Similar queuing pattern as BlockManager
+  - ✅ `get_or_fetch_page()` - delegates to `BlockManager.process_and_store_block()`
+  - ✅ `get_or_fetch_database()` - delegates to `BlockManager.process_and_store_block()`  
+  - ✅ `cache_search_results()` - delegates to `BlockManager.process_and_store_search_results()`
+  - ✅ `cache_database_query_results()` - delegates to `BlockManager.process_and_store_database_query_results()`
+- **Implementation**: ✅ Integration works automatically through BlockManager delegation
+- **Testing**: ✅ Added 5 comprehensive integration tests verifying caption generation triggers
+- **Architecture**: ✅ No code changes needed - existing delegation pattern provides integration
 
-##### C. Index Integration (`operations/blocks/index.py`)
-- **New Method**: `update_name_if_empty(int_id: int, name: str) -> bool`
-- **Purpose**: Only update name if current name is empty/default
-- **Thread Safety**: Use existing `db_lock` for safe concurrent access
+##### C. Index Integration (`operations/blocks/index.py`) - ✅ **COMPLETED**
+- **New Method**: ✅ `update_name_if_empty(int_id: int, name: str) -> bool`
+- **Purpose**: ✅ Only update name if current name is empty/default
+- **Thread Safety**: ✅ Use existing `db_lock` for safe concurrent access
+- **Implementation**: ✅ Method already existed and working correctly
+- **Testing**: ✅ Added 12 comprehensive test cases in `test_index.py`
+- **Integration**: ✅ Used by BackgroundCaptionProcessor for caption updates
 
 #### 4. Configuration and Dependencies
 
@@ -88,15 +94,10 @@ Captions are aimed at writing agent, which should receive minmal but sufficient 
 3. Add integration hooks to BlockManager
 4. Test background processing with mock blocks
 
-#### Phase 3: Index Integration
-1. ✅ Add `update_name_if_empty()` method to Index class - **COMPLETED**
-   - Method already existed and is working correctly
-   - Added comprehensive unit tests (12 test cases) in `test_index.py`
-   - Verified thread safety, type validation, and integration workflow
-   - All tests pass (174/174 total tests in NotionAgent)
-2. Integrate caption updates with background processor
-3. Add database migration if needed for caption metadata
-4. Test concurrent access and thread safety
+#### Phase 3: Integration Points - ✅ **COMPLETED**
+1. ✅ **A. BlockManager Integration** - Added conditional caption generation logic
+2. ✅ **B. CacheOrchestrator Integration** - Works automatically through BlockManager delegation  
+3. ✅ **C. Index Integration** - `update_name_if_empty()` method ready and tested
 
 #### Phase 4: Full Integration
 1. Wire up all components in NotionService and NotionClient

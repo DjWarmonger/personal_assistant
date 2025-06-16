@@ -505,4 +505,138 @@ class TestCacheOrchestrator:
 		mock_cache.get_block.assert_called_once_with(sample_uuid)
 		mock_block_manager.parse_cache_content.assert_called_once_with(cached_content)
 		mock_index.to_int.assert_called_once_with(sample_uuid)
-		fetcher_func.assert_not_called() 
+		fetcher_func.assert_not_called()
+
+
+class TestCacheOrchestratorCaptionIntegration:
+	"""Test suite for CacheOrchestrator caption generation integration."""
+
+	@pytest.mark.asyncio
+	async def test_get_or_fetch_page_triggers_caption_generation(self, mock_cache, mock_index, sample_uuid, sample_page_data):
+		"""Test that get_or_fetch_page triggers caption generation through BlockManager."""
+		# Setup
+		mock_cache.get_page.side_effect = [None, '{"object": "page", "title": "Fetched Page"}']
+		mock_block_manager = MagicMock(spec=BlockManager)
+		mock_block_manager.parse_cache_content.return_value = {"object": "page", "title": "Fetched Page"}
+		mock_block_manager.process_and_store_block.return_value = 123
+		
+		cache_orchestrator = CacheOrchestrator(mock_cache, mock_block_manager, mock_index)
+		
+		# Mock fetcher function
+		fetcher_func = AsyncMock(return_value=sample_page_data)
+		
+		# Execute
+		result = await cache_orchestrator.get_or_fetch_page(sample_uuid, fetcher_func)
+		
+		# Verify that BlockManager.process_and_store_block was called
+		# (which includes caption generation logic)
+		assert isinstance(result, BlockDict)
+		mock_block_manager.process_and_store_block.assert_called_once_with(sample_page_data, ObjectType.PAGE)
+
+	@pytest.mark.asyncio
+	async def test_get_or_fetch_database_triggers_caption_generation(self, mock_cache, mock_index, sample_uuid, sample_database_data):
+		"""Test that get_or_fetch_database triggers caption generation through BlockManager."""
+		# Setup
+		mock_cache.get_database.side_effect = [None, '{"object": "database", "title": "Fetched Database"}']
+		mock_block_manager = MagicMock(spec=BlockManager)
+		mock_block_manager.parse_cache_content.return_value = {"object": "database", "title": "Fetched Database"}
+		mock_block_manager.process_and_store_block.return_value = 456
+		
+		cache_orchestrator = CacheOrchestrator(mock_cache, mock_block_manager, mock_index)
+		
+		# Mock fetcher function
+		fetcher_func = AsyncMock(return_value=sample_database_data)
+		
+		# Execute
+		result = await cache_orchestrator.get_or_fetch_database(sample_uuid, fetcher_func)
+		
+		# Verify that BlockManager.process_and_store_block was called
+		# (which includes caption generation logic)
+		assert isinstance(result, BlockDict)
+		mock_block_manager.process_and_store_block.assert_called_once_with(sample_database_data, ObjectType.DATABASE)
+
+	@pytest.mark.asyncio
+	async def test_cache_search_results_triggers_caption_generation(self, mock_cache, mock_index):
+		"""Test that cache_search_results triggers caption generation through BlockManager."""
+		# Setup
+		search_results = {
+			"results": [
+				{
+					"id": TEST_UUID_SEARCH_RESULT,
+					"object": "page",
+					"last_edited_time": TEST_TIMESTAMP,
+					"title": "Search Result Page"
+				}
+			]
+		}
+		
+		mock_block_manager = MagicMock(spec=BlockManager)
+		expected_block_dict = BlockDict()
+		mock_block_manager.process_and_store_search_results.return_value = expected_block_dict
+		
+		cache_orchestrator = CacheOrchestrator(mock_cache, mock_block_manager, mock_index)
+		
+		# Execute
+		result = await cache_orchestrator.cache_search_results(TEST_QUERY, search_results)
+		
+		# Verify that BlockManager.process_and_store_search_results was called
+		# (which includes caption generation logic for each search result)
+		assert result == expected_block_dict
+		mock_block_manager.process_and_store_search_results.assert_called_once_with(
+			TEST_QUERY, search_results, None, None, None
+		)
+
+	@pytest.mark.asyncio
+	async def test_cache_database_query_results_triggers_caption_generation(self, mock_cache, mock_index, sample_uuid):
+		"""Test that cache_database_query_results triggers caption generation through BlockManager."""
+		# Setup
+		query_results = {
+			"results": [
+				{
+					"id": TEST_UUID_DB_PAGE,
+					"object": "page",
+					"last_edited_time": TEST_TIMESTAMP,
+					"properties": {"title": {"title": [{"text": {"content": "Database Page"}}]}}
+				}
+			]
+		}
+		
+		mock_block_manager = MagicMock(spec=BlockManager)
+		expected_block_dict = BlockDict()
+		mock_block_manager.process_and_store_database_query_results.return_value = expected_block_dict
+		
+		cache_orchestrator = CacheOrchestrator(mock_cache, mock_block_manager, mock_index)
+		
+		# Execute
+		result = await cache_orchestrator.cache_database_query_results(sample_uuid, query_results)
+		
+		# Verify that BlockManager.process_and_store_database_query_results was called
+		# (which includes caption generation logic for each database page)
+		assert result == expected_block_dict
+		mock_block_manager.process_and_store_database_query_results.assert_called_once_with(
+			sample_uuid, query_results, None, None
+		)
+
+	@pytest.mark.asyncio
+	async def test_get_or_fetch_block_triggers_caption_generation_for_children(self, mock_cache, mock_index, sample_uuid, sample_block_data):
+		"""Test that get_or_fetch_block triggers caption generation for children through BlockManager."""
+		# Setup
+		mock_cache.get_block.return_value = None
+		mock_block_manager = MagicMock(spec=BlockManager)
+		expected_block_dict = BlockDict()
+		mock_block_manager.process_children_response.return_value = expected_block_dict
+		
+		cache_orchestrator = CacheOrchestrator(mock_cache, mock_block_manager, mock_index)
+		
+		# Mock fetcher function
+		fetcher_func = AsyncMock(return_value=sample_block_data)
+		
+		# Execute
+		result = await cache_orchestrator.get_or_fetch_block(sample_uuid, fetcher_func)
+		
+		# Verify that BlockManager.process_children_response was called
+		# (which includes caption generation logic for each child block)
+		assert result == expected_block_dict
+		mock_block_manager.process_children_response.assert_called_once_with(
+			sample_block_data, sample_uuid, ObjectType.BLOCK
+		) 
