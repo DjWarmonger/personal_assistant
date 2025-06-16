@@ -95,7 +95,11 @@ Captions are aimed at writing agent, which should receive minmal but sufficient 
 4. Test background processing with mock blocks
 
 #### Phase 3: Index Integration
-1. Add `update_name_if_empty()` method to Index class
+1. ✅ Add `update_name_if_empty()` method to Index class - **COMPLETED**
+   - Method already existed and is working correctly
+   - Added comprehensive unit tests (12 test cases) in `test_index.py`
+   - Verified thread safety, type validation, and integration workflow
+   - All tests pass (174/174 total tests in NotionAgent)
 2. Integrate caption updates with background processor
 3. Add database migration if needed for caption metadata
 4. Test concurrent access and thread safety
@@ -181,6 +185,10 @@ caption_generator = CaptionGenerator(
 2025-06-08 08:32:35,238 - ERROR      - 404
 
 ## Agent does not return any message to user for "add page to favourites"
+
+## index.db is deleted after system restart
+
+Not sure what actually triggers it, but it's not here on a new day
 
 # Optimizations
 
