@@ -206,6 +206,20 @@ class CaptionGenerator:
 				for item in prop_value["multi_select"]:
 					if isinstance(item, dict) and "name" in item:
 						text_parts.append(item["name"])
+			
+			# Handle properties without explicit type (common in page properties)
+			elif not prop_type:
+				# Check for title array (common in page properties)
+				if "title" in prop_value and isinstance(prop_value["title"], list):
+					title_text = self._extract_rich_text(prop_value["title"])
+					if title_text:
+						text_parts.append(title_text)
+				
+				# Check for rich_text array
+				elif "rich_text" in prop_value and isinstance(prop_value["rich_text"], list):
+					rich_text = self._extract_rich_text(prop_value["rich_text"])
+					if rich_text:
+						text_parts.append(rich_text)
 		
 		return " ".join(text_parts).strip()
 

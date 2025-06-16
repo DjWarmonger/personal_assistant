@@ -47,6 +47,7 @@ class CacheOrchestrator:
 				return None
 			block_dict = BlockDict()
 			block_dict.add_block(int_id, unfiltered_data)
+			self._queue_caption_for_cached_block(page_id, int_id, unfiltered_data, ObjectType.PAGE)
 			return block_dict
 		
 		# Cache miss - fetch from API
@@ -102,6 +103,7 @@ class CacheOrchestrator:
 				return None
 			block_dict = BlockDict()
 			block_dict.add_block(int_id, unfiltered_data)
+			self._queue_caption_for_cached_block(database_id, int_id, unfiltered_data, ObjectType.DATABASE)
 			return block_dict
 		
 		# Cache miss - fetch from API
@@ -157,6 +159,7 @@ class CacheOrchestrator:
 				return None
 			block_dict = BlockDict()
 			block_dict.add_block(int_id, unfiltered_data)
+			self._queue_caption_for_cached_block(block_id, int_id, unfiltered_data, ObjectType.BLOCK)
 			return block_dict
 		
 		# Cache miss - fetch from API
@@ -282,6 +285,16 @@ class CacheOrchestrator:
 					if not isinstance(result_id, int):
 						result_id = i
 					block_dict.add_block(result_id, result)
+					
+					# Queue caption generation for cached database query results (these are pages)
+					if result.get('id'):
+						try:
+							result_uuid = CustomUUID.from_string(result['id'])
+							result_int_id = self.index.to_int(result_uuid)
+							if result_int_id:
+								self._queue_caption_for_cached_block(result_uuid, result_int_id, result, ObjectType.PAGE)
+						except Exception as e:
+							log.error(f"Could not queue caption for database query result {result.get('id', i)}: {e}")
 			return block_dict
 		
 		return None
@@ -391,5 +404,34 @@ class CacheOrchestrator:
 		"""
 		cached_content = self.cache.get_block(uuid)
 		if cached_content:
-			return self.block_manager.parse_cache_content(cached_content)
-		return None 
+			parsed_content = self.block_manager.parse_cache_content(cached_content)
+			
+			# Queue caption generation for cached block content
+			int_id = self.index.to_int(uuid)
+			if int_id and parsed_content:
+				self._queue_caption_for_cached_block(uuid, int_id, parsed_content, ObjectType.BLOCK)
+			
+			return parsed_content
+		return None
+
+
+	def _queue_caption_for_cached_block(self, uuid: CustomUUID, int_id: int, block_content: dict, object_type: ObjectType) -> None:
+		"""
+		Queue caption generation for a cached block if it doesn't have a name.
+		
+		Args:
+			uuid: UUID of the block
+			int_id: Integer ID of the block
+			block_content: Block content dictionary
+			object_type: Type of the block
+		"""
+		# Only queue if block manager has caption processor and block has no name
+		if self.block_manager.caption_processor:
+			current_name = self.index.get_name(int_id)
+			if not current_name.strip():  # Empty or whitespace-only names
+				self.block_manager.caption_processor.queue_caption_generation(
+					uuid=uuid,
+					int_id=int_id,
+					block_content=block_content,
+					block_type=object_type.value
+				) 

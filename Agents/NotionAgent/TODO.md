@@ -126,10 +126,7 @@ Captions are aimed at writing agent, which should receive minmal but sufficient 
 - **Configuration Tests**: ✅ Enable/disable caption generation functionality
 
 #### Phase 5: Optimization and Monitoring
-1. Add metrics for caption generation success/failure rates
-2. Implement rate limiting and batch processing optimizations
-3. Add logging for monitoring caption generation performance
-4. Fine-tune prompts based on real-world usage
+- Implement rate limiting and batch processing optimizations
 
 ### Technical Considerations
 
@@ -148,9 +145,6 @@ Captions are aimed at writing agent, which should receive minmal but sufficient 
 - **Skip System Blocks**: Avoid captioning purely structural blocks
 - **Text Extraction**: Focus on meaningful text content (titles, paragraphs, lists)
 
-#### Testing Strategy
-- **Unit Tests**: Test caption generation logic with mock API responses
-
 ### Configuration Options
 - `ENABLE_CAPTION_GENERATION`: Global enable/disable flag
 - `CAPTION_BATCH_SIZE`: Number of captions to process concurrently
@@ -158,29 +152,29 @@ Captions are aimed at writing agent, which should receive minmal but sufficient 
 - `CAPTION_MODEL`: OpenAI model to use (default: gpt-4o-mini)
 - `CAPTION_MAX_TOKENS`: Maximum tokens for caption generation (default: 50)
 
-## Unify AIToolbox with Langfuse Handler
+## Generate caption for every block **loaded** from cache, if it doesn't have a name - ✅ **COMPLETED**
 
-- [x] **Integrate AIToolbox with existing langfuse_handler**: Modified AIToolbox to accept an optional `langfuse_handler` parameter in its constructor. When provided, AIToolbox uses the handler's session_id and user_id for consistent tracking. Updated CaptionGenerator to accept and pass the shared langfuse_handler to AIToolbox.
+### Implementation Summary
+- ✅ **CacheOrchestrator Integration**: Added `_queue_caption_for_cached_block()` method
+- ✅ **Cache Hit Caption Generation**: Caption generation now triggers when blocks are loaded from cache
+- ✅ **Conditional Logic**: Only generates captions for blocks without existing names
+- ✅ **Coverage**: Implemented for pages, databases, blocks, and database query results
+- ✅ **Testing**: Added comprehensive integration tests for all cache loading scenarios
+- ✅ **Property Extraction Fix**: Fixed CaptionGenerator to handle page properties without explicit type fields
 
-**Integration Example:**
-```python
-# In Agent/graph.py - existing langfuse_handler
-langfuse_handler = create_langfuse_handler(user_id="Notion Agent")
+### Integration Points
+- ✅ `get_or_fetch_page()` - Triggers caption generation on cache hits
+- ✅ `get_or_fetch_database()` - Triggers caption generation on cache hits  
+- ✅ `get_or_fetch_block()` - Triggers caption generation on cache hits
+- ✅ `get_cached_block_content()` - Triggers caption generation when retrieving cached content
+- ✅ `get_cached_database_query_results()` - Triggers caption generation for cached query results
+- ❌ `get_cached_search_results()` - **Intentionally excluded** (search results are references, not new content)
 
-# In NotionClient or wherever CaptionGenerator is instantiated
-caption_generator = CaptionGenerator(
-    block_holder=self.block_holder,
-    langfuse_handler=langfuse_handler  # Pass shared handler
-)
-```
-
-**Key Changes:**
-- AIToolbox constructor now accepts `langfuse_handler: Optional[CallbackHandler] = None`
-- When langfuse_handler is provided, AIToolbox uses its session_id and user_id
-- CaptionGenerator creates AIToolbox with shared handler: `AIToolbox(user_id="Notion Agent Caption Generator", langfuse_handler=langfuse_handler)`
-- All caption generation API calls are now tracked under the same Notion Agent session
-
-- [x] **Update caption generation to use unified tracking**: Caption generation now uses the shared langfuse_handler when provided, ensuring all API calls are tracked alongside other agent operations.
+### Technical Notes
+- Caption generation only occurs if the block has no existing name in the index
+- Uses the same BackgroundCaptionProcessor for async processing
+- Maintains the same conditional logic as storage-time caption generation
+- Search results are excluded because they reference existing blocks that may already have captions
 
 # FIXME:
 

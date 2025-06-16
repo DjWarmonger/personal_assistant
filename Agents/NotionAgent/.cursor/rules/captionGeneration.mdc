@@ -1,0 +1,141 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Caption Generation Architecture
+
+## Overview
+
+The caption generation system provides automatic background generation of concise captions for Notion blocks that lack meaningful names. The system operates asynchronously without blocking main operations, using OpenAI's API to generate short, descriptive captions based on block content.
+
+## Architecture Components
+
+### 1. **CaptionGenerator (Core Service)**
+- **Primary Role**: Generates captions using OpenAI API with intelligent text extraction
+- **Key Methods**:
+  - `generate_caption_async()`: Main caption generation with error handling
+  - `_extract_text_content()`: Extracts meaningful text using BlockHolder filtering
+  - `_create_caption_prompt()`: Creates optimized prompts for different block types
+- **Features**:
+  - Uses `gpt-4o-mini` model with low temperature (0.0) for consistency
+  - Intelligent content filtering via BlockHolder integration
+  - Handles various Notion block types (pages, databases, blocks)
+  - Short caption optimization (max 50 tokens, reuses text ≤3 words)
+  - Robust error handling - failures never interrupt main flow
+
+### 2. **BackgroundCaptionProcessor (Queue Management)**
+- **Primary Role**: Manages async task queue and background processing lifecycle
+- **Key Methods**:
+  - `queue_caption_generation()`: Thread-safe task queuing with duplicate prevention
+  - `start_background_processing()` / `stop_background_processing()`: Lifecycle management
+  - `_process_caption_queue()`: Background worker with batch processing
+- **Features**:
+  - Async queue with configurable size limits (default: 1000 tasks)
+  - Batch processing (default: 5 concurrent captions)
+  - Graceful shutdown with timeout handling
+  - Automatic duplicate prevention (skips blocks with existing names)
+  - Queue overflow protection (drops tasks when full)
+
+### 3. **Integration Points**
+
+#### A. **BlockManager Integration**
+- **Hook Location**: `process_and_store_block()` method after successful storage
+- **Conditional Logic**: Only queues for blocks without existing names in index
+- **Coverage**: All block processing (main blocks, children, search results)
+
+#### B. **CacheOrchestrator Integration**
+- **Hook Locations**: Cache hit scenarios for pages, databases, blocks, and query results
+- **Method**: `_queue_caption_for_cached_block()` - queues captions when loading from cache
+- **Exclusions**: Search results intentionally excluded (references to existing blocks)
+
+#### C. **Index Integration**
+- **Method**: `update_name_if_empty()` - thread-safe conditional name updates
+- **Purpose**: Only updates block names if current name is empty/whitespace
+- **Thread Safety**: Uses existing `db_lock` for concurrent access protection
+
+## Data Flow & Integration
+
+### Caption Generation Workflow
+1. **Block Processing**: `BlockManager` processes new blocks and checks for existing names
+2. **Conditional Queuing**: If no name exists, queues caption generation task
+3. **Background Processing**: `BackgroundCaptionProcessor` processes tasks in batches
+4. **Text Extraction**: `CaptionGenerator` extracts meaningful text using BlockHolder
+5. **API Call**: Generates caption using OpenAI API with optimized prompts
+6. **Index Update**: Updates block name in index if caption generation succeeds
+
+### Cache Loading Workflow
+1. **Cache Hit**: `CacheOrchestrator` loads block from cache
+2. **Caption Check**: Checks if block has existing name in index
+3. **Background Queuing**: Queues caption generation for unnamed blocks
+4. **Async Processing**: Caption generated and stored without blocking cache operation
+
+## Configuration & Dependencies
+
+### System Integration
+- **NotionClient**: Creates and manages `BackgroundCaptionProcessor` lifecycle
+- **NotionService**: Passes caption processor to BlockManager and CacheOrchestrator
+- **AIToolbox**: Handles OpenAI API calls with shared langfuse tracking
+- **BlockHolder**: Provides content filtering for text extraction
+
+### Configuration Options
+- `enable_caption_generation`: Global enable/disable flag (default: True)
+- `max_queue_size`: Queue capacity before dropping tasks (default: 1000)
+- `batch_size`: Concurrent caption processing (default: 5)
+- `max_concurrent`: Maximum concurrent API calls (default: 8)
+- `model`: OpenAI model selection (default: "gpt-4o-mini")
+- `max_tokens`: Caption length limit (default: 50)
+
+## Key Design Principles
+
+### 1. **Non-Blocking Operation**
+- Caption generation never interrupts main block processing
+- Background processing with async queue management
+- Graceful degradation when caption generation fails
+
+### 2. **Conditional Processing**
+- Only generates captions for blocks without existing names
+- Automatic duplicate prevention at queue level
+- Smart content filtering to skip blocks with insufficient text
+
+### 3. **Resource Management**
+- Queue size limits prevent memory issues
+- Batch processing optimizes API usage
+- Configurable concurrency limits respect API rate limits
+- Graceful shutdown with timeout handling
+
+### 4. **Content Intelligence**
+- Uses BlockHolder filtering to extract meaningful text
+- Handles various Notion block types and property structures
+- Reuses short text directly (≤3 words) without API calls
+- Optimized prompts for different block types
+
+## Error Handling Strategy
+
+### Failure Resilience
+- **API Failures**: Logged but don't interrupt main operations
+- **Queue Overflow**: Tasks dropped with debug logging
+- **Processing Errors**: Individual task failures don't stop batch processing
+- **Shutdown Timeout**: Forced termination if graceful shutdown fails
+
+### Monitoring & Debugging
+- Comprehensive debug logging for task queuing and processing
+- Integration with langfuse for API call tracking
+- Queue status monitoring and overflow detection
+- Processing statistics and error reporting
+
+## Testing Strategy
+
+### Integration Testing
+- End-to-end caption generation lifecycle
+- Cache loading caption triggers
+- Conditional logic verification (skip existing names)
+- Background processing start/stop verification
+- Error handling and graceful degradation
+
+### Mock Strategy
+- BlockManager caption processor integration
+- CacheOrchestrator caption queuing
+- Index name checking and updates
+- OpenAI API response handling
+
