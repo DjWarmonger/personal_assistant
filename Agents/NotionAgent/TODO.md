@@ -99,11 +99,31 @@ Captions are aimed at writing agent, which should receive minmal but sufficient 
 2. ✅ **B. CacheOrchestrator Integration** - Works automatically through BlockManager delegation  
 3. ✅ **C. Index Integration** - `update_name_if_empty()` method ready and tested
 
-#### Phase 4: Full Integration
-1. Wire up all components in NotionService and NotionClient
-2. Add configuration options for enabling/disabling captioning
-3. Implement graceful degradation when captioning fails
-4. Add comprehensive integration tests
+#### Phase 4: Full Integration - ✅ **COMPLETED**
+
+##### A. NotionService Integration (`operations/notion/notionService.py`) - ✅ **COMPLETED**
+- **Constructor Update**: ✅ Accept optional `caption_processor` parameter
+- **Dependency Injection**: ✅ Pass processor to BlockManager and store as instance variable
+- **Testing**: ✅ Updated test fixtures to handle new optional parameter
+
+##### B. NotionClient Integration (`operations/notion/notion_client.py`) - ✅ **COMPLETED**
+- **Initialization**: ✅ Create and start BackgroundCaptionProcessor with proper configuration
+- **Constructor Parameters**: ✅ Added `enable_caption_generation=True` and `langfuse_handler=None` parameters
+- **Component Wiring**: ✅ Pass caption processor to BlockManager and NotionService
+- **Lifecycle Management**: ✅ Start background processing in `__aenter__()` and stop in `__aexit__()`
+- **Error Handling**: ✅ Graceful degradation when caption initialization fails
+- **Configuration**: ✅ Configurable batch size, queue size, and concurrency limits
+- **Testing**: ✅ Created comprehensive integration test suite (`test_caption_integration.py`)
+- **Backward Compatibility**: ✅ All existing NotionClient instantiations work without changes
+- **Agent Integration**: ✅ Works seamlessly with existing agent tools in `agentTools.py`
+
+##### C. Integration Testing - ✅ **COMPLETED**
+- **Full Workflow Tests**: ✅ End-to-end caption generation lifecycle
+- **Error Handling Tests**: ✅ Graceful handling of API failures
+- **Conditional Logic Tests**: ✅ Skip caption generation for blocks with existing names
+- **Concurrent Processing Tests**: ✅ Multiple blocks processed simultaneously
+- **Lifecycle Tests**: ✅ Background processing start/stop verification
+- **Configuration Tests**: ✅ Enable/disable caption generation functionality
 
 #### Phase 5: Optimization and Monitoring
 1. Add metrics for caption generation success/failure rates
