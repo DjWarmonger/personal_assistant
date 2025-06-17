@@ -1,8 +1,63 @@
 ---
 description: 
-globs: 
+globs: **/*.py
 alwaysApply: false
 ---
-# TODO: Launch as chat
+# Running Tests
 
-# TODO: Launch from console
+Always run tests from the project root directory (`PersonalAssistant`). It is forbidden to use `cd` to launch tests. In case of any issue with testing directories, use `pwd`.
+
+Here are example commands for each sub-project:
+
+## Common Library (tz_common)
+```bash
+# Run all tests
+conda activate services
+python -m unittest discover -s common/tests
+
+# Run specific test file
+python -m unittest common.tests.test_imports
+```
+
+## Agents
+```bash
+# Run all tests for NotionAgent
+conda activate services
+python -m pytest Agents/NotionAgent/tests
+
+# Run with verbose output for NotionAgent
+python -m pytest Agents/NotionAgent/tests -v
+
+# Run specific test file for JsonAgent
+python -m pytest Agents/JsonAgent/tests/test_specific_file.py
+
+# Run specific test method for NotionAgent
+python -m pytest Agents/NotionAgent/tests/test_block_cache.py::TestBlockCache::test_specific_method
+
+# Run all tests with output capture disabled (useful for debugging)
+conda activate services
+python -m pytest -s Agents/JsonAgent/tests
+```
+
+## Running All Tests
+
+To run tests for multiple sub-projects in sequence:
+
+* If you need to test more than one test case from a suite, run the full suite
+* If you need to test more than one suite, run all the tests at once
+
+```bash
+conda activate services
+
+# Run common tests
+echo "Running common tests..."
+python -m unittest discover -s common/tests
+
+# Run NotionAgent tests
+echo "Running NotionAgent tests..."
+python -m pytest Agents/NotionAgent/tests
+
+# Run JsonAgent tests
+echo "Running JsonAgent tests..."
+python -m pytest Agents/JsonAgent/tests
+```
