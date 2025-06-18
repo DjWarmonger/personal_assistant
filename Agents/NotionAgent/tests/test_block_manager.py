@@ -3,6 +3,7 @@ import sys
 import os
 import copy
 import json
+from unittest.mock import Mock, MagicMock
 
 # Update the import path to include the project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -205,6 +206,131 @@ class TestBlockManager(unittest.TestCase):
 		self.assertEqual(cached_data["created_time"], self.TEST_TIMESTAMP)  # Timestamp preserved
 		self.assertEqual(cached_data["icon"], "child-icon")  # Icon preserved
 		self.assertEqual(cached_data["bold"], True)  # Style annotation preserved
+
+	def test_caption_generation_queued_for_block_without_name(self):
+		"""Test that caption generation is queued for blocks without names."""
+		# Create a mock caption processor
+		mock_caption_processor = Mock()
+		
+		# Create BlockManager with caption processor
+		block_manager = BlockManager(
+			self.index, self.cache, self.block_holder, 
+			caption_processor=mock_caption_processor
+		)
+		
+		raw_data = self._create_block_data()
+		
+		# Process and store the block (should queue caption generation)
+		int_id = block_manager.process_and_store_block(raw_data, ObjectType.BLOCK)
+		
+		# Verify caption generation was queued
+		mock_caption_processor.queue_caption_generation.assert_called_once()
+		
+		# Verify the call arguments
+		call_args = mock_caption_processor.queue_caption_generation.call_args
+		self.assertEqual(call_args.kwargs['int_id'], int_id)
+		self.assertEqual(call_args.kwargs['block_type'], 'block')
+		self.assertIsInstance(call_args.kwargs['uuid'], CustomUUID)
+		self.assertIsInstance(call_args.kwargs['block_content'], dict)
+
+	def test_caption_generation_not_queued_for_block_with_existing_name(self):
+		"""Test that caption generation is not queued for blocks that already have names."""
+		# Create a mock caption processor
+		mock_caption_processor = Mock()
+		
+		# Create BlockManager with caption processor
+		block_manager = BlockManager(
+			self.index, self.cache, self.block_holder, 
+			caption_processor=mock_caption_processor
+		)
+		
+		raw_data = self._create_block_data()
+		
+		# First, add the UUID to index with a name
+		uuid_obj = CustomUUID.from_string(self.TEST_UUID_1)
+		int_id = self.index.add_uuid(uuid_obj, "Existing Block Name")
+		
+		# Process and store the block (should NOT queue caption generation)
+		returned_int_id = block_manager.process_and_store_block(raw_data, ObjectType.BLOCK)
+		
+		# Verify the same int_id was returned
+		self.assertEqual(int_id, returned_int_id)
+		
+		# Verify caption generation was NOT queued
+		mock_caption_processor.queue_caption_generation.assert_not_called()
+
+	def test_caption_generation_queued_for_block_with_whitespace_name(self):
+		"""Test that caption generation is queued for blocks with whitespace-only names."""
+		# Create a mock caption processor
+		mock_caption_processor = Mock()
+		
+		# Create BlockManager with caption processor
+		block_manager = BlockManager(
+			self.index, self.cache, self.block_holder, 
+			caption_processor=mock_caption_processor
+		)
+		
+		raw_data = self._create_block_data()
+		
+		# First, add the UUID to index with whitespace-only name
+		uuid_obj = CustomUUID.from_string(self.TEST_UUID_1)
+		int_id = self.index.add_uuid(uuid_obj, "   ")  # Whitespace only
+		
+		# Process and store the block (should queue caption generation)
+		returned_int_id = block_manager.process_and_store_block(raw_data, ObjectType.BLOCK)
+		
+		# Verify the same int_id was returned
+		self.assertEqual(int_id, returned_int_id)
+		
+		# Verify caption generation was queued
+		mock_caption_processor.queue_caption_generation.assert_called_once()
+
+	def test_caption_generation_not_queued_when_processor_is_none(self):
+		"""Test that no errors occur when caption processor is None."""
+		# Create BlockManager without caption processor (None)
+		block_manager = BlockManager(self.index, self.cache, self.block_holder, caption_processor=None)
+		
+		raw_data = self._create_block_data()
+		
+		# Process and store the block (should not raise any errors)
+		int_id = block_manager.process_and_store_block(raw_data, ObjectType.BLOCK)
+		
+		# Verify the block was processed successfully
+		self.assertIsInstance(int_id, int)
+		
+		# Verify the block was stored in cache
+		uuid_obj = CustomUUID.from_string(self.TEST_UUID_1)
+		cached_content = self.cache.get_block(uuid_obj)
+		self.assertIsNotNone(cached_content)
+
+	def test_caption_generation_conditional_logic_for_children(self):
+		"""Test that conditional logic applies to children processed via process_children_batch."""
+		# Create a mock caption processor
+		mock_caption_processor = Mock()
+		
+		# Create BlockManager with caption processor
+		block_manager = BlockManager(
+			self.index, self.cache, self.block_holder, 
+			caption_processor=mock_caption_processor
+		)
+		
+		# Create parent and child data
+		parent_uuid = CustomUUID.from_string(self.TEST_UUID_1)
+		child_data = self._create_block_data(self.TEST_UUID_2)
+		
+		# Add child to index with existing name
+		child_uuid = CustomUUID.from_string(self.TEST_UUID_2)
+		self.index.add_uuid(child_uuid, "Existing Child Name")
+		
+		# Process children batch (should NOT queue caption for child with existing name)
+		children_uuids = block_manager.process_children_batch([child_data], parent_uuid)
+		
+		# Verify child was processed
+		self.assertEqual(len(children_uuids), 1)
+		self.assertEqual(children_uuids[0], child_uuid)
+		
+		# Verify caption generation was NOT queued for child with existing name
+		mock_caption_processor.queue_caption_generation.assert_not_called()
 
 
 if __name__ == '__main__':

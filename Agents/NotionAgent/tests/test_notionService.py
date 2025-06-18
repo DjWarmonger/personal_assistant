@@ -148,7 +148,8 @@ class TestNotionService:
 			url_index=mock_dependencies['url_index'],
 			block_holder=mock_dependencies['block_holder'],
 			block_manager=mock_dependencies['block_manager'],
-			landing_page_id=CustomUUID.from_string(TEST_LANDING_PAGE_ID)
+			landing_page_id=CustomUUID.from_string(TEST_LANDING_PAGE_ID),
+			caption_processor=None  # No caption processor in tests
 		)
 
 	@pytest.mark.asyncio

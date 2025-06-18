@@ -16,6 +16,8 @@ from ..blocks.blockManager import BlockManager
 from ..blocks.cacheOrchestrator import CacheOrchestrator
 from .notionAPIClient import NotionAPIClient
 from .notionService import NotionService
+from ..captioning.captionGenerator import CaptionGenerator
+from ..captioning.backgroundProcessor import BackgroundCaptionProcessor
 
 load_dotenv()
 log.set_log_level(LogLevel.FLOW)
@@ -33,7 +35,9 @@ class NotionClient:
 				 notion_token=NOTION_TOKEN,
 				 landing_page_id=NOTION_LANDING_PAGE_ID,
 				 load_from_disk=True,
-				 run_on_start=True):
+				 run_on_start=True,
+				 enable_caption_generation=True,
+				 langfuse_handler=None):
 		
 		raw_landing_page_id = landing_page_id
 		if raw_landing_page_id:
@@ -42,13 +46,47 @@ class NotionClient:
 			self.landing_page_id = None
 		
 		self.notion_token = notion_token
+		self.enable_caption_generation = enable_caption_generation
 
 		# Initialize core components
 		self.index = Index(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.cache = BlockCache(load_from_disk=load_from_disk, run_on_start=run_on_start)
 		self.url_index = UrlIndex()
 		self.block_holder = BlockHolder(self.url_index)
-		self.block_manager = BlockManager(self.index, self.cache, self.block_holder)
+		
+		# Initialize caption processing components if enabled
+		self.caption_processor = None
+		if self.enable_caption_generation:
+			try:
+				# Create caption generator
+				caption_generator = CaptionGenerator(
+					block_holder=self.block_holder,
+					langfuse_handler=langfuse_handler
+				)
+				
+				# Create background caption processor
+				self.caption_processor = BackgroundCaptionProcessor(
+					caption_generator=caption_generator,
+					index=self.index,
+					max_queue_size=1000,
+					batch_size=5,
+					max_concurrent=8
+				)
+				
+				log.flow("Caption generation enabled")
+			except Exception as e:
+				log.error(f"Failed to initialize caption generation: {e}")
+				self.caption_processor = None
+		else:
+			log.debug("Caption generation disabled")
+		
+		# Initialize block manager with caption processor
+		self.block_manager = BlockManager(
+			self.index, 
+			self.cache, 
+			self.block_holder,
+			caption_processor=self.caption_processor
+		)
 		
 		# Initialize service layer components
 		self.api_client = NotionAPIClient(self.notion_token, self.block_holder)
@@ -62,14 +100,32 @@ class NotionClient:
 			url_index=self.url_index,
 			block_holder=self.block_holder,
 			block_manager=self.block_manager,
-			landing_page_id=self.landing_page_id
+			landing_page_id=self.landing_page_id,
+			caption_processor=self.caption_processor
 		)
 
 	async def __aenter__(self):
 		await AsyncClientManager.initialize()
+		
+		# Start caption processing if enabled
+		if self.caption_processor:
+			try:
+				await self.caption_processor.start_background_processing()
+				log.flow("Caption background processing started")
+			except Exception as e:
+				log.error(f"Failed to start caption processing: {e}")
+		
 		return self
 
 	async def __aexit__(self, exc_type, exc_val, exc_tb):
+		# Stop caption processing if enabled
+		if self.caption_processor:
+			try:
+				await self.caption_processor.stop_background_processing()
+				log.flow("Caption background processing stopped")
+			except Exception as e:
+				log.error(f"Failed to stop caption processing: {e}")
+		
 		# Do not close the manager; it's shared globally.
 		pass
 

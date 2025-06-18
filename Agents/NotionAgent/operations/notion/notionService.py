@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, Any
 import json
 import asyncio
 from collections import deque
@@ -34,7 +34,8 @@ class NotionService:
 				 url_index: UrlIndex,
 				 block_holder: BlockHolder,
 				 block_manager: BlockManager,
-				 landing_page_id: Optional[CustomUUID] = None):
+				 landing_page_id: Optional[CustomUUID] = None,
+				 caption_processor: Optional[Any] = None):
 		"""
 		Initialize the NotionService with required dependencies.
 		
@@ -46,6 +47,7 @@ class NotionService:
 			block_holder: Block processing and filtering
 			block_manager: Block management operations
 			landing_page_id: Default page ID when none specified
+			caption_processor: Optional background caption processor
 		"""
 		self.api_client = api_client
 		self.cache_orchestrator = cache_orchestrator
@@ -54,6 +56,7 @@ class NotionService:
 		self.block_holder = block_holder
 		self.block_manager = block_manager
 		self.landing_page_id = landing_page_id
+		self.caption_processor = caption_processor
 
 
 	async def get_notion_page_details(self, 
