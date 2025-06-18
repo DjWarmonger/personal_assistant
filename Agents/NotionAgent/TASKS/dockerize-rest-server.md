@@ -7,7 +7,7 @@ Plan to containerize the Notion REST server with all dependencies, including the
 
 ### Existing Files
 - `launcher/rest_server.py` - Flask server using `chat()` function
-- `compose.yaml` - Contains only TODO comment
+- `docker_compose.yaml` - Contains only TODO comment
 - `Dockerfile` - Contains only TODO comment  
 - `tests/test_rest_server.py` - Basic tests for REST endpoints
 
@@ -94,7 +94,7 @@ Create multi-stage Dockerfile following PROJECT_TEMPLATE guidelines:
 - More production-ready but complex
 
 ### Phase 3: Docker Compose Configuration
-Update `compose.yaml` with:
+Update `docker_compose.yaml` with:
 
 ```yaml
 version: "3.9"
@@ -191,10 +191,14 @@ pytest-asyncio==0.25.0
 
 ## Implementation Tasks
 
-### Task 1: Create Requirements File
-- [ ] Create `requirements.txt` with pinned versions from services environment
-- [ ] Separate development dependencies from runtime dependencies
-- [ ] Ensure compatibility with pydantic v1 requirement
+### Task 1: Create Requirements File ✅ COMPLETED
+- [x] Create `requirements.txt` with pinned versions from services environment
+- [x] Separate development dependencies from runtime dependencies (`requirements-dev.txt`)
+- [x] Ensure compatibility with pydantic v1 requirement
+
+**Files Created:**
+- `requirements.txt` - Runtime dependencies for Docker container
+- `requirements-dev.txt` - Development dependencies (includes runtime via -r)
 
 ### Task 2: Create Dockerfile
 - [ ] Write multi-stage Dockerfile based on PROJECT_TEMPLATE
@@ -204,7 +208,7 @@ pytest-asyncio==0.25.0
 - [ ] Set CMD to run `python launcher/rest_server.py` (maintain current structure)
 
 ### Task 3: Update Docker Compose
-- [ ] Replace TODO in compose.yaml
+- [ ] Replace TODO in docker_compose.yaml
 - [ ] Add persistent volume for logs
 - [ ] Configure health checks
 - [ ] Set environment variables

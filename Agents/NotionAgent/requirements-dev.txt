@@ -1,0 +1,6 @@
+# Include runtime dependencies
+-r requirements.txt
+
+# Development/Testing Dependencies
+pytest==8.2.2
+pytest-asyncio==0.25.0 

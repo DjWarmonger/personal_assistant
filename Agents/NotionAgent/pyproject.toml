@@ -22,9 +22,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-	"black",
-	"flake8",
-	"mypy",
 ]
 
 [tool.pytest]
