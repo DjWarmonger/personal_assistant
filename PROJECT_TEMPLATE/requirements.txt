@@ -1,0 +1,7 @@
+# Web Framework
+Flask==3.0.3
+Werkzeug==3.0.3
+
+# Core Libraries
+python-dotenv==1.0.1
+requests==2.32.3 
