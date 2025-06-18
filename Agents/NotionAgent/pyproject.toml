@@ -32,4 +32,4 @@ python_functions = "test_*"
 addopts = "--import-mode=importlib"
 
 [tool.setuptools]
-packages = ["Agent", "operations", "launcher", "tests"] 
+packages = ["Agent", "operations", "launcher"] 
