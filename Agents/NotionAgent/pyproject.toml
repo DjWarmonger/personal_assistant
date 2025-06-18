@@ -13,6 +13,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
 	"aiohttp",
+	"flask>=3.0.3",
 	"python-dotenv",
 	"pydantic>=1.10.8,<2.0.0",
 	"pytest",
