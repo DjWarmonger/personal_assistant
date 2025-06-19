@@ -19,10 +19,6 @@
 	pip list --format freeze > Agents/NotionAgent/TASKS/conda-services-freeze.txt
 	conda list --explicit > Agents/NotionAgent/TASKS/conda-services-explicit.txt
 	```
-3. Tag the current git state:
-	```bash
-	git tag -a notion_uv_migration_start -m "Pre-uv migration snapshot"
-	```
 4. (Optional) Export Conda env YAML:
 	```bash
 	conda env export > Agents/NotionAgent/TASKS/conda-services-env.yml
