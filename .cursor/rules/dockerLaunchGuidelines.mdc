@@ -1,0 +1,140 @@
+---
+description: 
+globs: **/docker_compose.yaml,**/Dockerfile
+alwaysApply: false
+---
+# Docker Launch Guidelines
+
+## Prerequisites
+
+1. **Docker Desktop must be running** (Windows)
+   - Error if not: `error during connect: Head "http://%2F%2F.%2Fpipe%2FdockerDesktopLinuxEngine/_ping"`
+   - Solution: Launch Docker Desktop and wait for it to fully start
+
+2. **Run from project root** - Never use `cd` in Docker commands
+   - Correct: `docker compose -f Agents/NotionAgent/docker_compose.yaml up -d`
+   - Wrong: `cd Agents/NotionAgent && docker compose up -d`
+
+## Build Process
+
+### Docker Build (Direct)
+```bash
+# From project root
+docker build -f Agents/NotionAgent/Dockerfile -t notion-rest-server .
+```
+
+**Context Requirements**:
+- Build context must be project root (`.`) for access to `common/` directory
+- Dockerfile path: `Agents/NotionAgent/Dockerfile`
+- Image tag: `notion-rest-server`
+
+### Docker Compose Build
+```bash
+# From project root
+docker compose -f Agents/NotionAgent/docker_compose.yaml build
+```
+
+**Configuration**:
+```yaml
+build:
+  context: ../../  # Project root
+  dockerfile: Agents/NotionAgent/Dockerfile
+```
+
+## Launch Commands
+
+### Start Container
+```bash
+docker compose -f Agents/NotionAgent/docker_compose.yaml up -d
+```
+
+### Stop Container
+```bash
+docker compose -f Agents/NotionAgent/docker_compose.yaml down
+```
+
+### View Logs
+```bash
+docker logs notion-rest-server
+```
+
+### Check Status
+```bash
+docker ps
+```
+
+## Directory Structure Requirements
+
+**In Container**:
+```
+/app/
+├── tz_common/
+│   ├── src/tz_common/  # Proper src layout
+│   ├── pyproject.toml
+│   └── setup.py
+├── Agent/
+├── operations/
+├── launcher/
+├── README.md           # Required for package build
+├── pyproject.toml
+└── requirements.txt
+```
+
+**Key Points**:
+- tz_common needs `src/` directory structure
+- README.md must be present for package installation
+- Tests directory excluded from container
+
+## Build Context & Paths
+
+**Docker Compose Context**:
+```yaml
+build:
+  context: ../../           # Project root
+  dockerfile: Agents/NotionAgent/Dockerfile
+```
+
+**Dockerfile Paths** (relative to project root):
+```dockerfile
+COPY common/src ./tz_common/src
+COPY Agents/NotionAgent/Agent ./Agent
+COPY Agents/NotionAgent/requirements.txt .
+```
+
+## Health Checks & Testing
+
+### Container Health
+```bash
+# Check if container is healthy
+docker ps  # Look for "healthy" status
+
+# Test REST endpoint
+curl -X GET http://localhost:8000/health
+```
+
+### Log Monitoring
+```bash
+# Follow logs in real-time
+docker logs -f notion-rest-server
+
+# Check for startup errors
+docker logs notion-rest-server | grep -i error
+```
+
+## Troubleshooting Workflow
+
+1. **Check Docker Desktop is running**
+2. **Verify you're in project root** (`pwd` should show PersonalAssistant)
+3. **Clean build if dependencies changed**:
+   ```bash
+   docker compose -f Agents/NotionAgent/docker_compose.yaml down
+   docker build --no-cache -f Agents/NotionAgent/Dockerfile -t notion-rest-server .
+   ```
+4. **Check logs immediately after start**:
+   ```bash
+   docker logs notion-rest-server
+   ```
+5. **Test health endpoint**:
+   ```bash
+   curl http://localhost:8000/health
+   ```
