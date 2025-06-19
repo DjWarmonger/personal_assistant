@@ -209,7 +209,7 @@ def _(
                 cwd=project_dir,
                 capture_output=True,
                 text=True,
-                timeout=120  # 2 minute timeout
+                timeout=60
             )
 
             if result.returncode == 0:
@@ -303,7 +303,24 @@ def _(Path, __file__, mo, subprocess):
         except Exception as e:
             return "Container: Check failed ✗"
 
-    # Get current status
+    return check_server_health, check_container_status
+
+
+@app.cell(hide_code=True)
+def _(check_container_status, check_server_health, mo):
+    # Create status refresh button
+    status_refresh_button = mo.ui.button(label="Refresh Status")
+    status_refresh_button
+    return (status_refresh_button,)
+
+
+@app.cell(hide_code=True)
+def _(check_container_status, check_server_health, mo, status_refresh_button):
+    # This cell gets refreshed when status button is clicked
+    # Get button value to make this cell reactive to button clicks
+    _ = status_refresh_button.value
+
+    # Get current status (this will be updated each time the button is clicked)
     server_status = check_server_health()
     container_status = check_container_status()
 
@@ -313,17 +330,11 @@ def _(Path, __file__, mo, subprocess):
     - {server_status}
     - {container_status}
 
-    _Status checked automatically_
+    _Click "Refresh Status" to update_
     """)
 
     status_display
-    return (
-        check_container_status,
-        check_server_health,
-        container_status,
-        server_status,
-        status_display,
-    )
+    return container_status, server_status, status_display
 
 
 @app.cell(hide_code=True)
