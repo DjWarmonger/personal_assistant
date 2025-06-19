@@ -71,6 +71,8 @@ def _():
     import asyncio
     import nest_asyncio
     import time
+    import subprocess
+    from pathlib import Path
 
     nest_asyncio.apply()
 
@@ -78,11 +80,13 @@ def _():
     from chat import chat
     return (
         ChatPromptTemplate,
+        Path,
         RunnableParallel,
         asyncio,
         chat,
         log,
         nest_asyncio,
+        subprocess,
         time,
     )
 
@@ -93,7 +97,7 @@ def _():
     return (responses,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, prompts):
     prompt_selector = mo.ui.multiselect(
         options=prompts, label="Select promps to run",
@@ -102,9 +106,46 @@ def _(mo, prompts):
 
     run_button = mo.ui.run_button(label='Run chats')
 
-    mo.hstack([run_button, prompt_selector],
-              widths=[100, 600])
-    return prompt_selector, run_button
+    mode_switch = mo.ui.switch(label="Use Server Mode", value=False)
+
+    launch_container_button = mo.ui.button(label="Launch Container")
+    stop_container_button = mo.ui.button(label="Stop Container")
+
+    server_status_text = mo.ui.text("Server Status: Checking...")
+    container_status_text = mo.ui.text("Container Status: Unknown")
+
+    execution_controls = mo.hstack([run_button, mode_switch], 
+                                 widths=[120, 200], gap=1)
+
+    docker_controls = mo.hstack([launch_container_button, stop_container_button],
+                               widths=[140, 200], gap=1)
+
+    status_indicators = mo.vstack([server_status_text, container_status_text])
+
+    # Main layout
+    main_layout = mo.vstack([
+        execution_controls,
+        prompt_selector,
+        mo.md("**Docker Container Management**"),
+        docker_controls,
+        mo.md("**Status**"),
+        status_indicators
+    ])
+
+    main_layout
+    return (
+        container_status_text,
+        docker_controls,
+        execution_controls,
+        launch_container_button,
+        main_layout,
+        mode_switch,
+        prompt_selector,
+        run_button,
+        server_status_text,
+        status_indicators,
+        stop_container_button,
+    )
 
 
 @app.cell(hide_code=True)
@@ -145,6 +186,147 @@ def _(asyncio, chat, log, mo, responses, run_button, time):
 
 
 @app.cell(hide_code=True)
+def _(
+    Path,
+    __file__,
+    launch_container_button,
+    log,
+    mo,
+    stop_container_button,
+    subprocess,
+):
+    # Handle Docker container management
+
+    def launch_container():
+        """Launch Docker container using docker-compose"""
+        try:
+            # Get the project directory (parent of launcher)
+            project_dir = Path(__file__).parent.parent
+            log.flow("Launching Docker container", f"Working directory: {project_dir}")
+
+            result = subprocess.run(
+                ["docker-compose", "up", "-d"], 
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=120  # 2 minute timeout
+            )
+
+            if result.returncode == 0:
+                log.flow("Container launched successfully")
+                return "Container launched successfully"
+            else:
+                log.error("Failed to launch container", result.stderr)
+                return f"Error: {result.stderr}"
+
+        except subprocess.TimeoutExpired:
+            return "Error: Container launch timed out"
+        except Exception as e:
+            log.error("Exception launching container", str(e))
+            return f"Error: {str(e)}"
+
+    def stop_container():
+        """Stop Docker container using docker-compose"""
+        try:
+            project_dir = Path(__file__).parent.parent
+            log.flow("Stopping Docker container", f"Working directory: {project_dir}")
+
+            result = subprocess.run(
+                ["docker-compose", "down"], 
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=60  # 1 minute timeout
+            )
+
+            if result.returncode == 0:
+                log.flow("Container stopped successfully")
+                return "Container stopped successfully"
+            else:
+                log.error("Failed to stop container", result.stderr)
+                return f"Error: {result.stderr}"
+
+        except subprocess.TimeoutExpired:
+            return "Error: Container stop timed out"
+        except Exception as e:
+            log.error("Exception stopping container", str(e))
+            return f"Error: {str(e)}"
+
+    # Handle button clicks
+    if launch_container_button.value:
+        launch_result = launch_container()
+        mo.output.append(mo.md(f"**Launch Result**: {launch_result}"))
+
+    if stop_container_button.value:
+        stop_result = stop_container()
+        mo.output.append(mo.md(f"**Stop Result**: {stop_result}"))
+    return launch_container, launch_result, stop_container, stop_result
+
+
+@app.cell(hide_code=True)
+def _(Path, __file__, mo, subprocess):
+    # Status checking functions
+
+    def check_server_health():
+        """Check if the REST server is responding"""
+        try:
+            import urllib.request
+            response = urllib.request.urlopen('http://localhost:8000/health', timeout=5)
+            if response.status == 200:
+                return "Server: Online ✓"
+            else:
+                return f"Server: Error (Status {response.status})"
+        except Exception as e:
+            return "Server: Offline ✗"
+
+    def check_container_status():
+        """Check Docker container status"""
+        try:
+            project_dir = Path(__file__).parent.parent
+            result = subprocess.run(
+                ["docker-compose", "ps", "--services", "--filter", "status=running"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode == 0:
+                running_services = result.stdout.strip()
+                if running_services:
+                    return f"Container: Running ✓ ({running_services})"
+                else:
+                    return "Container: Stopped ○"
+            else:
+                return "Container: Unknown ?"
+
+        except Exception as e:
+            return "Container: Check failed ✗"
+
+    # Get current status
+    server_status = check_server_health()
+    container_status = check_container_status()
+
+    # Create status display
+    status_display = mo.md(f"""
+    **Current Status:**
+    - {server_status}
+    - {container_status}
+
+    _Status checked automatically_
+    """)
+
+    status_display
+    return (
+        check_container_status,
+        check_server_health,
+        container_status,
+        server_status,
+        status_display,
+    )
+
+
+@app.cell(hide_code=True)
 def _(asyncio, mo, prompt_selector, run_button, run_chats_parallel):
     update_tabs = False
     mo.stop(not run_button.value)
@@ -179,7 +361,7 @@ def _(mo, responses, update_tabs):
     return (tabs,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(__file__):
     import os
     from operations.blocks.blockCache import BlockCache
@@ -202,7 +384,7 @@ def _(mo):
     return (refresh_button,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(block_cache, datetime, mo, refresh_button):
     # This cell displays the metrics and will re-run when the button is clicked
 
