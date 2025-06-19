@@ -28,18 +28,18 @@ Rollback = `conda activate services` **+** `git checkout notion_uv_migration_sta
 
 ---
 
-## 2. Prepare `uv` Environment
+## 2. Prepare `uv` Environment ✅ DONE
 1. Install `uv` once globally (if not already):
 	```bash
 	pipx install uv   # or "pip install uv --user"
 	```
 2. From project root (`PersonalAssistant/`):
 	```bash
-	uv venv .venv_uv_notion
+	uv venv .venv_uv_services
 	```
 3. Activate:
 	```bash
-	source .venv_uv_notion/bin/activate   # or "./.venv_uv_notion/Scripts/activate" on Windows
+	source .venv_uv_services/bin/activate   # or "./.venv_uv_services/Scripts/activate" on Windows
 	```
 4. Pin Python version identical to Conda env (e.g. 3.11.x) in a **tool-agnostic** file:
 	```
