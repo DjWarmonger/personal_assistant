@@ -94,7 +94,7 @@ Put this file under `Agents/NotionAgent/pyproject.toml`.
 
 ---
 
-## 5. Validation Matrix
+## 5. Validation Matrix ✅ DONE
 | Check | Command | Expected |
 |-------|---------|----------|
 | Unit tests | `pytest Agents/NotionAgent/tests` | All pass |
