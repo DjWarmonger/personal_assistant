@@ -49,7 +49,7 @@ Rollback = `conda activate services` **+** `git checkout notion_uv_migration_sta
 
 ---
 
-## 3. Dependency Specification
+## 3. Dependency Specification ✅ DONE
 ### 3.1 Convert Conda lockfile → requirements
 1. Use `conda-lock` **or** manual script to translate `conda-services-explicit.txt` into `requirements-conda.txt` (pip style).
 2. Manually prune any Conda-only libs (`conda`, `anaconda-client`, etc.).
