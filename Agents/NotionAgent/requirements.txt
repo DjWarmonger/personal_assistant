@@ -1,0 +1,22 @@
+# Web Framework
+Flask==3.0.3
+Werkzeug==3.0.3
+
+# LangChain Ecosystem
+langchain==0.2.6
+langchain-community==0.2.6
+langchain-core==0.2.11
+langchain-openai==0.1.14
+langchain-text-splitters==0.2.2
+langgraph==0.1.5
+langsmith==0.1.83
+
+# AI Services
+openai==1.35.10
+langfuse==2.59.3
+
+# Core Libraries
+aiohttp==3.9.5
+python-dotenv==1.0.1
+pydantic==1.10.22
+requests==2.32.3 

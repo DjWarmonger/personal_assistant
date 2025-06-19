@@ -81,7 +81,7 @@ Put this file under `Agents/NotionAgent/pyproject.toml`.
 
 ---
 
-## 4. Local Installation & Editable Links
+## 4. Local Installation & Editable Links ✅ DONE
 1. Ensure `tz_common` becomes an **editable** install so both Notion Agent and others load latest code:
 	```bash
 	uv pip install -e common/src
