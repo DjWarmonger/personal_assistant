@@ -135,4 +135,57 @@ Automate via GitHub Actions matrix (`conda` vs `uv`). Only merge when `uv` lane 
 
 ---
 
-*End of Plan* 
+*End of Plan*
+
+---
+
+## Deprecated Commands (NotionAgent)
+
+The following conda-based commands for NotionAgent are now **DEPRECATED** after the UV migration. Use the UV environment equivalents instead.
+
+### Deprecated Test Commands
+
+**❌ DEPRECATED - Do not use:**
+```bash
+# Old conda-based NotionAgent testing
+conda activate services
+python -m pytest Agents/NotionAgent/tests
+python -m pytest Agents/NotionAgent/tests -v
+python -m pytest Agents/NotionAgent/tests/test_specific_file.py
+python -m pytest Agents/NotionAgent/tests/test_block_cache.py::TestBlockCache::test_specific_method
+python -m pytest -s Agents/NotionAgent/tests
+```
+
+**✅ USE INSTEAD:**
+```bash
+# New UV-based NotionAgent testing
+.\.venv_uv_services\Scripts\activate
+python -m pytest Agents/NotionAgent/tests
+python -m pytest Agents/NotionAgent/tests -v
+python -m pytest Agents/NotionAgent/tests/test_specific_file.py
+python -m pytest Agents/NotionAgent/tests/test_block_cache.py::TestBlockCache::test_specific_method
+python -m pytest -s Agents/NotionAgent/tests
+```
+
+### Deprecated Development Commands
+
+**❌ DEPRECATED - Do not use:**
+```bash
+# Old conda-based NotionAgent development
+conda activate services
+python Agents/NotionAgent/launcher/main.py
+python -m Agents.NotionAgent.launcher.chat
+```
+
+**✅ USE INSTEAD:**
+```bash
+# New UV-based NotionAgent development
+.\.venv_uv_services\Scripts\activate
+python Agents/NotionAgent/launcher/main.py
+python -m Agents.NotionAgent.launcher.chat
+```
+
+### Migration Date
+- **Migrated**: 19.06.2025
+- **Reason**: Better dependency management, faster installs, improved reproducibility
+- **Rollback**: Available via conda environment if needed for emergency 

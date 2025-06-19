@@ -9,7 +9,25 @@ Always run tests from the project root directory (`PersonalAssistant`). It is fo
 
 Here are example commands for each sub-project:
 
+## Environment Setup
+
+**Conda Environment (for JsonAgent and legacy projects):**
+```bash
+conda activate services
+```
+
+**UV Environment (for NotionAgent):**
+```bash
+# Windows
+.\.venv_uv_services\Scripts\activate
+
+# Linux/Mac
+source .venv_uv_services/bin/activate
+```
+
 ## Common Library (tz_common)
+
+**Using Conda:**
 ```bash
 # Run all tests
 conda activate services
@@ -19,23 +37,54 @@ python -m unittest discover -s common/tests
 python -m unittest common.tests.test_imports
 ```
 
-## Agents
+**Using UV:**
 ```bash
+# Activate UV environment first
+.\.venv_uv_services\Scripts\activate
+
+# Run all tests
+python -m unittest discover -s common/tests
+
+# Run specific test file
+python -m unittest common.tests.test_imports
+```
+
+## NotionAgent (UV Environment Only)
+
+```bash
+# Activate UV environment first
+.\.venv_uv_services\Scripts\activate
+
 # Run all tests for NotionAgent
-conda activate services
 python -m pytest Agents/NotionAgent/tests
 
-# Run with verbose output for NotionAgent
+# Run with verbose output
 python -m pytest Agents/NotionAgent/tests -v
 
-# Run specific test file for JsonAgent
-python -m pytest Agents/JsonAgent/tests/test_specific_file.py
+# Run specific test file
+python -m pytest Agents/NotionAgent/tests/test_specific_file.py
 
-# Run specific test method for NotionAgent
+# Run specific test method
 python -m pytest Agents/NotionAgent/tests/test_block_cache.py::TestBlockCache::test_specific_method
 
 # Run all tests with output capture disabled (useful for debugging)
+python -m pytest -s Agents/NotionAgent/tests
+```
+
+## JsonAgent (Conda Environment)
+
+```bash
+# Run all tests for JsonAgent
 conda activate services
+python -m pytest Agents/JsonAgent/tests
+
+# Run with verbose output
+python -m pytest Agents/JsonAgent/tests -v
+
+# Run specific test file
+python -m pytest Agents/JsonAgent/tests/test_specific_file.py
+
+# Run all tests with output capture disabled (useful for debugging)
 python -m pytest -s Agents/JsonAgent/tests
 ```
 
@@ -46,15 +95,21 @@ To run tests for multiple sub-projects in sequence:
 * If you need to test more than one test case from a suite, run the full suite
 * If you need to test more than one suite, run all the tests at once
 
+**Mixed Environment Workflow:**
 ```bash
-conda activate services
-
-# Run common tests
+# First, test NotionAgent with UV
+.\.venv_uv_services\Scripts\activate
 python -m unittest discover -s common/tests
-
-# Run NotionAgent tests
 python -m pytest Agents/NotionAgent/tests
 
-# Run JsonAgent tests
+# Then, test JsonAgent with conda
+conda activate services
 python -m pytest Agents/JsonAgent/tests
 ```
+
+## Notes
+
+- **NotionAgent** uses UV environment (`.venv_uv_services`) exclusively
+- **JsonAgent** still uses conda `services` environment
+- **tz_common** works with both environments (installed as editable package)
+- UV environment includes all NotionAgent dependencies and tz_common in editable mode
