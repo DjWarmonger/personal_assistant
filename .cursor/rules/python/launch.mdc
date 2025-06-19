@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # TODO: Launch as chat
 
@@ -69,6 +69,19 @@ python -m pytest Agents/NotionAgent/tests/test_block_cache.py::TestBlockCache::t
 
 # Run all tests with output capture disabled (useful for debugging)
 python -m pytest -s Agents/NotionAgent/tests
+```
+
+## NotionAgent Dashboard (Marimo)
+
+```bash
+# Activate UV environment first
+.\.venv_uv_services\Scripts\activate
+
+# Run dashboard in development mode (shows all cells and code)
+marimo edit Agents/NotionAgent/launcher/dashboard.py
+
+# Run dashboard in app mode (production UI only)
+marimo run Agents/NotionAgent/launcher/dashboard.py
 ```
 
 ## JsonAgent (Conda Environment)
