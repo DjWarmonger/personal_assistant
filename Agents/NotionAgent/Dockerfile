@@ -14,8 +14,8 @@ COPY common/src ./tz_common/src
 COPY common/pyproject.toml ./tz_common/pyproject.toml
 COPY common/setup.py ./tz_common/setup.py
 
-# Install tz_common in editable mode
-RUN pip install -e ./tz_common
+# Install tz_common dependencies first, then install in editable mode
+RUN cd ./tz_common && pip install -e .
 
 # Copy requirements and install NotionAgent dependencies
 COPY Agents/NotionAgent/requirements.txt .

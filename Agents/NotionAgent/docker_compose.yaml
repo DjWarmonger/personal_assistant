@@ -11,6 +11,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs  # Persistent log storage
+    env_file:
+      - .env
     environment:
       - PYTHONPATH=/app:/app/tz_common
     healthcheck:
