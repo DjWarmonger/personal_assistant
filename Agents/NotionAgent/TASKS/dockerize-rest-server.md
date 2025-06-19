@@ -223,17 +223,22 @@ pytest-asyncio==0.25.0
 - `docker_compose.yaml` - Complete configuration with build context from project root
 - Added .dockerignore for optimized builds
 
-### Task 4: Test Integration ✅ COMPLETED
+### Task 4: Test Integration ✅ PARTIALLY COMPLETED
 - [x] Build Docker image locally
-- [x] Test REST endpoints in container
 - [x] Verify tz_common imports work
+- [x] Fix missing dependencies (termcolor, Pillow)
+- [x] Configure environment variables (.env file)
+- [x] Resolve Docker build and dependency issues
+- [ ] Fix LangChain/OpenAI compatibility issue
+- [ ] Test REST endpoints in container
 - [ ] Test chat functionality
 
 **Status:**
-- Docker image builds successfully (728MB, Python 3.11)
-- Container starts and runs (notion-rest-server)
-- All dependency imports resolved
-- Health checks configured and working
+- Docker image builds successfully (~750MB, Python 3.11)
+- Container loads and initializes most components successfully
+- All core dependency imports resolved (tz_common, termcolor, Pillow)
+- Database and cache initialization working
+- **Current Issue**: LangChain/OpenAI version compatibility error preventing server startup
 
 ### Task 5: Documentation ✅ COMPLETED
 - [x] Update README.md with Docker instructions
@@ -245,40 +250,123 @@ pytest-asyncio==0.25.0
 - `TASKS/version-migration-analysis.md` - Dependency conflict analysis and solutions
 - Updated PROJECT_TEMPLATE files with lessons learned
 
-## Potential Challenges
+## Issues Encountered & Resolutions
 
-### 1. Complex Import Structure
+### 1. Missing Dependencies ✅ RESOLVED
+**Issue**: Container restart loop due to missing `termcolor` and `Pillow` dependencies
+- `ModuleNotFoundError: No module named 'termcolor'`
+- `ModuleNotFoundError: No module named 'PIL'`
+
+**Root Cause**: 
+- tz_common pyproject.toml dependencies weren't being installed properly during Docker build
+- utils.py imports PIL unconditionally but Pillow wasn't in requirements
+
+**Resolution**:
+- Added explicit `termcolor>=2.0.0` to requirements.txt
+- Added explicit `Pillow>=9.0.0` to requirements.txt
+- Fixed tz_common installation in Dockerfile with proper working directory
+
+### 2. Environment Variables Missing ✅ RESOLVED
+**Issue**: Application failing to initialize due to missing OpenAI API keys
+**Resolution**: Added `.env` file configuration to docker-compose.yaml
+
+### 3. LangChain/OpenAI Compatibility ⚠️ CURRENT ISSUE
+**Issue**: `Client.__init__() got an unexpected keyword argument 'proxies'`
+**Status**: Container initializes successfully but fails at ChatOpenAI setup
+**Impact**: REST server doesn't start, health endpoint unavailable
+
+**Analysis**: Version compatibility issue between:
+- langchain-openai==0.1.14 
+- openai==1.35.10
+- Likely related to OpenAI client API changes
+
+### 4. Complex Import Structure ✅ RESOLVED
 - NotionAgent uses dynamic path manipulation
 - Multiple sys.path.insert() calls in different modules
 - Current rest_server.py assumes launcher/ directory location
 - Solution: Maintain current directory structure, set PYTHONPATH appropriately
 
-### 2. LangChain Dependencies
-- Large dependency tree
-- Potential version conflicts
-- Solution: Use specific version pinning
-
-### 3. tz_common Development Workflow
+### 5. tz_common Development Workflow ✅ RESOLVED
 - Currently installed in editable mode for development
 - Need to maintain development compatibility
 - Solution: Use volume mounts for development, source copy for production
 
-### 4. Log File Management
+### 6. Log File Management ✅ RESOLVED
 - Current system writes to local logs directory
 - Need persistent storage in container
 - Solution: Volume mount for logs directory
 
 ## Success Criteria
 
-1. **Functional Container**: REST server responds to health checks and API calls
-2. **Complete Dependencies**: All tz_common and NotionAgent imports work
-3. **Persistent Logs**: Log files survive container restarts
-4. **Easy Deployment**: Single command deployment with docker-compose
-5. **Development Friendly**: Support for development workflow with volume mounts
+1. **Functional Container**: ⚠️ REST server builds and starts but fails due to LangChain compatibility
+2. **Complete Dependencies**: ✅ All tz_common and NotionAgent imports work
+3. **Persistent Logs**: ✅ Log files survive container restarts
+4. **Easy Deployment**: ✅ Single command deployment with docker-compose
+5. **Development Friendly**: ✅ Support for development workflow with volume mounts
+
+## Current Container Status
+
+### ✅ Working Components
+- Docker image builds successfully (~750MB)
+- tz_common package installation and imports
+- All Python dependencies resolved (termcolor, Pillow, etc.)
+- Environment variable configuration
+- Database and cache initialization
+- Block management system loading
+- Log system initialization
+
+### ⚠️ Failing Component
+- LangChain/OpenAI client initialization
+- REST server startup (due to above failure)
+- Health endpoint availability
+
+### 🔧 Container Logs Summary
+```
+TZRag not available - missing dependencies  # Expected warning
+Index loaded from disk                       # ✅ Working
+Created index table                          # ✅ Working
+Created favourites table                     # ✅ Working
+Block cache loaded from disk                 # ✅ Working
+ValidationError: Client.__init__() got an unexpected keyword argument 'proxies'
+```
+
+## Next Steps
+
+### Immediate Priority
+1. **Fix LangChain/OpenAI Compatibility**: 
+   - Update OpenAI client version or modify ChatOpenAI initialization
+   - Remove 'proxies' parameter if not supported in current OpenAI client version
+   - Test compatibility between langchain-openai==0.1.14 and openai==1.35.10
+
+### Dashboard Integration
+2. **Dashboard Status Fixes**: ✅ COMPLETED
+   - Fixed static status boxes with reactive refresh button
+   - Added real-time container status checking
+   - Status updates now work properly on button click
 
 ## Future Enhancements
 
 1. **Multi-Environment Support**: Separate dev/prod configurations
 2. **Secret Management**: Environment-based configuration
 3. **Monitoring**: Add metrics and observability
-4. **Scaling**: Support for multiple container instances 
+4. **Scaling**: Support for multiple container instances
+
+## Files Modified in This Session
+
+### ✅ Fixed Files
+- `Agents/NotionAgent/requirements.txt` - Added termcolor and Pillow
+- `Agents/NotionAgent/docker_compose.yaml` - Added .env file configuration
+- `Agents/NotionAgent/launcher/dashboard.py` - Fixed static status boxes
+- `Agents/NotionAgent/Dockerfile` - Fixed tz_common installation path
+
+### 📋 Commands for Container Management
+```bash
+# Stop and rebuild
+docker compose -f Agents/NotionAgent/docker_compose.yaml down
+docker compose -f Agents/NotionAgent/docker_compose.yaml build --no-cache
+docker compose -f Agents/NotionAgent/docker_compose.yaml up -d
+
+# Check status and logs
+docker ps
+docker logs notion-rest-server --tail 20
+``` 
