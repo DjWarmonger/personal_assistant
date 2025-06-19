@@ -182,7 +182,7 @@ def _(mo, responses, update_tabs):
 @app.cell
 def _(__file__):
     import os
-    from operations.blockCache import BlockCache
+    from operations.blocks.blockCache import BlockCache
     from datetime import datetime
 
     # Get the existing BlockCache instance that's used by the application
