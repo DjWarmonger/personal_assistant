@@ -161,6 +161,16 @@ def _(execution_controls, prompt_selector, docker_controls, mo):
 
 
 @app.cell(hide_code=True)
+def _(launch_container_button, stop_container_button, mo, log):
+    # Debug display for button states - right below buttons
+    log.flow("Button states check", f"Launch: {launch_container_button.value}, Stop: {stop_container_button.value}")
+    
+    debug_text = f"**Debug:** Launch: {launch_container_button.value}, Stop: {stop_container_button.value}"
+    mo.md(debug_text)
+    return (debug_text,)
+
+
+@app.cell(hide_code=True)
 def _(
     check_container_status,
     check_server_health,
@@ -354,9 +364,6 @@ def _(launch_container_button, stop_container_button, launch_container, stop_con
     # Handle button clicks - this cell will re-run when buttons are clicked
     launch_result = None
     stop_result = None
-
-    # Debug: Always log button states
-    log.flow("Button states check", f"Launch: {launch_container_button.value}, Stop: {stop_container_button.value}")
 
     if launch_container_button.value is not None:
         log.flow("Launch button clicked", f"Button value: {launch_container_button.value}")

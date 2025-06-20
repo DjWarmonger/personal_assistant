@@ -269,9 +269,12 @@ No log entries from button actions are visible either in the `logs/*.log` files 
 
 **Current Status:** 
 - ✅ FLOW level logs now appear in log files and Marimo panels
-- 🔄 **TESTING**: Button reactivity fix - moved Docker buttons to dedicated cell (matching refresh button pattern)
+- 🔄 **TESTING**: Button reactivity fix - moved Docker buttons to dedicated cell + added visible debug panel
 - ❌ Button values were showing as None despite clicks
-- **New Fix Applied**: Created Docker buttons in their own dedicated cell, exactly matching the working refresh button pattern
+- **New Fix Applied**: 
+  - Created Docker buttons in their own dedicated cell, exactly matching the working refresh button pattern
+  - Added visible debug panel right below buttons to show button values in real-time
+  - Removed timer interference from button handling
 
 ## Dependencies & Prerequisites
 - Docker and docker-compose installed on system
