@@ -132,14 +132,44 @@ def _(mo, prompts):
 
 @app.cell(hide_code=True)
 def _(mo):
-    # Create Docker buttons in their own cell (like refresh button)
-    launch_container_button = mo.ui.button(label="Launch Container")
-    stop_container_button = mo.ui.button(label="Stop Container")
+    # Create persistent state for Docker operations
+    get_docker_status, set_docker_status = mo.state("")
+    get_last_action, set_last_action = mo.state("")
+    
+    return get_docker_status, set_docker_status, get_last_action, set_last_action
+
+
+@app.cell(hide_code=True)
+def _(mo, docker_manager, get_last_action, set_last_action, log):
+    # Docker button handlers that update state
+    def handle_launch():
+        log.flow("Launch button clicked")
+        result = docker_manager.launch_container()
+        log.flow("Launch result", result)
+        set_last_action(f"Launch: {result}")
+        return result
+    
+    def handle_stop():
+        log.flow("Stop button clicked") 
+        result = docker_manager.stop_container()
+        log.flow("Stop result", result)
+        set_last_action(f"Stop: {result}")
+        return result
+    
+    # Create Docker buttons with proper click handlers
+    launch_container_button = mo.ui.button(
+        label="Launch Container",
+        on_click=lambda _: handle_launch()
+    )
+    stop_container_button = mo.ui.button(
+        label="Stop Container", 
+        on_click=lambda _: handle_stop()
+    )
     
     docker_controls = mo.hstack([launch_container_button, stop_container_button],
                                widths=[140, 200], gap=1)
     
-    return launch_container_button, stop_container_button, docker_controls
+    return launch_container_button, stop_container_button, docker_controls, handle_launch, handle_stop
 
 
 @app.cell(hide_code=True)
@@ -170,10 +200,9 @@ def _(launch_container_button, stop_container_button, mo, log):
 def _(
     check_container_status,
     check_server_health,
-    launch_result,
+    get_last_action,
     mo,
     refresh_timer,
-    stop_result,
 ):
     # This cell will refresh automatically due to refresh_timer dependency
     _ = refresh_timer.value  # Make this cell reactive to timer
@@ -182,29 +211,22 @@ def _(
     server_status = check_server_health()
     container_status = check_container_status()
 
-    # Show button results if any
-    button_results = []
-    if launch_result:
-        button_results.append(f"Launch: {launch_result}")
-    if stop_result:
-        button_results.append(f"Stop: {stop_result}")
-
-    button_results_text = " | ".join(button_results) if button_results else ""
+    # Get last action from state
+    last_action = get_last_action()
 
     # Create status display
     status_text = f"**Status:** {server_status} | {container_status}"
 
-    if button_results_text:
-        status_text += f"\n\n**Last Action:** {button_results_text}"
+    if last_action:
+        status_text += f"\n\n**Last Action:** {last_action}"
 
     status_display = mo.md(status_text)
 
     # Display both timer and status
     mo.hstack([status_display, refresh_timer])
     return (
-        button_results,
-        button_results_text,
         container_status,
+        last_action,
         refresh_timer,
         server_status,
         status_display,
@@ -284,25 +306,6 @@ def _():
     docker_manager = DockerManager()
     
     return docker_manager,
-
-
-@app.cell(hide_code=True)
-def _(launch_container_button, stop_container_button, docker_manager, log):
-    # Handle button clicks - this cell will re-run when buttons are clicked
-    launch_result = None
-    stop_result = None
-
-    if launch_container_button.value is not None:
-        log.flow("Launch button clicked", f"Button value: {launch_container_button.value}")
-        launch_result = docker_manager.launch_container()
-        log.flow("Launch result", launch_result)
-
-    if stop_container_button.value is not None:
-        log.flow("Stop button clicked", f"Button value: {stop_container_button.value}")
-        stop_result = docker_manager.stop_container()
-        log.flow("Stop result", stop_result)
-    
-    return launch_result, stop_result
 
 
 @app.cell(hide_code=True)
@@ -387,18 +390,24 @@ def _(__file__):
 
 @app.cell(hide_code=True)
 def _(mo):
-    # Create the refresh button in its own cell
-    refresh_button = mo.ui.button(label="Refresh Metrics")
+    # Create state for metrics refresh
+    get_metrics_refresh, set_metrics_refresh = mo.state(0)
+    
+    # Create the refresh button with proper click handler
+    refresh_button = mo.ui.button(
+        label="Refresh Metrics",
+        on_click=lambda _: set_metrics_refresh(lambda v: v + 1)
+    )
     refresh_button
-    return (refresh_button,)
+    return refresh_button, get_metrics_refresh, set_metrics_refresh
 
 
 @app.cell(hide_code=True)
-def _(block_cache, datetime, mo, refresh_button):
+def _(block_cache, datetime, mo, get_metrics_refresh):
     # This cell displays the metrics and will re-run when the button is clicked
 
-    # Get button value to make this cell reactive to button clicks
-    _ = refresh_button.value
+    # Get refresh counter to make this cell reactive to button clicks
+    _ = get_metrics_refresh()
 
     # Get timestamp for display
     current_time = datetime.now().strftime('%H:%M:%S')
