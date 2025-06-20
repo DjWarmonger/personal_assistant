@@ -11,14 +11,17 @@ authors = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-	"pydantic>=1.10.8,<2.0.0",
+	"pydantic==1.10.22",
+	"termcolor==2.4.0",
+	"pillow==11.0.0",
+	"langfuse==2.59.3",
+	"langgraph==0.1.5",
 ]
 
 [project.optional-dependencies]
 dev = [
-	"black",
-	"flake8",
-	"mypy",
+	"pytest>=8.2.2",
+	"pytest-asyncio>=0.25.0",
 ]
 
 [tool.pytest]
