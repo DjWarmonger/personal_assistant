@@ -39,12 +39,12 @@ class Log:
 		self.set_log_level(LogLevel.DEBUG)
 		
 		self.log_filename = f'{log_dir}/{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
-		handler = logging.FileHandler(self.log_filename)
-		handler.setLevel(logging.DEBUG)
+		self.file_handler = logging.FileHandler(self.log_filename)
+		self.file_handler.setLevel(logging.DEBUG)
 		formatter = logging.Formatter('%(asctime)s - %(levelname)-10s - %(message)s')
-		handler.setFormatter(formatter)
+		self.file_handler.setFormatter(formatter)
 		self.logger.handlers.clear() 
-		self.logger.addHandler(handler)
+		self.logger.addHandler(self.file_handler)
 
 		# Add custom levels to the logger
 		for level in LogLevel:
@@ -139,5 +139,11 @@ class Log:
 
 	def set_log_level(self, level: LogLevel):
 		self.logger.setLevel(level.value)
+
+
+	def set_file_log_level(self, level: LogLevel):
+		"""Set the minimum log level for file output separately from console output"""
+		self.file_handler.setLevel(level.value)
+
 
 log = Log()

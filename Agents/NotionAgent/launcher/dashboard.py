@@ -76,11 +76,14 @@ def _():
     import aiohttp
     import json
 
-    nest_asyncio.apply()
-
     from tz_common.logs import log, LogLevel
-    log.set_log_level(LogLevel.COMMON)
+
     from chat import chat
+
+    nest_asyncio.apply()
+    log.set_log_level(LogLevel.FLOW)
+    log.set_file_log_level(LogLevel.FLOW)
+
     return (
         ChatPromptTemplate,
         LogLevel,
@@ -114,20 +117,37 @@ def _(mo, prompts):
 
     mode_switch = mo.ui.switch(label="Use Server Mode", value=False)
 
-    launch_container_button = mo.ui.button(label="Launch Container")
-    stop_container_button = mo.ui.button(label="Stop Container")
-
     # Status will be updated automatically - no need for separate text components
 
     execution_controls = mo.hstack([run_button, mode_switch], 
                                  widths=[120, 200], gap=1)
 
-    docker_controls = mo.hstack([launch_container_button, stop_container_button],
-                               widths=[140, 200], gap=1)
-
     # Auto-refresh timer - fixed 5 seconds (no UI component)
     refresh_timer = mo.ui.refresh(default_interval="5s")
 
+    return (
+        execution_controls,
+        mode_switch,
+        prompt_selector,
+        refresh_timer,
+        run_button,
+    )
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    # Create Docker buttons in their own cell (like refresh button)
+    launch_container_button = mo.ui.button(label="Launch Container")
+    stop_container_button = mo.ui.button(label="Stop Container")
+    
+    docker_controls = mo.hstack([launch_container_button, stop_container_button],
+                               widths=[140, 200], gap=1)
+    
+    return launch_container_button, stop_container_button, docker_controls
+
+
+@app.cell(hide_code=True)
+def _(execution_controls, prompt_selector, docker_controls, mo):
     # Main layout
     main_layout = mo.vstack([
         execution_controls,
@@ -137,17 +157,7 @@ def _(mo, prompts):
     ])
 
     main_layout
-    return (
-        docker_controls,
-        execution_controls,
-        launch_container_button,
-        main_layout,
-        mode_switch,
-        prompt_selector,
-        refresh_timer,
-        run_button,
-        stop_container_button,
-    )
+    return (main_layout,)
 
 
 @app.cell(hide_code=True)
@@ -261,16 +271,8 @@ def _(aiohttp, asyncio, chat, log, mo, responses, run_button, time):
 
 
 @app.cell(hide_code=True)
-def _(
-    Path,
-    __file__,
-    launch_container_button,
-    log,
-    stop_container_button,
-    subprocess,
-):
-    # Handle Docker container management
-
+def _(Path, __file__, subprocess, log):
+    # Define Docker container management functions
     def launch_container():
         """Launch Docker container using docker-compose"""
         try:
@@ -344,9 +346,17 @@ def _(
             log.error("Exception stopping container", str(e))
             return f"❌ Error: {str(e)}"
 
-    # Handle button clicks and return results
+    return launch_container, stop_container
+
+
+@app.cell(hide_code=True)
+def _(launch_container_button, stop_container_button, launch_container, stop_container, log):
+    # Handle button clicks - this cell will re-run when buttons are clicked
     launch_result = None
     stop_result = None
+
+    # Debug: Always log button states
+    log.flow("Button states check", f"Launch: {launch_container_button.value}, Stop: {stop_container_button.value}")
 
     if launch_container_button.value is not None:
         log.flow("Launch button clicked", f"Button value: {launch_container_button.value}")
@@ -357,7 +367,8 @@ def _(
         log.flow("Stop button clicked", f"Button value: {stop_container_button.value}")
         stop_result = stop_container()
         log.flow("Stop result", stop_result)
-    return launch_container, launch_result, stop_container, stop_result
+    
+    return launch_result, stop_result
 
 
 @app.cell(hide_code=True)

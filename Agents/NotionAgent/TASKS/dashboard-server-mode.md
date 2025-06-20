@@ -238,6 +238,41 @@ Add functionality to the Marimo dashboard to optionally send chat requests to a 
 - Verify subprocess execution and error handling
 - May need to add explicit logging to Marimo output instead of console
 
+### 🔍 Log Visibility Issue (NEW)
+
+**Observed Problem**  
+No log entries from button actions are visible either in the `logs/*.log` files or in the live dashboard output.
+
+**Possible Causes**  
+1. *Log-level filtering* – `dashboard.py` sets the logger to `LogLevel.COMMON` (15).
+   • `log.flow()` and `log.debug()` emit levels 5 and 10, both **below** the active level, so they are silently discarded.  
+2. *File-handler threshold* – the underlying `logging.FileHandler` is initialised at `DEBUG` (10). Messages with level 5 (`FLOW`) never reach the file even if the logger level is lowered.  
+3. *Missing stream handler* – the custom logger only writes to file. Console output is produced with a plain `print()`, which Marimo does **not** capture for background or asynchronous tasks, so nothing appears inside the dashboard.  
+4. *Wrong working directory* – the logger creates the `logs` folder relative to the current working directory. When the dashboard is started from `Agents/NotionAgent/launcher`, log files end up in that sub-folder, not in the project-root `logs/`, giving the impression that they are missing.  
+5. *Async execution context* – button callbacks run in new threads / event loops, so even if `print()` is executed it may not propagate to the cell that the user is watching.
+
+**Proposed Solutions**  
+- ✅ **FIXED**: Set the lowest log level at the start of the dashboard:  
+  ```python
+  log.set_log_level(LogLevel.FLOW)
+  log.set_file_log_level(LogLevel.FLOW)  # NEW METHOD
+  ```  
+- ✅ **FIXED**: Added `set_file_log_level()` method to `logs.py` to control file handler level separately from console level.  
+- Add a `logging.StreamHandler` (or custom wrapper) pointing to `sys.stdout` so Marimo can capture standard output.  
+- Provide the logger with an absolute path, e.g. `project_root / "logs"` to avoid scattered log folders.  
+- Create a dedicated *Log Window* component in the dashboard (e.g. `mo.ui.text_area`) that is updated via a reactive variable whenever a log entry is produced.  
+- For quick debugging wrap button bodies with `log.common()` (level 15) or `log.user()` (20) to confirm pipeline end-to-end before refining the levels.
+
+**Files Modified for Log Fix:**
+- `common/src/tz_common/logs.py`: Added `set_file_log_level()` method and stored file handler reference
+- `launcher/dashboard.py`: Added call to `log.set_file_log_level(LogLevel.FLOW)` and debug logging for button states
+
+**Current Status:** 
+- ✅ FLOW level logs now appear in log files and Marimo panels
+- 🔄 **TESTING**: Button reactivity fix - moved Docker buttons to dedicated cell (matching refresh button pattern)
+- ❌ Button values were showing as None despite clicks
+- **New Fix Applied**: Created Docker buttons in their own dedicated cell, exactly matching the working refresh button pattern
+
 ## Dependencies & Prerequisites
 - Docker and docker-compose installed on system
 - Existing REST server functional
