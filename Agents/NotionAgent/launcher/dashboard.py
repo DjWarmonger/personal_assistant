@@ -71,16 +71,25 @@ def _():
     import asyncio
     import nest_asyncio
     import time
+    import aiohttp
+    import json
+
+    from tz_common.logs import log, LogLevel
+
+    from chat import chat
 
     nest_asyncio.apply()
+    log.set_log_level(LogLevel.FLOW)
+    log.set_file_log_level(LogLevel.FLOW)
 
-    from tz_common.logs import log
-    from chat import chat
     return (
         ChatPromptTemplate,
+        LogLevel,
         RunnableParallel,
+        aiohttp,
         asyncio,
         chat,
+        json,
         log,
         nest_asyncio,
         time,
@@ -93,7 +102,7 @@ def _():
     return (responses,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, prompts):
     prompt_selector = mo.ui.multiselect(
         options=prompts, label="Select promps to run",
@@ -102,50 +111,224 @@ def _(mo, prompts):
 
     run_button = mo.ui.run_button(label='Run chats')
 
-    mo.hstack([run_button, prompt_selector],
-              widths=[100, 600])
-    return prompt_selector, run_button
+    mode_switch = mo.ui.switch(label="Use Server Mode", value=False)
+
+    # Status will be updated automatically - no need for separate text components
+
+    execution_controls = mo.hstack([run_button, mode_switch], 
+                                 widths=[120, 200], gap=1)
+
+    # Auto-refresh timer - fixed 5 seconds (no UI component)
+    refresh_timer = mo.ui.refresh(default_interval="5s")
+
+    return (
+        execution_controls,
+        mode_switch,
+        prompt_selector,
+        refresh_timer,
+        run_button,
+    )
 
 
 @app.cell(hide_code=True)
-def _(asyncio, chat, log, mo, responses, run_button, time):
+def _(mo):
+    # Create persistent state for Docker operations
+    get_docker_status, set_docker_status = mo.state("")
+    get_last_action, set_last_action = mo.state("")
+    
+    return get_docker_status, set_docker_status, get_last_action, set_last_action
+
+
+@app.cell(hide_code=True)
+def _(mo, docker_manager, get_last_action, set_last_action, log):
+    # Docker button handlers that update state
+    def handle_launch():
+        log.flow("Launch button clicked")
+        result = docker_manager.launch_container()
+        log.flow("Launch result", result)
+        set_last_action(f"Launch: {result}")
+        return result
+    
+    def handle_stop():
+        log.flow("Stop button clicked") 
+        result = docker_manager.stop_container()
+        log.flow("Stop result", result)
+        set_last_action(f"Stop: {result}")
+        return result
+    
+    # Create Docker buttons with proper click handlers
+    launch_container_button = mo.ui.button(
+        label="Launch Container",
+        on_click=lambda _: handle_launch()
+    )
+    stop_container_button = mo.ui.button(
+        label="Stop Container", 
+        on_click=lambda _: handle_stop()
+    )
+    
+    docker_controls = mo.hstack([launch_container_button, stop_container_button],
+                               widths=[140, 200], gap=1)
+    
+    return launch_container_button, stop_container_button, docker_controls, handle_launch, handle_stop
+
+
+@app.cell(hide_code=True)
+def _(execution_controls, prompt_selector, docker_controls, mo):
+    # Main layout
+    main_layout = mo.vstack([
+        execution_controls,
+        prompt_selector,
+        mo.md("**Docker Container Management**"),
+        docker_controls
+    ])
+
+    main_layout
+    return (main_layout,)
+
+
+@app.cell(hide_code=True)
+def _(launch_container_button, stop_container_button, mo, log):
+    # Debug display for button states - right below buttons
+    log.flow("Button states check", f"Launch: {launch_container_button.value}, Stop: {stop_container_button.value}")
+    
+    debug_text = f"**Debug:** Launch: {launch_container_button.value}, Stop: {stop_container_button.value}"
+    mo.md(debug_text)
+    return (debug_text,)
+
+
+@app.cell(hide_code=True)
+def _(
+    check_container_status,
+    check_server_health,
+    get_last_action,
+    mo,
+    refresh_timer,
+):
+    # This cell will refresh automatically due to refresh_timer dependency
+    _ = refresh_timer.value  # Make this cell reactive to timer
+
+    # Get current status
+    server_status = check_server_health()
+    container_status = check_container_status()
+
+    # Get last action from state
+    last_action = get_last_action()
+
+    # Create status display
+    status_text = f"**Status:** {server_status} | {container_status}"
+
+    if last_action:
+        status_text += f"\n\n**Last Action:** {last_action}"
+
+    status_display = mo.md(status_text)
+
+    # Display both timer and status
+    mo.hstack([status_display, refresh_timer])
+    return (
+        container_status,
+        last_action,
+        refresh_timer,
+        server_status,
+        status_display,
+        status_text,
+    )
+
+
+@app.cell(hide_code=True)
+def _(aiohttp, asyncio, chat, log, mo, responses, run_button, time):
     mo.stop(run_button.value is None, mo.md("**Click button to run chats.**"))
 
-    async def run_chat(option):
-        log.flow(f"Starting chat for {option}")
+    async def send_to_server(prompt: str, base_url: str = "http://localhost:8000") -> str:
+        """Send request to REST server"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{base_url}/api/v1/process", 
+                    json={"input": prompt},
+                    timeout=aiohttp.ClientTimeout(total=300)  # 5 minute timeout
+                ) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return result.get("result", "No result returned")
+                    else:
+                        error_text = await response.text()
+                        return f"Server error ({response.status}): {error_text}"
+        except aiohttp.ClientError as e:
+            return f"Connection error: {str(e)}"
+        except asyncio.TimeoutError:
+            return "Request timed out (5 minutes)"
+        except Exception as e:
+            return f"Unexpected error: {str(e)}"
+
+    async def run_chat(option, use_server_mode=False):
+        log.flow(f"Starting chat for {option}", f"Server mode: {use_server_mode}")
         start_time = time.time()
-        result = await asyncio.to_thread(chat, loop=False, user_prompt=option)
+
+        if use_server_mode:
+            result = await send_to_server(option)
+        else:
+            result = await asyncio.to_thread(chat, loop=False, user_prompt=option)
+
         end_time = time.time()
         execution_time = end_time - start_time
         return {
             'prompt': option,
             'result': result,
-            'execution_time': execution_time
+            'execution_time': execution_time,
+            'mode': 'server' if use_server_mode else 'local'
         }
 
-    async def run_chats_parallel(options):
+    async def run_chats_parallel(options, use_server_mode=False):
         responses.clear()
-        tasks = [asyncio.create_task(run_chat(option)) for option in options]
+        tasks = [asyncio.create_task(run_chat(option, use_server_mode)) for option in options]
 
         # Use as_completed to handle results as they arrive
         for completed_task in asyncio.as_completed(tasks):
             try:
                 result = await completed_task
                 responses.append(result)
-                log.user(f"Completed task:", {result['prompt']})
-                log.debug(f"Took {result['execution_time']} seconds")
+                mode_text = f"({result['mode']} mode)"
+                log.user(f"Completed task {mode_text}:", {result['prompt']})
+                log.debug(f"Took {result['execution_time']:.2f} seconds")
             except Exception as e:
-                pass
+                log.error("Task failed", str(e))
 
-        results = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         return results
-
-    #return (ChatPromptTemplate, RunnableParallel, asyncio, run_chat,run_chats_parallel)
-    return run_chat, run_chats_parallel
+    return run_chat, run_chats_parallel, send_to_server
 
 
 @app.cell(hide_code=True)
-def _(asyncio, mo, prompt_selector, run_button, run_chats_parallel):
+def _():
+    from docker_manager import DockerManager
+    
+    # Initialize Docker manager
+    docker_manager = DockerManager()
+    
+    return docker_manager,
+
+
+@app.cell(hide_code=True)
+def _(docker_manager):
+    # Status checking functions using DockerManager
+    def check_server_health():
+        return docker_manager.check_server_health()
+
+    def check_container_status():
+        return docker_manager.check_container_status()
+        
+    return check_container_status, check_server_health
+
+
+@app.cell(hide_code=True)
+def _(
+    asyncio,
+    mo,
+    mode_switch,
+    prompt_selector,
+    run_button,
+    run_chats_parallel,
+):
     update_tabs = False
     mo.stop(not run_button.value)
 
@@ -154,7 +337,10 @@ def _(asyncio, mo, prompt_selector, run_button, run_chats_parallel):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        task = loop.create_task(run_chats_parallel(prompt_selector.value))
+        # Get the server mode setting
+        use_server_mode = mode_switch.value
+
+        task = loop.create_task(run_chats_parallel(prompt_selector.value, use_server_mode))
         loop.run_until_complete(asyncio.wait_for(task, timeout=None))
 
         update_tabs = True
@@ -167,19 +353,27 @@ def _(asyncio, mo, prompt_selector, run_button, run_chats_parallel):
             pass
     finally:
         loop.close()
-    return loop, task, update_tabs
+    return loop, task, update_tabs, use_server_mode
 
 
 @app.cell(hide_code=True)
 def _(mo, responses, update_tabs):
     if update_tabs:
-        tabs = mo.ui.tabs({result['prompt'][:40]: result["result"] for result in responses})
+        # Create tabs with mode indicator and execution time
+        tab_data = {}
+        for result in responses:
+            mode_indicator = "🖥️" if result.get('mode') == 'server' else "💻"
+            time_str = f" ({result.get('execution_time', 0):.1f}s)"
+            tab_title = f"{mode_indicator} {result['prompt'][:35]}{time_str}"
+            tab_data[tab_title] = result["result"]
+
+        tabs = mo.ui.tabs(tab_data)
 
     tabs
-    return (tabs,)
+    return mode_indicator, result, tab_data, tab_title, tabs, time_str
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(__file__):
     import os
     from operations.blocks.blockCache import BlockCache
@@ -196,18 +390,24 @@ def _(__file__):
 
 @app.cell(hide_code=True)
 def _(mo):
-    # Create the refresh button in its own cell
-    refresh_button = mo.ui.button(label="Refresh Metrics")
+    # Create state for metrics refresh
+    get_metrics_refresh, set_metrics_refresh = mo.state(0)
+    
+    # Create the refresh button with proper click handler
+    refresh_button = mo.ui.button(
+        label="Refresh Metrics",
+        on_click=lambda _: set_metrics_refresh(lambda v: v + 1)
+    )
     refresh_button
-    return (refresh_button,)
+    return refresh_button, get_metrics_refresh, set_metrics_refresh
 
 
-@app.cell
-def _(block_cache, datetime, mo, refresh_button):
+@app.cell(hide_code=True)
+def _(block_cache, datetime, mo, get_metrics_refresh):
     # This cell displays the metrics and will re-run when the button is clicked
 
-    # Get button value to make this cell reactive to button clicks
-    _ = refresh_button.value
+    # Get refresh counter to make this cell reactive to button clicks
+    _ = get_metrics_refresh()
 
     # Get timestamp for display
     current_time = datetime.now().strftime('%H:%M:%S')

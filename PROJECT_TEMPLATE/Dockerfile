@@ -1,16 +1,34 @@
-# ---- base image with Python ----
-FROM python:3.12-slim AS runtime
+# Multi-stage Dockerfile template for Python projects
+FROM python:3.11-slim as base
 
+# Set working directory
 WORKDIR /app
 
-# copy the server code
-COPY rest_server.py .
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# install only what we need
-RUN pip install --no-cache-dir flask
+# Copy and install requirements
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-# expose the app port
+# Copy source code
+# Note: Adjust COPY paths based on your project structure
+COPY . .
+
+# Create logs directory
+RUN mkdir -p logs
+
+# Set Python path if needed
+# ENV PYTHONPATH=/app
+
+# Expose port
 EXPOSE 8000
 
-# default command
-CMD ["python", "rest_server.py"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/health').status==200 else sys.exit(1)"
+
+# Run the application
+CMD ["python", "launch/server/rest_server.py"]

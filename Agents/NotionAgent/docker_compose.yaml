@@ -1,0 +1,23 @@
+services:
+  notion-rest-server:
+    build:
+      context: ../../
+      dockerfile: Agents/NotionAgent/Dockerfile
+    container_name: notion-rest-server
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs  # Persistent log storage
+    env_file:
+      - .env
+    environment:
+      # Ensure venv binaries are found first
+      - PATH=/opt/.venv_uv_tz/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+      - PYTHONPATH=/app:/app/tz_common
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/health').status==200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s  # Longer start period due to complex dependencies
