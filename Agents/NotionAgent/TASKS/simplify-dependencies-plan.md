@@ -94,11 +94,11 @@ conda activate services   # fallback env
 ---
 
 ## 8. Definition of Done
-- [ ] Minimal `pyproject.toml` committed.
-- [ ] `.venv_uv_tz` builds with `uv pip sync`.
-- [ ] `pytest Agents/NotionAgent/tests` passes in the new env.
+- [x] Minimal `pyproject.toml` committed.
+- [x] `.venv_uv_tz` builds with `uv pip sync`.
+- [x] `pytest Agents/NotionAgent/tests` passes in the new env.
 - [ ] User confirms that manual tests with Marimo Dashboard work.
-- [ ] Documentation updated.
+- [x] Documentation updated.
 
 ---
 
