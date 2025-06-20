@@ -94,21 +94,40 @@ volumes:
   - flask: 3.0.3
 - ✅ Docker compose build and run commands work correctly
 
-### Phase 3 – Development Workflow
-1. **Rebuild** whenever dependencies change:
+### Phase 3 – Development Workflow ✅ COMPLETED
+1. ✅ **Rebuild** whenever dependencies change:
    ```bash
    docker compose -f Agents/NotionAgent/docker_compose.yaml build --no-cache
    ```
-2. **Run**:
+   - Tested: Clean rebuild completes in ~36s
+   - All UV packages installed correctly
+   - No dependency conflicts
+
+2. ✅ **Run**:
    ```bash
    docker compose -f Agents/NotionAgent/docker_compose.yaml up -d
    ```
-3. **Interactive shell inside venv**:
+   - Container starts successfully and shows "healthy" status
+   - REST server runs on port 8000
+   - Health check endpoint responds with 200
+   - Logs directory properly mounted and accessible
+
+3. ✅ **Interactive shell inside venv**:
    ```bash
    docker exec -it notion-rest-server bash
    # venv already active via PATH
-   python -m pytest  # run tests inside container if needed
+   python -m pytest  # run tests inside container if needed (pytest not in production image)
    ```
+   - Virtual environment active: `/opt/.venv_uv_tz/bin/python`
+   - All imports work correctly
+   - Interactive commands execute successfully
+
+**Results:**
+- ✅ All development workflow commands work as expected
+- ✅ Container management (build, run, stop) functions correctly
+- ✅ Log persistence verified
+- ✅ Health checks pass
+- ✅ Interactive shell access confirmed
 
 ### Phase 4 – Validation Checklist
 - [ ] `docker compose build` succeeds without network access (all pins resolve from PyPI cache).
@@ -166,8 +185,8 @@ After successful build & run:
 - ✅ **Phase 0**: Environment verified, all tests passing, dependencies confirmed
 - ✅ **Phase 1**: Dockerfile rewrite completed, image builds and runs successfully
 - ✅ **Phase 2**: docker_compose.yaml updated, environment variables configured correctly
-- ⏳ **Phase 3**: Ready for development workflow testing
-- ⏳ **Phase 4**: Pending validation checklist
+- ✅ **Phase 3**: Development workflow tested, all commands working correctly
+- ⏳ **Phase 4**: Ready for validation checklist
 - ⏳ **Phase 5**: Pending documentation updates
 
 ---
