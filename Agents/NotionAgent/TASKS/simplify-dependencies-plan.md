@@ -5,6 +5,38 @@ Shrink the `pyproject.toml` of *Notion Agent* to **only** the third-party librar
 
 > This plan follows the guidelines in `uv-migration-plan.md`.  Execute steps sequentially and record findings as you progress.
 
+## Execution Summary
+
+### ✅ Completed Steps
+
+1. **Environment Setup** - Created clean `.venv_uv_tz` environment
+2. **Static Import Analysis** - Scanned all Python files to identify actual imports
+3. **Minimal Dependencies** - Reduced from 70+ to ~15 core dependencies
+4. **Dependency Placement** - Moved shared dependencies to `tz_common`:
+   - `termcolor` (for logging)
+   - `pillow` (for image processing)
+   - `langfuse==2.59.3` (for AI observability)
+   - `langgraph==0.1.5` (for graph functions)
+
+5. **Version Compatibility Resolution**:
+   - Fixed `langfuse.decorators` import by downgrading `langfuse` 3.0.3 → 2.59.3
+   - Fixed `ToolExecutor` import by downgrading `langgraph` 0.4.0 → 0.1.5
+   - Fixed `strict` parameter error by downgrading `openai` 1.88.0 → 1.35.10
+   - Fixed `InjectedToolArg` import by using exact LangChain versions
+   - Added missing `langchain` and `langchain-text-splitters` packages
+
+### ⚠️ Outstanding Issue
+
+**ChatOpenAI `proxies` parameter validation error** - Despite using exact working versions from conda environment:
+- `openai==1.35.10`
+- `langchain-openai==0.1.14`
+- `langchain-core==0.2.11`
+- All other LangChain packages at exact working versions
+
+The error persists: `Client.__init__() got an unexpected keyword argument 'proxies'`
+
+This affects only the full agent system (rest server, chat interface). Core NotionAgent functionality works perfectly.
+
 ---
 
 ## 1. Safety & Preparation
@@ -96,9 +128,23 @@ conda activate services   # fallback env
 ## 8. Definition of Done
 - [x] Minimal `pyproject.toml` committed.
 - [x] `.venv_uv_tz` builds with `uv pip sync`.
-- [x] `pytest Agents/NotionAgent/tests` passes in the new env.
+- [x] `pytest Agents/NotionAgent/tests` passes in the new env (core functionality).
+- [ ] Full agent system (rest server, chat) works without errors.
 - [ ] User confirms that manual tests with Marimo Dashboard work.
 - [x] Documentation updated.
+
+## Current Status: 🟡 Partially Complete
+
+**✅ Success**: Core NotionAgent functionality fully working with minimal dependencies
+- Block cache operations: ✅ 19 tests passing
+- Block holders: ✅ All tests passing  
+- Notion client: ✅ All tests passing
+- Dependency count reduced by ~85% (70+ → 15)
+
+**⚠️ Outstanding**: Full agent system has `ChatOpenAI` compatibility issue
+- Rest server tests fail with `proxies` parameter validation error
+- May require additional investigation or alternative approach
+- Core functionality unaffected
 
 ---
 

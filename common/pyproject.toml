@@ -14,8 +14,8 @@ dependencies = [
 	"pydantic>=1.10.8,<2.0.0",
 	"termcolor",
 	"pillow",
-	"langfuse>=2.59.3",
-	"langgraph>=0.1.5",
+	"langfuse==2.59.3",
+	"langgraph==0.1.5",
 ]
 
 [project.optional-dependencies]
