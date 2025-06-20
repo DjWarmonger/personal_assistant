@@ -69,8 +69,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-	"pytest",
-	"ruff",
+	"pytest>=8.2.2",
+	"pytest-asyncio>=0.25.0",
 ]
 
 [tool.uv]  # uv-specific overrides
@@ -158,8 +158,8 @@ python -m pytest -s Agents/NotionAgent/tests
 
 **✅ USE INSTEAD:**
 ```bash
-# New UV-based NotionAgent testing
-.\.venv_uv_services\Scripts\activate
+# New UV-based NotionAgent testing (simplified environment)
+.\.venv_uv_tz\Scripts\activate
 python -m pytest Agents/NotionAgent/tests
 python -m pytest Agents/NotionAgent/tests -v
 python -m pytest Agents/NotionAgent/tests/test_specific_file.py
@@ -179,13 +179,15 @@ python -m Agents.NotionAgent.launcher.chat
 
 **✅ USE INSTEAD:**
 ```bash
-# New UV-based NotionAgent development
-.\.venv_uv_services\Scripts\activate
+# New UV-based NotionAgent development (simplified environment)
+.\.venv_uv_tz\Scripts\activate
 python Agents/NotionAgent/launcher/main.py
 python -m Agents.NotionAgent.launcher.chat
 ```
 
 ### Migration Date
 - **Migrated**: 19.06.2025
-- **Reason**: Better dependency management, faster installs, improved reproducibility
-- **Rollback**: Available via conda environment if needed for emergency 
+- **Environment**: `.venv_uv_tz` (simplified with ~15 dependencies)
+- **Reason**: Better dependency management, faster installs, improved reproducibility, exact version pinning
+- **Deprecated**: `.venv_uv_services` (removed due to unnecessary complexity)
+- **Dependencies cleaned**: Removed `black`, `flake8`, `mypy` from tz_common dev dependencies (not requested) 

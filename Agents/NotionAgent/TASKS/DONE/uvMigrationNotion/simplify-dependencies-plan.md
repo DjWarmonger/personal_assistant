@@ -25,17 +25,15 @@ Shrink the `pyproject.toml` of *Notion Agent* to **only** the third-party librar
    - Fixed `InjectedToolArg` import by using exact LangChain versions
    - Added missing `langchain` and `langchain-text-splitters` packages
 
-### ⚠️ Outstanding Issue
+### ✅ Final Resolution
 
-**ChatOpenAI `proxies` parameter validation error** - Despite using exact working versions from conda environment:
-- `openai==1.35.10`
-- `langchain-openai==0.1.14`
-- `langchain-core==0.2.11`
-- All other LangChain packages at exact working versions
+**All issues resolved** by using exact versions from conda freeze file:
+- Used exact pins (`==`) instead of version ranges (`>=`)
+- All LangChain packages: `langchain==0.2.6`, `langchain-core==0.2.11`, etc.
+- OpenAI: `openai==1.35.10`
+- Pydantic: `pydantic==1.10.22`, `pydantic_core==2.33.2`
 
-The error persists: `Client.__init__() got an unexpected keyword argument 'proxies'`
-
-This affects only the full agent system (rest server, chat interface). Core NotionAgent functionality works perfectly.
+**Dependency cleanup**: Removed unnecessary dev tools (`black`, `flake8`, `mypy`) from tz_common that were not requested and added unnecessary complexity.
 
 ---
 
@@ -90,7 +88,7 @@ Manually map each discovered root module → PyPI package name.  Keep only packa
 2. Create a **new** `pyproject.toml` with sections:
 	* `[build-system]` (same as before)
 	* `[project]` – **dependencies** list replaced by minimal set from step 3, preserving version specifiers.
-	* `[project.optional-dependencies]` – keep only `dev` with `pytest`, `ruff`, `mypy`.
+	* `[project.optional-dependencies]` – keep only `dev` with `pytest` and `pytest-asyncio`.
 	* `[tool.pytest]`, `[tool.uv]`, `[tool.setuptools]` – copy unchanged.
 
 ---
