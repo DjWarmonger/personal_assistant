@@ -20,9 +20,16 @@ Key goals:
 
 ## Implementation Phases
 
-### Phase 0 – Prep
-* Confirm `.venv_uv_tz` is committed and **passes all tests** locally.
-* Verify `pyproject.toml` and `requirements.txt` are in sync (they are the single source of truth for uv).
+### Phase 0 – Prep ✅ COMPLETED
+* ✅ Confirm `.venv_uv_tz` is committed and **passes all tests** locally.
+  - Environment exists and activates successfully (Python 3.10.14)
+  - **All 122 tests passed** in 25.58s
+  - Key dependencies verified: langchain==0.2.6, openai==1.35.10, pydantic==1.10.22, flask==3.0.3
+  - tz-common==0.9.0 installed as editable dependency
+* ✅ Verify `pyproject.toml` and `requirements.txt` are in sync (they are the single source of truth for uv).
+  - Primary source: `pyproject.toml` with exact version pins
+  - `requirements.txt` compatible with core runtime dependencies
+  - Both files contain exact versions from working conda environment
 
 ### Phase 1 – Dockerfile Rewrite
 1. **Base image**: `python:3.11-slim` (keeps Pydantic v1 compatibility).
@@ -91,6 +98,11 @@ volumes:
 - [ ] Container health-check reports `healthy`.
 - [ ] `curl http://localhost:8000/health` returns 200.
 - [ ] All agent unit tests pass inside the container *(optional but recommended)*.
+
+**Prerequisites Met:**
+- ✅ Phase 0 verification complete - all 122 tests pass in .venv_uv_tz
+- ✅ Exact dependency versions confirmed and working
+- ✅ tz-common editable install working properly
 
 ### Phase 5 – Documentation
 After successful build & run:
