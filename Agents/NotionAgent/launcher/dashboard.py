@@ -71,8 +71,6 @@ def _():
     import asyncio
     import nest_asyncio
     import time
-    import subprocess
-    from pathlib import Path
     import aiohttp
     import json
 
@@ -87,7 +85,6 @@ def _():
     return (
         ChatPromptTemplate,
         LogLevel,
-        Path,
         RunnableParallel,
         aiohttp,
         asyncio,
@@ -95,7 +92,6 @@ def _():
         json,
         log,
         nest_asyncio,
-        subprocess,
         time,
     )
 
@@ -281,144 +277,43 @@ def _(aiohttp, asyncio, chat, log, mo, responses, run_button, time):
 
 
 @app.cell(hide_code=True)
-def _(Path, __file__, subprocess, log):
-    # Define Docker container management functions
-    def launch_container():
-        """Launch Docker container using docker-compose"""
-        try:
-            # Get the project root directory (PersonalAssistant)
-            project_root = Path(__file__).parent.parent.parent.parent
-            docker_compose_path = "Agents/NotionAgent/docker_compose.yaml"
-            log.flow("Launching Docker container", f"Working directory: {project_root}")
-            log.flow("Docker compose file", docker_compose_path)
-            log.flow("Full command", f"docker compose -f {docker_compose_path} up -d")
-
-            # Check if the compose file exists
-            compose_file_full_path = project_root / docker_compose_path
-            if not compose_file_full_path.exists():
-                error_msg = f"Docker compose file not found: {compose_file_full_path}"
-                log.error("Compose file missing", error_msg)
-                return f"❌ {error_msg}"
-
-            result = subprocess.run(
-                ["docker", "compose", "-f", docker_compose_path, "up", "-d"], 
-                cwd=project_root,
-                capture_output=True,
-                text=True,
-                timeout=120  # Increased timeout for build
-            )
-
-            log.flow("Command executed", f"Return code: {result.returncode}")
-            log.flow("STDOUT", result.stdout)
-            if result.stderr:
-                log.flow("STDERR", result.stderr)
-
-            if result.returncode == 0:
-                log.flow("Container launched successfully")
-                return "✅ Container launched successfully"
-            else:
-                log.error("Failed to launch container", result.stderr)
-                return f"❌ Error: {result.stderr}"
-
-        except subprocess.TimeoutExpired:
-            return "⏱️ Error: Container launch timed out (2 minutes)"
-        except Exception as e:
-            log.error("Exception launching container", str(e))
-            return f"❌ Error: {str(e)}"
-
-    def stop_container():
-        """Stop Docker container using docker-compose"""
-        try:
-            # Get the project root directory (PersonalAssistant)
-            project_root = Path(__file__).parent.parent.parent.parent
-            docker_compose_path = "Agents/NotionAgent/docker_compose.yaml"
-            log.flow("Stopping Docker container", f"Working directory: {project_root}")
-            log.flow("Docker compose file", docker_compose_path)
-
-            result = subprocess.run(
-                ["docker", "compose", "-f", docker_compose_path, "down"], 
-                cwd=project_root,
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-
-            if result.returncode == 0:
-                log.flow("Container stopped successfully")
-                return "✅ Container stopped successfully"
-            else:
-                log.error("Failed to stop container", result.stderr)
-                return f"❌ Error: {result.stderr}"
-
-        except subprocess.TimeoutExpired:
-            return "⏱️ Error: Container stop timed out"
-        except Exception as e:
-            log.error("Exception stopping container", str(e))
-            return f"❌ Error: {str(e)}"
-
-    return launch_container, stop_container
+def _():
+    from docker_manager import DockerManager
+    
+    # Initialize Docker manager
+    docker_manager = DockerManager()
+    
+    return docker_manager,
 
 
 @app.cell(hide_code=True)
-def _(launch_container_button, stop_container_button, launch_container, stop_container, log):
+def _(launch_container_button, stop_container_button, docker_manager, log):
     # Handle button clicks - this cell will re-run when buttons are clicked
     launch_result = None
     stop_result = None
 
     if launch_container_button.value is not None:
         log.flow("Launch button clicked", f"Button value: {launch_container_button.value}")
-        launch_result = launch_container()
+        launch_result = docker_manager.launch_container()
         log.flow("Launch result", launch_result)
 
     if stop_container_button.value is not None:
         log.flow("Stop button clicked", f"Button value: {stop_container_button.value}")
-        stop_result = stop_container()
+        stop_result = docker_manager.stop_container()
         log.flow("Stop result", stop_result)
     
     return launch_result, stop_result
 
 
 @app.cell(hide_code=True)
-def _(Path, __file__, subprocess):
-    # Status checking functions
-
+def _(docker_manager):
+    # Status checking functions using DockerManager
     def check_server_health():
-        """Check if the REST server is responding"""
-        try:
-            import urllib.request
-            response = urllib.request.urlopen('http://localhost:8000/health', timeout=5)
-            if response.status == 200:
-                return "Server: Online ✓"
-            else:
-                return f"Server: Error (Status {response.status})"
-        except Exception as e:
-            return "Server: Offline ✗"
+        return docker_manager.check_server_health()
 
     def check_container_status():
-        """Check Docker container status"""
-        try:
-            project_root = Path(__file__).parent.parent.parent.parent
-            docker_compose_path = "Agents/NotionAgent/docker_compose.yaml"
-
-            result = subprocess.run(
-                ["docker", "compose", "-f", docker_compose_path, "ps", "--services", "--filter", "status=running"],
-                cwd=project_root,
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-
-            if result.returncode == 0:
-                running_services = result.stdout.strip()
-                if running_services:
-                    return f"Container: Running ✓ ({running_services})"
-                else:
-                    return "Container: Stopped ○"
-            else:
-                return "Container: Unknown ?"
-
-        except Exception as e:
-            return "Container: Check failed ✗"
+        return docker_manager.check_container_status()
+        
     return check_container_status, check_server_health
 
 
