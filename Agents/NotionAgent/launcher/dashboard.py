@@ -111,8 +111,8 @@ def _(mo, prompts):
     launch_container_button = mo.ui.button(label="Launch Container")
     stop_container_button = mo.ui.button(label="Stop Container")
 
-    server_status_text = mo.ui.text("Server Status: Checking...")
-    container_status_text = mo.ui.text("Container Status: Unknown")
+    server_status_text = mo.ui.text("Server Status: Checking...", full_width=True)
+    container_status_text = mo.ui.text("Container Status: Unknown", full_width=True)
 
     execution_controls = mo.hstack([run_button, mode_switch], 
                                  widths=[120, 200], gap=1)
@@ -120,7 +120,7 @@ def _(mo, prompts):
     docker_controls = mo.hstack([launch_container_button, stop_container_button],
                                widths=[140, 200], gap=1)
 
-    status_indicators = mo.vstack([server_status_text, container_status_text])
+    status_indicators = mo.hstack([server_status_text, container_status_text], widths=[200, 200], gap=1)
 
     # Main layout
     main_layout = mo.vstack([
