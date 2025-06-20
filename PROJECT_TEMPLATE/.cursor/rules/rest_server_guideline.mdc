@@ -1,0 +1,49 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Minimal REST Server Guideline (Local Testing & Docker)
+
+## Goal
+Spin up a single-file Flask server to test your AI agent locally - no credentials, no extra config.
+
+---
+## Minimal server implementation
+
+Mirror [rest_server.py](mdc:PROJECT_TEMPLATE/launch/server/rest_server.py)
+
+### Why this file?
+* One dependency (`Flask`) keeps setup fast.
+* `debug=True` gives auto‑reload & stack traces.
+* `/health` endpoint returns constant 200 JSON—enough for simple liveness probes.
+
+---
+## Minimal Tests (optional but handy)
+
+Mirror [test_rest_server.py](mdc:PROJECT_TEMPLATE/tests/test_rest_server.py)
+
+Run with `pytest -q`.
+
+---
+## Minimal Docker Setup
+
+* Use @Dockerfile as a reference as base for custom Dockerfiles
+* Use @docker_compose.yaml as a base for cusrom docker-compose files
+
+Still one file—dependencies are installed _inside_ the image.
+
+### Build & Run
+```bash
+# build image
+docker build -t rest-server .
+
+# run container, mapping host port 8000 -> container port 8000
+docker run -p 8000:8000 rest-server
+```
+
+**Tip**: For rapid local edits, mount the code directory instead of rebuilding:
+```bash
+docker run --rm -it -p 8000:8000 -v "$PWD:/app" rest-server
+```
+

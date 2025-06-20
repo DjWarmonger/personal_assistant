@@ -14,7 +14,7 @@
 
 2. Install required packages:
    ```
-   pip install langchain langchain-openai langfuse pydantic==1.10.8 pytest pytest-asyncio dotenv
+   pip install langchain langchain-openai langfuse pydantic==1.10.8 pytest pytest-asyncio dotenv flask
    ```
 
 3. Set up environment variables:
@@ -34,15 +34,48 @@ After reorganization, the NotionAgent follows this structure:
 - `resources/`: Images and other resources
 
 ## Running the Agent
+
+### Interactive Chat Mode
 Navigate to the project root directory and run:
 ```
 conda activate services
 python -m Agents.NotionAgent.launcher.chat
 ```
 
-## Testing
-To run tests:
+### REST Server Mode
+To run the agent as a REST API server:
 ```
 conda activate services
-python -m pytest Agents/NotionAgent/tests
+python Agents/NotionAgent/launcher/rest_server.py
 ```
+
+The REST server will be available at:
+- Health check: `http://127.0.0.1:8000/health`
+- Process endpoint: `http://127.0.0.1:8000/api/v1/process`
+
+#### API Usage Examples
+```bash
+# Health check
+curl http://127.0.0.1:8000/health
+
+# Process request
+curl -X POST http://127.0.0.1:8000/api/v1/process \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Hello, how can you help me?"}'
+```
+
+## Testing
+
+### Run All Tests
+```
+conda activate services
+python -m pytest Agents/NotionAgent/tests -v
+```
+
+### Run REST Server Tests
+```
+conda activate services
+python -m pytest Agents/NotionAgent/tests/test_rest_server.py -v
+```
+
+For detailed testing commands and manual testing procedures, see `.notes/notion-agent-testing-commands.md`.

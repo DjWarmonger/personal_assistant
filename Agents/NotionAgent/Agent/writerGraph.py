@@ -81,6 +81,7 @@ def call_writer_agent(state: WriterAgentState) -> WriterAgentState:
 		remove_parent_info=True,
 		remove_has_children=True
 	)
+	# TODO: Do not filter item type (ie. nested list?)
 	
 	visitedBlocks = f"All visited blocks (id : content):\n" + '\n'.join([f"{key} : {value}" for key, value in filtered_visited_blocks.items()])
 

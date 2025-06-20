@@ -3,7 +3,7 @@ description:
 globs: **/*.py
 alwaysApply: false
 ---
-# TODO: Launch as chat
+# Running Tests
 
 Always run tests from the project root directory (`PersonalAssistant`). It is forbidden to use `cd` to launch tests. In case of any issue with testing directories, use `pwd`.
 
