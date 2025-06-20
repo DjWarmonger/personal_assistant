@@ -71,7 +71,7 @@ Key goals:
 
 > 💡 *Why keep a venv in a container?*  The extra isolation avoids polluting the base interpreter, making layer-caching safer when multiple projects share the same base image.
 
-### Phase 2 – docker_compose.yaml Update
+### Phase 2 – docker_compose.yaml Update ✅ COMPLETED
 ```yaml
 env_file:
   - .env
@@ -83,6 +83,16 @@ volumes:
   - ./logs:/app/logs
 ```
 *No changes to ports, restart policy or health-check.*
+
+**Results:**
+- ✅ PATH environment variable correctly prioritizes UV venv binaries
+- ✅ Python executable points to `/opt/.venv_uv_tz/bin/python`
+- ✅ All key packages accessible with correct versions:
+  - langchain: 0.2.6
+  - openai: 1.35.10
+  - pydantic: 1.10.22
+  - flask: 3.0.3
+- ✅ Docker compose build and run commands work correctly
 
 ### Phase 3 – Development Workflow
 1. **Rebuild** whenever dependencies change:
@@ -155,8 +165,8 @@ After successful build & run:
 ## Current Status
 - ✅ **Phase 0**: Environment verified, all tests passing, dependencies confirmed
 - ✅ **Phase 1**: Dockerfile rewrite completed, image builds and runs successfully
-- ⏳ **Phase 2**: Ready to update docker_compose.yaml
-- ⏳ **Phase 3**: Pending development workflow testing
+- ✅ **Phase 2**: docker_compose.yaml updated, environment variables configured correctly
+- ⏳ **Phase 3**: Ready for development workflow testing
 - ⏳ **Phase 4**: Pending validation checklist
 - ⏳ **Phase 5**: Pending documentation updates
 
