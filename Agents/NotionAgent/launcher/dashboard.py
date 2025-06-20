@@ -73,17 +73,23 @@ def _():
     import time
     import subprocess
     from pathlib import Path
+    import aiohttp
+    import json
 
     nest_asyncio.apply()
 
-    from tz_common.logs import log
+    from tz_common.logs import log, LogLevel
+    log.set_log_level(LogLevel.COMMON)
     from chat import chat
     return (
         ChatPromptTemplate,
+        LogLevel,
         Path,
         RunnableParallel,
+        aiohttp,
         asyncio,
         chat,
+        json,
         log,
         nest_asyncio,
         subprocess,
@@ -111,8 +117,7 @@ def _(mo, prompts):
     launch_container_button = mo.ui.button(label="Launch Container")
     stop_container_button = mo.ui.button(label="Stop Container")
 
-    server_status_text = mo.ui.text("Server Status: Checking...", full_width=True)
-    container_status_text = mo.ui.text("Container Status: Unknown", full_width=True)
+    # Status will be updated automatically - no need for separate text components
 
     execution_controls = mo.hstack([run_button, mode_switch], 
                                  widths=[120, 200], gap=1)
@@ -120,69 +125,139 @@ def _(mo, prompts):
     docker_controls = mo.hstack([launch_container_button, stop_container_button],
                                widths=[140, 200], gap=1)
 
-    status_indicators = mo.hstack([server_status_text, container_status_text], widths=[200, 200], gap=1)
+    # Auto-refresh timer - fixed 5 seconds (no UI component)
+    refresh_timer = mo.ui.refresh(default_interval="5s")
 
     # Main layout
     main_layout = mo.vstack([
         execution_controls,
         prompt_selector,
         mo.md("**Docker Container Management**"),
-        docker_controls,
-        mo.md("**Status**"),
-        status_indicators
+        docker_controls
     ])
 
     main_layout
     return (
-        container_status_text,
         docker_controls,
         execution_controls,
         launch_container_button,
         main_layout,
         mode_switch,
         prompt_selector,
+        refresh_timer,
         run_button,
-        server_status_text,
-        status_indicators,
         stop_container_button,
     )
 
 
 @app.cell(hide_code=True)
-def _(asyncio, chat, log, mo, responses, run_button, time):
+def _(
+    check_container_status,
+    check_server_health,
+    launch_result,
+    mo,
+    refresh_timer,
+    stop_result,
+):
+    # This cell will refresh automatically due to refresh_timer dependency
+    _ = refresh_timer.value  # Make this cell reactive to timer
+
+    # Get current status
+    server_status = check_server_health()
+    container_status = check_container_status()
+
+    # Show button results if any
+    button_results = []
+    if launch_result:
+        button_results.append(f"Launch: {launch_result}")
+    if stop_result:
+        button_results.append(f"Stop: {stop_result}")
+
+    button_results_text = " | ".join(button_results) if button_results else ""
+
+    # Create status display
+    status_text = f"**Status:** {server_status} | {container_status}"
+
+    if button_results_text:
+        status_text += f"\n\n**Last Action:** {button_results_text}"
+
+    status_display = mo.md(status_text)
+
+    # Display both timer and status
+    mo.hstack([status_display, refresh_timer])
+    return (
+        button_results,
+        button_results_text,
+        container_status,
+        refresh_timer,
+        server_status,
+        status_display,
+        status_text,
+    )
+
+
+@app.cell(hide_code=True)
+def _(aiohttp, asyncio, chat, log, mo, responses, run_button, time):
     mo.stop(run_button.value is None, mo.md("**Click button to run chats.**"))
 
-    async def run_chat(option):
-        log.flow(f"Starting chat for {option}")
+    async def send_to_server(prompt: str, base_url: str = "http://localhost:8000") -> str:
+        """Send request to REST server"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{base_url}/api/v1/process", 
+                    json={"input": prompt},
+                    timeout=aiohttp.ClientTimeout(total=300)  # 5 minute timeout
+                ) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return result.get("result", "No result returned")
+                    else:
+                        error_text = await response.text()
+                        return f"Server error ({response.status}): {error_text}"
+        except aiohttp.ClientError as e:
+            return f"Connection error: {str(e)}"
+        except asyncio.TimeoutError:
+            return "Request timed out (5 minutes)"
+        except Exception as e:
+            return f"Unexpected error: {str(e)}"
+
+    async def run_chat(option, use_server_mode=False):
+        log.flow(f"Starting chat for {option}", f"Server mode: {use_server_mode}")
         start_time = time.time()
-        result = await asyncio.to_thread(chat, loop=False, user_prompt=option)
+
+        if use_server_mode:
+            result = await send_to_server(option)
+        else:
+            result = await asyncio.to_thread(chat, loop=False, user_prompt=option)
+
         end_time = time.time()
         execution_time = end_time - start_time
         return {
             'prompt': option,
             'result': result,
-            'execution_time': execution_time
+            'execution_time': execution_time,
+            'mode': 'server' if use_server_mode else 'local'
         }
 
-    async def run_chats_parallel(options):
+    async def run_chats_parallel(options, use_server_mode=False):
         responses.clear()
-        tasks = [asyncio.create_task(run_chat(option)) for option in options]
+        tasks = [asyncio.create_task(run_chat(option, use_server_mode)) for option in options]
 
         # Use as_completed to handle results as they arrive
         for completed_task in asyncio.as_completed(tasks):
             try:
                 result = await completed_task
                 responses.append(result)
-                log.user(f"Completed task:", {result['prompt']})
-                log.debug(f"Took {result['execution_time']} seconds")
+                mode_text = f"({result['mode']} mode)"
+                log.user(f"Completed task {mode_text}:", {result['prompt']})
+                log.debug(f"Took {result['execution_time']:.2f} seconds")
             except Exception as e:
-                pass
+                log.error("Task failed", str(e))
 
-        results = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         return results
-
-    #return (ChatPromptTemplate, RunnableParallel, asyncio, run_chat,run_chats_parallel)
-    return run_chat, run_chats_parallel
+    return run_chat, run_chats_parallel, send_to_server
 
 
 @app.cell(hide_code=True)
@@ -191,7 +266,6 @@ def _(
     __file__,
     launch_container_button,
     log,
-    mo,
     stop_container_button,
     subprocess,
 ):
@@ -200,71 +274,94 @@ def _(
     def launch_container():
         """Launch Docker container using docker-compose"""
         try:
-            # Get the project directory (parent of launcher)
-            project_dir = Path(__file__).parent.parent
-            log.flow("Launching Docker container", f"Working directory: {project_dir}")
+            # Get the project root directory (PersonalAssistant)
+            project_root = Path(__file__).parent.parent.parent.parent
+            docker_compose_path = "Agents/NotionAgent/docker_compose.yaml"
+            log.flow("Launching Docker container", f"Working directory: {project_root}")
+            log.flow("Docker compose file", docker_compose_path)
+            log.flow("Full command", f"docker compose -f {docker_compose_path} up -d")
+
+            # Check if the compose file exists
+            compose_file_full_path = project_root / docker_compose_path
+            if not compose_file_full_path.exists():
+                error_msg = f"Docker compose file not found: {compose_file_full_path}"
+                log.error("Compose file missing", error_msg)
+                return f"❌ {error_msg}"
 
             result = subprocess.run(
-                ["docker-compose", "up", "-d"], 
-                cwd=project_dir,
+                ["docker", "compose", "-f", docker_compose_path, "up", "-d"], 
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+                timeout=120  # Increased timeout for build
+            )
+
+            log.flow("Command executed", f"Return code: {result.returncode}")
+            log.flow("STDOUT", result.stdout)
+            if result.stderr:
+                log.flow("STDERR", result.stderr)
+
+            if result.returncode == 0:
+                log.flow("Container launched successfully")
+                return "✅ Container launched successfully"
+            else:
+                log.error("Failed to launch container", result.stderr)
+                return f"❌ Error: {result.stderr}"
+
+        except subprocess.TimeoutExpired:
+            return "⏱️ Error: Container launch timed out (2 minutes)"
+        except Exception as e:
+            log.error("Exception launching container", str(e))
+            return f"❌ Error: {str(e)}"
+
+    def stop_container():
+        """Stop Docker container using docker-compose"""
+        try:
+            # Get the project root directory (PersonalAssistant)
+            project_root = Path(__file__).parent.parent.parent.parent
+            docker_compose_path = "Agents/NotionAgent/docker_compose.yaml"
+            log.flow("Stopping Docker container", f"Working directory: {project_root}")
+            log.flow("Docker compose file", docker_compose_path)
+
+            result = subprocess.run(
+                ["docker", "compose", "-f", docker_compose_path, "down"], 
+                cwd=project_root,
                 capture_output=True,
                 text=True,
                 timeout=60
             )
 
             if result.returncode == 0:
-                log.flow("Container launched successfully")
-                return "Container launched successfully"
-            else:
-                log.error("Failed to launch container", result.stderr)
-                return f"Error: {result.stderr}"
-
-        except subprocess.TimeoutExpired:
-            return "Error: Container launch timed out"
-        except Exception as e:
-            log.error("Exception launching container", str(e))
-            return f"Error: {str(e)}"
-
-    def stop_container():
-        """Stop Docker container using docker-compose"""
-        try:
-            project_dir = Path(__file__).parent.parent
-            log.flow("Stopping Docker container", f"Working directory: {project_dir}")
-
-            result = subprocess.run(
-                ["docker-compose", "down"], 
-                cwd=project_dir,
-                capture_output=True,
-                text=True,
-                timeout=60  # 1 minute timeout
-            )
-
-            if result.returncode == 0:
                 log.flow("Container stopped successfully")
-                return "Container stopped successfully"
+                return "✅ Container stopped successfully"
             else:
                 log.error("Failed to stop container", result.stderr)
-                return f"Error: {result.stderr}"
+                return f"❌ Error: {result.stderr}"
 
         except subprocess.TimeoutExpired:
-            return "Error: Container stop timed out"
+            return "⏱️ Error: Container stop timed out"
         except Exception as e:
             log.error("Exception stopping container", str(e))
-            return f"Error: {str(e)}"
+            return f"❌ Error: {str(e)}"
 
-    # Handle button clicks
-    if launch_container_button.value:
+    # Handle button clicks and return results
+    launch_result = None
+    stop_result = None
+
+    if launch_container_button.value is not None:
+        log.flow("Launch button clicked", f"Button value: {launch_container_button.value}")
         launch_result = launch_container()
-        mo.output.append(mo.md(f"**Launch Result**: {launch_result}"))
+        log.flow("Launch result", launch_result)
 
-    if stop_container_button.value:
+    if stop_container_button.value is not None:
+        log.flow("Stop button clicked", f"Button value: {stop_container_button.value}")
         stop_result = stop_container()
-        mo.output.append(mo.md(f"**Stop Result**: {stop_result}"))
+        log.flow("Stop result", stop_result)
     return launch_container, launch_result, stop_container, stop_result
 
 
 @app.cell(hide_code=True)
-def _(Path, __file__, mo, subprocess):
+def _(Path, __file__, subprocess):
     # Status checking functions
 
     def check_server_health():
@@ -282,10 +379,12 @@ def _(Path, __file__, mo, subprocess):
     def check_container_status():
         """Check Docker container status"""
         try:
-            project_dir = Path(__file__).parent.parent
+            project_root = Path(__file__).parent.parent.parent.parent
+            docker_compose_path = "Agents/NotionAgent/docker_compose.yaml"
+
             result = subprocess.run(
-                ["docker-compose", "ps", "--services", "--filter", "status=running"],
-                cwd=project_dir,
+                ["docker", "compose", "-f", docker_compose_path, "ps", "--services", "--filter", "status=running"],
+                cwd=project_root,
                 capture_output=True,
                 text=True,
                 timeout=10
@@ -302,43 +401,18 @@ def _(Path, __file__, mo, subprocess):
 
         except Exception as e:
             return "Container: Check failed ✗"
-
-    return check_server_health, check_container_status
-
-
-@app.cell(hide_code=True)
-def _(check_container_status, check_server_health, mo):
-    # Create status refresh button
-    status_refresh_button = mo.ui.button(label="Refresh Status")
-    status_refresh_button
-    return (status_refresh_button,)
+    return check_container_status, check_server_health
 
 
 @app.cell(hide_code=True)
-def _(check_container_status, check_server_health, mo, status_refresh_button):
-    # This cell gets refreshed when status button is clicked
-    # Get button value to make this cell reactive to button clicks
-    _ = status_refresh_button.value
-
-    # Get current status (this will be updated each time the button is clicked)
-    server_status = check_server_health()
-    container_status = check_container_status()
-
-    # Create status display
-    status_display = mo.md(f"""
-    **Current Status:**
-    - {server_status}
-    - {container_status}
-
-    _Click "Refresh Status" to update_
-    """)
-
-    status_display
-    return container_status, server_status, status_display
-
-
-@app.cell(hide_code=True)
-def _(asyncio, mo, prompt_selector, run_button, run_chats_parallel):
+def _(
+    asyncio,
+    mo,
+    mode_switch,
+    prompt_selector,
+    run_button,
+    run_chats_parallel,
+):
     update_tabs = False
     mo.stop(not run_button.value)
 
@@ -347,7 +421,10 @@ def _(asyncio, mo, prompt_selector, run_button, run_chats_parallel):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        task = loop.create_task(run_chats_parallel(prompt_selector.value))
+        # Get the server mode setting
+        use_server_mode = mode_switch.value
+
+        task = loop.create_task(run_chats_parallel(prompt_selector.value, use_server_mode))
         loop.run_until_complete(asyncio.wait_for(task, timeout=None))
 
         update_tabs = True
@@ -360,16 +437,24 @@ def _(asyncio, mo, prompt_selector, run_button, run_chats_parallel):
             pass
     finally:
         loop.close()
-    return loop, task, update_tabs
+    return loop, task, update_tabs, use_server_mode
 
 
 @app.cell(hide_code=True)
 def _(mo, responses, update_tabs):
     if update_tabs:
-        tabs = mo.ui.tabs({result['prompt'][:40]: result["result"] for result in responses})
+        # Create tabs with mode indicator and execution time
+        tab_data = {}
+        for result in responses:
+            mode_indicator = "🖥️" if result.get('mode') == 'server' else "💻"
+            time_str = f" ({result.get('execution_time', 0):.1f}s)"
+            tab_title = f"{mode_indicator} {result['prompt'][:35]}{time_str}"
+            tab_data[tab_title] = result["result"]
+
+        tabs = mo.ui.tabs(tab_data)
 
     tabs
-    return (tabs,)
+    return mode_indicator, result, tab_data, tab_title, tabs, time_str
 
 
 @app.cell(hide_code=True)
