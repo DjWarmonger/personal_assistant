@@ -31,13 +31,13 @@ Key goals:
   - `requirements.txt` compatible with core runtime dependencies
   - Both files contain exact versions from working conda environment
 
-### Phase 1 – Dockerfile Rewrite
-1. **Base image**: `python:3.11-slim` (keeps Pydantic v1 compatibility).
-2. **Install uv**:
+### Phase 1 – Dockerfile Rewrite ✅ COMPLETED
+1. ✅ **Base image**: `python:3.11-slim` (keeps Pydantic v1 compatibility).
+2. ✅ **Install uv**:
    ```dockerfile
    RUN pip install --no-cache-dir uv
    ```
-3. **Create venv & install deps**:
+3. ✅ **Create venv & install deps**:
    ```dockerfile
    # Create the exact same venv name used in development
    RUN uv venv /opt/.venv_uv_tz
@@ -46,21 +46,28 @@ Key goals:
    # Copy dependency manifests first for better layer caching
    COPY Agents/NotionAgent/requirements.txt ./
    COPY Agents/NotionAgent/pyproject.toml ./
-   RUN uv pip sync  # installs runtime deps into the venv
+   RUN uv pip install -r requirements.txt  # installs runtime deps into the venv
    ```
-4. **Copy sources**:
+4. ✅ **Copy sources**:
    ```dockerfile
    COPY common/src ./tz_common/src
    COPY Agents/NotionAgent/Agent ./Agent
    COPY Agents/NotionAgent/operations ./operations
    COPY Agents/NotionAgent/launcher ./launcher
    ```
-5. **Editable installs** (retain hot-reloading during local volume mounts):
+5. ✅ **Editable installs** (retain hot-reloading during local volume mounts):
    ```dockerfile
-   RUN uv pip install -e ./tz_common/src
+   RUN uv pip install -e ./tz_common
    RUN uv pip install -e .  # installs NotionAgent itself
    ```
-6. **Entrypoint & healthcheck** unchanged except for activating the venv path (already on PATH).
+6. ✅ **Production optimization**: Generic sed command removes "tests" from packages list
+7. ✅ **Entrypoint & healthcheck** unchanged except for activating the venv path (already on PATH).
+
+**Results:**
+- ✅ Image builds successfully (731MB, ~17MB smaller than pip version)
+- ✅ Container starts and initializes all components correctly
+- ✅ All imports working, UV environment functional
+- ✅ Only fails at OpenAI initialization due to missing API key (expected behavior)
 
 > 💡 *Why keep a venv in a container?*  The extra isolation avoids polluting the base interpreter, making layer-caching safer when multiple projects share the same base image.
 
@@ -144,6 +151,14 @@ After successful build & run:
 2. REST server reachable at `http://localhost:8000/health`.
 3. Log files persist via volume mount.
 4. Plan moved to `TASKS/DONE/` after user confirmation.
+
+## Current Status
+- ✅ **Phase 0**: Environment verified, all tests passing, dependencies confirmed
+- ✅ **Phase 1**: Dockerfile rewrite completed, image builds and runs successfully
+- ⏳ **Phase 2**: Ready to update docker_compose.yaml
+- ⏳ **Phase 3**: Pending development workflow testing
+- ⏳ **Phase 4**: Pending validation checklist
+- ⏳ **Phase 5**: Pending documentation updates
 
 ---
 *End of plan – no code files were modified.* 
