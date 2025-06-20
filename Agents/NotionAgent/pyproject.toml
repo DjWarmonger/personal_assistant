@@ -13,31 +13,36 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
 	# Core HTTP
-	"httpx>=0.27.0",
+	"httpx==0.27.0",
 	
 	# Pydantic and validation
-	"pydantic>=1.10.22,<2.0.0",
-	"typing_extensions>=4.12.2",
+	"pydantic==1.10.22",
+	"pydantic_core==2.33.2",
+	"annotated-types==0.7.0",
+	"typing_extensions==4.12.2",
 	
-	# LangChain ecosystem (exact versions for compatibility)
+	# LangChain ecosystem (exact versions from conda freeze)
 	"langchain==0.2.6",
 	"langchain-community==0.2.6",
 	"langchain-core==0.2.11",
 	"langchain-openai==0.1.14",
 	"langchain-text-splitters==0.2.2",
 	"langgraph==0.1.5",
+	"langsmith==0.1.83",
+	"langfuse==2.59.3",
 	
-	# OpenAI and AI (exact versions for compatibility)
+	# OpenAI and AI
 	"openai==1.35.10",
+	"tiktoken==0.7.0",
 	
 	# Configuration and utilities
-	"python-dotenv>=1.0.1",
+	"python-dotenv==1.0.1",
 	
 	# Web framework
-	"Flask>=3.0.3",
+	"Flask==3.0.3",
 	
 	# Async utilities
-	"nest-asyncio",
+	"nest-asyncio==1.6.0",
 	
 	# Local dependencies
 	"tz-common>=0.9.0",
