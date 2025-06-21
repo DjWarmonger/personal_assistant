@@ -1,0 +1,62 @@
+services:
+  # Discord Bot Service
+  discord-bot:
+    build:
+      context: .
+      dockerfile: discord-bot.Dockerfile
+    container_name: discord-notion-bot
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - NOTION_AGENT_URL=http://notion-agent:8000
+      - LOG_LEVEL=INFO
+    depends_on:
+      - notion-agent
+    networks:
+      - discord-notion-network
+
+  # Notion Agent Service
+  notion-agent:
+    build:
+      context: ../../
+      dockerfile: Agents/NotionAgent/Dockerfile
+    container_name: notion-agent
+    restart: unless-stopped
+    ports:
+      - "8080:8000"  # Map external 8080 to internal 8000
+    volumes:
+      - ../../Agents/NotionAgent/logs:/app/logs  # Persistent log storage
+    env_file:
+      - ../../Agents/NotionAgent/.env
+    environment:
+      # Ensure venv binaries are found first
+      - PATH=/opt/.venv_uv_tz/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+      - PYTHONPATH=/app:/app/tz_common
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/health').status==200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s  # Longer start period due to complex dependencies
+    networks:
+      - discord-notion-network
+
+  # Cloudflare Tunnel Service
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --config /etc/cloudflared/config.yml run
+    container_name: discord-notion-cloudflared
+    restart: unless-stopped
+    volumes:
+      - ./cloudflared:/etc/cloudflared
+    networks:
+      - discord-notion-network
+    # Note: No depends_on to avoid previous dependency issues
+
+networks:
+  discord-notion-network:
+    driver: bridge
+
+# volumes:
+#   notion_data:
+#     name: notion_data 
