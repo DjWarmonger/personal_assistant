@@ -1,5 +1,6 @@
 **/.code-workspace
 **/.vscode
+**/*.pem
 **/*.db
 **/*.log
 **/.pytest_cache

@@ -1,22 +1,22 @@
 # Cloudflare Tunnel Configuration for Discord -> Notion Agent
-# Replace with your actual tunnel ID and credentials file path
-tunnel: YOUR_TUNNEL_ID_HERE
-credentials-file: /etc/cloudflared/YOUR_TUNNEL_ID_HERE.json
+# Reusing existing tunnel configuration
+tunnel: e1439cb6-fd4e-4c3b-9bbb-c5dbc1f5273c
+credentials-file: /etc/cloudflared/e1439cb6-fd4e-4c3b-9bbb-c5dbc1f5273c.json
 
 ingress:
-  # Webhook endpoint exemption (to avoid 401 Unauthorized from Cloudflare Access)
-  - hostname: YOUR_DOMAIN_HERE
-    path: /webhook/*
-    service: http://notion-agent:8080
+  # Discord -> Notion Agent endpoints
+  - hostname: n8n.tzsmartsolutions.com
+    path: /notion/*
+    service: http://notion-agent:8000
 
-  # Main agent endpoint
-  - hostname: YOUR_DOMAIN_HERE
-    service: http://notion-agent:8080
-    
-  # Health check endpoint (optional)
-  - hostname: YOUR_DOMAIN_HERE
+  # Discord -> Notion Agent health check
+  - hostname: n8n.tzsmartsolutions.com
     path: /health
-    service: http://notion-agent:8080
+    service: http://notion-agent:8000
+    
+  # Main agent endpoint (fallback for root requests)
+  - hostname: n8n.tzsmartsolutions.com
+    service: http://notion-agent:8000
     
   # Catch-all rule (REQUIRED as the last rule to avoid container restart issues)
   - service: http_status:404

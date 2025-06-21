@@ -51,7 +51,8 @@ services:
       - ./cloudflared:/etc/cloudflared
     networks:
       - discord-notion-network
-    # Note: No depends_on to avoid previous dependency issues
+    depends_on:
+      - notion-agent
 
 networks:
   discord-notion-network:
